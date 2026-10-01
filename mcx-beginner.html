@@ -116,9 +116,11 @@
     </div>
 
     <!-- BACKTEST TAB TOGGLE -->
-    <div style="display:flex;gap:0;margin-bottom:1.25rem;background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:4px;width:fit-content">
-  <button id="btab-signals" onclick="showBegTab('signals')" style="font-size:11px;font-family:var(--fd);font-weight:600;padding:6px 16px;border-radius:7px;border:none;cursor:pointer;background:var(--bg4);color:var(--tx);transition:all .2s">📊 Signal History</button>
-  <button id="btab-analysis" onclick="showBegTab('analysis')" style="font-size:11px;font-family:var(--fd);font-weight:600;padding:6px 16px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--txd);transition:all .2s">📈 Performance</button>
+    <div style="display:flex;gap:0;margin-bottom:1.25rem;background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:4px;overflow-x:auto;max-width:100%">
+  <button id="btab-signals"   onclick="showBegTab('signals')"   style="font-size:10px;font-family:var(--fd);font-weight:600;padding:6px 12px;border-radius:7px;border:none;cursor:pointer;background:var(--bg4);color:var(--tx);transition:all .2s;white-space:nowrap">📊 Signals</button>
+  <button id="btab-analysis"  onclick="showBegTab('analysis')"  style="font-size:10px;font-family:var(--fd);font-weight:600;padding:6px 12px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--txd);transition:all .2s;white-space:nowrap">📈 Performance</button>
+  <button id="btab-simulator" onclick="showBegTab('simulator')" style="font-size:10px;font-family:var(--fd);font-weight:600;padding:6px 12px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--txd);transition:all .2s;white-space:nowrap">💰 P&amp;L Sim</button>
+  <button id="btab-heatmap"   onclick="showBegTab('heatmap')"   style="font-size:10px;font-family:var(--fd);font-weight:600;padding:6px 12px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--txd);transition:all .2s;white-space:nowrap">🌡 Heat Map</button>
     </div>
 
     <div id="beg-tab-signals">
@@ -134,15 +136,57 @@
     </div>
 
     <div id="beg-tab-analysis" style="display:none;margin-bottom:1.25rem">
-  <div class="b-perf-grid4" id="b-perf-grid">
+  <div class="b-perf-grid4" id="b-perf-grid" style="grid-template-columns:repeat(3,1fr)">
     <div class="bpcard"><div class="bpcard-l">Total Signals</div><div id="bp-total" class="bpcard-v">0</div></div>
     <div class="bpcard"><div class="bpcard-l">Target Hit %</div><div id="bp-win" class="bpcard-v" style="color:var(--grn)">—</div></div>
     <div class="bpcard"><div class="bpcard-l">Stop Loss %</div><div id="bp-loss" class="bpcard-v" style="color:var(--red)">—</div></div>
     <div class="bpcard"><div class="bpcard-l">Best Market</div><div id="bp-best" class="bpcard-v" style="color:var(--gold)">—</div></div>
+    <div class="bpcard"><div class="bpcard-l">Avg Confidence</div><div id="bp-avg-conf" class="bpcard-v" style="color:var(--cya)">—</div></div>
+    <div class="bpcard"><div class="bpcard-l">Open Trades</div><div id="bp-open" class="bpcard-v" style="color:var(--amb)">—</div></div>
   </div>
   <div style="background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:14px">
-  <div style="font-size:11px;font-weight:700;margin-bottom:10px;font-family:var(--fd)">Accuracy by Commodity</div>
+  <div style="font-size:11px;font-weight:700;margin-bottom:10px;font-family:var(--fd)">Signal Accuracy by Commodity</div>
   <div id="bp-by-com" style="display:flex;flex-direction:column;gap:7px"></div>
+  </div>
+    </div>
+
+    <!-- ══ P&L SIMULATOR TAB ══ -->
+    <div id="beg-tab-simulator" style="display:none;margin-bottom:1.25rem">
+  <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:16px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div>
+        <div style="font-size:14px;font-weight:800;font-family:var(--fd)">💰 P&amp;L Simulator</div>
+        <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-top:3px">What ₹1 lakh would have become following every signal</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:10px;color:var(--txd);font-family:var(--fm)">Capital ₹</label>
+        <input id="sim-capital" type="number" value="100000" step="10000" style="width:100px;background:var(--bg3);border:1px solid var(--br);color:var(--tx);padding:5px 8px;border-radius:5px;font-family:var(--fm);font-size:11px" onchange="renderSimulator()">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      <div class="bpcard"><div class="bpcard-l">Final Capital</div><div id="sim-final" class="bpcard-v" style="font-size:14px">—</div></div>
+      <div class="bpcard"><div class="bpcard-l">Total Return</div><div id="sim-return" class="bpcard-v">—</div></div>
+      <div class="bpcard"><div class="bpcard-l">Max Drawdown</div><div id="sim-dd" class="bpcard-v" style="color:var(--red)">—</div></div>
+      <div class="bpcard"><div class="bpcard-l">Trades Closed</div><div id="sim-trades" class="bpcard-v">—</div></div>
+    </div>
+    <div style="position:relative;height:190px;background:var(--bg3);border-radius:8px;overflow:hidden">
+      <canvas id="sim-canvas" width="800" height="190" style="width:100%;height:100%;display:block"></canvas>
+      <div id="sim-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:20px">No closed trades yet<br>Equity curve will appear here as trades close</div>
+    </div>
+    <div style="font-size:9px;color:var(--txm);font-family:var(--fm);margin-top:8px;text-align:center">Simulated · 1 lot per signal · Past results ≠ future performance</div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;font-family:var(--fd);margin-bottom:10px">P&amp;L Breakdown by Commodity</div>
+    <div id="sim-by-com"><div style="font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:16px">No data yet</div></div>
+  </div>
+    </div>
+
+    <!-- ══ HEAT MAP TAB ══ -->
+    <div id="beg-tab-heatmap" style="display:none;margin-bottom:1.25rem">
+  <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:16px">
+    <div style="font-size:14px;font-weight:800;font-family:var(--fd);margin-bottom:3px">🌡 Market Heat Map</div>
+    <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-bottom:14px">All 8 commodities ranked by signal conviction · Click to switch</div>
+    <div id="heatmap-grid"></div>
   </div>
     </div>
 
@@ -1260,14 +1304,16 @@ function renderBegEvents(evs){
 }
 
 function showBegTab(tab){
-  const tabs=['signals','analysis'];
+  const tabs=['signals','analysis','simulator','heatmap'];
   tabs.forEach(t=>{
     const el=document.getElementById('beg-tab-'+t);
     const btn=document.getElementById('btab-'+t);
     if(el)el.style.display=t===tab?'block':'none';
     if(btn){btn.style.background=t===tab?'var(--bg4)':'transparent';btn.style.color=t===tab?'var(--tx)':'var(--txd)';}
   });
-  if(tab==='analysis')updatePerfTab(signalHistory);
+  if(tab==='analysis')  { updatePerfTab(signalHistory); }
+  if(tab==='simulator') { renderSimulator(); }
+  if(tab==='heatmap')   { renderHeatMap(); }
 }
 
 function renderBacktest(){
@@ -1304,43 +1350,226 @@ function renderBacktest(){
 }
 
 function updatePerfTab(hist){
-  const closed=hist.filter(s=>{ const st = s.status || s.result; return st!=='OPEN' && st!=='RUNNING'; });
-  const wins=closed.filter(s=> { const st = s.status || s.result || ''; return st.includes('T'); }).length;
-  const losses=closed.filter(s=> { const st = s.status || s.result || ''; return st.includes('SL'); }).length;
+  const closed=hist.filter(s=>{ const st=s.status||s.result; return st&&st!=='OPEN'&&st!=='RUNNING'; });
+  const open=hist.filter(s=>{ const st=s.status||s.result; return st==='OPEN'||st==='RUNNING'; });
+  const wins=closed.filter(s=>{ const st=s.status||s.result||''; return st.includes('T'); }).length;
+  const losses=closed.filter(s=>{ const st=s.status||s.result||''; return st.includes('SL'); }).length;
+  const avgConf = hist.length ? Math.round(hist.reduce((a,s)=>a+(s.confidence||0),0)/hist.length) : 0;
 
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
-  set('bp-total',hist.length);
-  set('bp-win',  closed.length?Math.round(wins/closed.length*100)+'%':'—');
-  set('bp-loss', closed.length?Math.round(losses/closed.length*100)+'%':'—');
+  set('bp-total', hist.length);
+  set('bp-win',   closed.length ? Math.round(wins/closed.length*100)+'%' : '—');
+  set('bp-loss',  closed.length ? Math.round(losses/closed.length*100)+'%' : '—');
+  set('bp-avg-conf', hist.length ? avgConf+'%' : '—');
+  set('bp-open',  open.length || '0');
 
   // Best commodity
   const byCom={};
   closed.forEach(s=>{
-    if(!byCom[s.com])byCom[s.com]={w:0,t:0};
-    byCom[s.com].t++;
-    const st = s.status || s.result || '';
-    if(st.includes('T'))byCom[s.com].w++;
+    const key=s.comName||s.com||s.comId||'?';
+    if(!byCom[key])byCom[key]={w:0,t:0};
+    byCom[key].t++;
+    const st=s.status||s.result||'';
+    if(st.includes('T'))byCom[key].w++;
   });
   let bestCom='—',bestRate=0;
   Object.entries(byCom).forEach(([com,d])=>{const r=d.w/d.t;if(r>bestRate){bestRate=r;bestCom=com;}});
-  set('bp-best',bestCom==='—'?'—':bestCom);
+  set('bp-best', bestCom==='—'?'—':bestCom+' '+Math.round(bestRate*100)+'%');
 
-  // Per-commodity bars
+  // Per-commodity accuracy bars
   const byComEl=document.getElementById('bp-by-com');
   if(byComEl){
-    byComEl.innerHTML=Object.entries(byCom).map(([com,d])=>{
+    if(!Object.keys(byCom).length){ byComEl.innerHTML='<div style="font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:10px">No closed trades yet</div>'; return; }
+    byComEl.innerHTML=Object.entries(byCom).sort((a,b)=>b[1].w/b[1].t-a[1].w/a[1].t).map(([com,d])=>{
       const rate=Math.round(d.w/d.t*100);
       const col=rate>=60?'var(--grn)':rate>=45?'var(--amb)':'var(--red)';
-      return`<div style="display:flex;align-items:center;gap:10px;font-size:11px;font-family:var(--fm)">
-        <span style="width:65px;color:var(--txd)">${com}</span>
-        <div style="flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden">
+      const c=COMMS.find(x=>x.n===com||x.id===com);
+      return`<div style="display:flex;align-items:center;gap:10px;font-size:11px;font-family:var(--fm);margin-bottom:6px">
+        <span style="width:70px;color:var(--txd)">${c?c.icon+' ':''} ${com}</span>
+        <div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden">
           <div style="height:100%;background:${col};border-radius:3px;width:${rate}%;transition:width .8s ease"></div>
         </div>
-        <span style="color:${col};font-weight:600;width:36px;text-align:right">${rate}%</span>
-        <span style="color:var(--txm)">${d.w}/${d.t}</span>
+        <span style="color:${col};font-weight:700;width:36px;text-align:right">${rate}%</span>
+        <span style="color:var(--txm);font-size:10px">${d.w}W/${d.t-d.w}L</span>
       </div>`;
     }).join('');
   }
+}
+
+// ═══════════════════════════════════════════
+//  P&L SIMULATOR — Equity Curve
+// ═══════════════════════════════════════════
+function renderSimulator(){
+  try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2')||'[]'); } catch(_) {}
+  const capital = parseFloat(document.getElementById('sim-capital')?.value||'100000');
+  const closed = signalHistory.filter(s=>{
+    const st=s.status||s.result||'';
+    return (st.includes('T')||st.includes('SL')) && s.entryPrice && s.exitPrice;
+  }).sort((a,b)=>a.id-b.id);
+
+  const emptyEl = document.getElementById('sim-empty');
+  const canvas  = document.getElementById('sim-canvas');
+  if(!closed.length){
+    if(emptyEl) emptyEl.style.display='flex';
+    if(canvas){ const cx=canvas.getContext('2d'); cx.clearRect(0,0,canvas.width,canvas.height); }
+    ['sim-final','sim-return','sim-dd','sim-trades'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});
+    document.getElementById('sim-by-com').innerHTML='<div style="font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:16px">No closed trades yet</div>';
+    return;
+  }
+  if(emptyEl) emptyEl.style.display='none';
+
+  // Build equity curve
+  let equity=capital, maxEquity=capital, maxDD=0;
+  const curve=[capital];
+  const byCom={};
+  closed.forEach(s=>{
+    const riskPct = s.entryPrice ? Math.abs(s.entryPrice-s.sl)/s.entryPrice : 0.02;
+    const riskAmt = equity * Math.min(riskPct, 0.05); // cap risk at 5% per trade
+    const st=s.status||s.result||'';
+    let pnlPct=0;
+    if(st.includes('T2')) pnlPct = s.entryPrice ? Math.abs(s.t2-s.entryPrice)/s.entryPrice : 0.04;
+    else if(st.includes('T1')) pnlPct = s.entryPrice ? Math.abs(s.t1-s.entryPrice)/s.entryPrice : 0.02;
+    else if(st.includes('SL')) pnlPct = -(s.entryPrice ? Math.abs(s.sl-s.entryPrice)/s.entryPrice : 0.015);
+    equity += equity * pnlPct;
+    curve.push(equity);
+    maxEquity = Math.max(maxEquity, equity);
+    const dd = (maxEquity-equity)/maxEquity*100;
+    maxDD = Math.max(maxDD, dd);
+    // Per-commodity
+    const key=s.comName||s.comId||'?';
+    if(!byCom[key])byCom[key]={pnl:0,w:0,l:0};
+    if(pnlPct>0){byCom[key].pnl+=equity*pnlPct;byCom[key].w++;}
+    else{byCom[key].pnl+=equity*pnlPct;byCom[key].l++;}
+  });
+
+  // KPIs
+  const totalRet = (equity-capital)/capital*100;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  const retCol = totalRet>=0?'var(--grn)':'var(--red)';
+  set('sim-final',  '₹'+Math.round(equity).toLocaleString('en-IN'));
+  const retEl=document.getElementById('sim-return');
+  if(retEl){retEl.textContent=(totalRet>=0?'+':'')+totalRet.toFixed(2)+'%';retEl.style.color=retCol;}
+  set('sim-dd',    '-'+maxDD.toFixed(1)+'%');
+  set('sim-trades', closed.length);
+
+  // Draw equity curve
+  if(canvas){
+    const W=canvas.width, H=canvas.height;
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    const min=Math.min(...curve)*0.998, max=Math.max(...curve)*1.002;
+    const xS=(i)=>i/(curve.length-1)*(W-20)+10;
+    const yS=(v)=>H-10-(v-min)/(max-min)*(H-20);
+
+    // Fill gradient
+    const grad=ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, totalRet>=0?'rgba(34,197,94,0.25)':'rgba(239,68,68,0.25)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.moveTo(xS(0),yS(curve[0]));
+    curve.forEach((v,i)=>{ if(i>0) ctx.lineTo(xS(i),yS(v)); });
+    ctx.lineTo(xS(curve.length-1),H); ctx.lineTo(xS(0),H); ctx.closePath();
+    ctx.fillStyle=grad; ctx.fill();
+
+    // Line
+    ctx.beginPath(); ctx.moveTo(xS(0),yS(curve[0]));
+    curve.forEach((v,i)=>{ if(i>0) ctx.lineTo(xS(i),yS(v)); });
+    ctx.strokeStyle=totalRet>=0?'#22C55E':'#EF4444';
+    ctx.lineWidth=2; ctx.stroke();
+
+    // Baseline
+    ctx.beginPath(); ctx.moveTo(10,yS(capital)); ctx.lineTo(W-10,yS(capital));
+    ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1; ctx.setLineDash([4,4]); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Per-commodity breakdown
+  const bcEl=document.getElementById('sim-by-com');
+  if(bcEl){
+    bcEl.innerHTML=Object.entries(byCom).sort((a,b)=>b[1].pnl-a[1].pnl).map(([com,d])=>{
+      const c=COMMS.find(x=>x.n===com||x.id===com);
+      const col=d.pnl>=0?'var(--grn)':'var(--red)';
+      const total=d.w+d.l;
+      return`<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--br);font-family:var(--fm);font-size:11px">
+        <span style="width:70px;color:var(--txd)">${c?c.icon+' ':''} ${com}</span>
+        <span style="color:var(--txd)">${d.w}W/${d.l}L</span>
+        <span style="color:var(--txd);font-size:9px">${total?Math.round(d.w/total*100)+'%':''}</span>
+        <span style="margin-left:auto;color:${col};font-weight:700">${d.pnl>=0?'+':'-'}₹${Math.abs(Math.round(d.pnl)).toLocaleString('en-IN')}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  HEAT MAP — All commodities ranked
+// ═══════════════════════════════════════════
+function renderHeatMap(){
+  const el=document.getElementById('heatmap-grid'); if(!el) return;
+  try { signalHistory=JSON.parse(localStorage.getItem('mcx_signals_v2')||'[]'); } catch(_){}
+
+  // Compute per-commodity win rates from history
+  const stats={};
+  signalHistory.forEach(s=>{
+    const key=s.comId||s.com;
+    if(!key) return;
+    if(!stats[key])stats[key]={w:0,t:0};
+    const st=s.status||s.result||'';
+    if(st&&st!=='OPEN'&&st!=='RUNNING'){stats[key].t++;if(st.includes('T'))stats[key].w++;}
+  });
+
+  // Build rows sorted by signal confidence desc, WAIT at bottom
+  const rows = COMMS.map(c=>{
+    const sig=allSigs[c.id];
+    const ld=liveData[c.id];
+    const conf=sig?.confidence||0;
+    const action=sig?.action||'WAIT';
+    const price=sig?.price||ld?.price||c.base;
+    const prevClose=sig?.prevClose||price;
+    const chg=price&&prevClose?((price-prevClose)/prevClose*100):0;
+    const st=stats[c.id]||{w:0,t:0};
+    const wr=st.t?Math.round(st.w/st.t*100):null;
+    return {c, sig, action, conf, price, chg, wr, st};
+  }).sort((a,b)=>{
+    if(a.action==='WAIT'&&b.action!=='WAIT')return 1;
+    if(b.action==='WAIT'&&a.action!=='WAIT')return-1;
+    return b.conf-a.conf;
+  });
+
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:auto 1fr 90px 70px 70px;gap:0;font-size:9px;color:var(--txd);font-family:var(--fm);text-transform:uppercase;letter-spacing:.6px;padding:0 4px 8px">
+      <div>Market</div><div style="padding-left:8px">Conviction</div><div style="text-align:center">Signal</div><div style="text-align:center">Win Rate</div><div style="text-align:right">Price</div>
+    </div>
+    ${rows.map(({c,action,conf,price,chg,wr,st})=>{
+    const actCol=action==='BUY'?'var(--grn)':action==='SELL'?'var(--red)':'var(--txd)';
+    const actBg=action==='BUY'?'var(--grnbg)':action==='SELL'?'var(--redbg)':'var(--bg5)';
+    const barCol=action==='BUY'?'#22C55E':action==='SELL'?'#EF4444':'#32314A';
+    const wrCol=wr===null?'var(--txm)':wr>=60?'var(--grn)':wr>=45?'var(--amb)':'var(--red)';
+    const chgCol=chg>=0?'var(--grn)':'var(--red)';
+    const isActive=c.id===activeC?.id;
+    return`<div onclick="switchCom('${c.id}')" style="display:grid;grid-template-columns:auto 1fr 90px 70px 70px;gap:0;align-items:center;padding:10px 4px;border-radius:8px;cursor:pointer;margin-bottom:4px;${isActive?'background:var(--bg3);border:1px solid var(--brl)':'border:1px solid transparent'};transition:all .15s"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${isActive?'var(--bg3)':'transparent'}'">
+      <div style="display:flex;align-items:center;gap:8px;min-width:90px">
+        <span style="font-size:16px">${c.icon}</span>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--tx);font-family:var(--fd)">${c.n}</div>
+          <div style="font-size:9px;color:${chgCol};font-family:var(--fm)">${chg>=0?'+':''}${chg.toFixed(2)}%</div>
+        </div>
+      </div>
+      <div style="padding:0 12px">
+        <div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden">
+          <div style="height:100%;background:${barCol};border-radius:3px;width:${conf}%;transition:width .8s ease;opacity:${action==='WAIT'?0.3:1}"></div>
+        </div>
+        <div style="font-size:9px;color:var(--txd);font-family:var(--fm);margin-top:3px">${action!=='WAIT'?conf+'% confidence':'Waiting'}</div>
+      </div>
+      <div style="text-align:center">
+        <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;background:${actBg};color:${actCol};font-family:var(--fm)">${action==='BUY'?'▲ BUY':action==='SELL'?'▼ SELL':'⏸'}</span>
+      </div>
+      <div style="text-align:center;font-size:11px;font-weight:700;font-family:var(--fm);color:${wrCol}">
+        ${wr!==null?wr+'%':'—'}
+        ${st.t?`<div style="font-size:8px;color:var(--txm);font-weight:400">${st.t} trades</div>`:''}
+      </div>
+      <div style="text-align:right;font-family:var(--fm);font-size:11px;color:var(--tx)">${price?'₹'+Math.round(price).toLocaleString('en-IN'):'—'}</div>
+    </div>`;
+  }).join('')}`;
 }
 
 function _boot(){renderJournal();renderComTabs();fullRefresh();}
