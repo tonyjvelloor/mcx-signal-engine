@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCX Trade Log</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070A;--bg2:#0E0E14;--bg3:#14141C;--bg4:#1A1A24;--bg5:#21212E;--br:rgba(255,255,255,0.06);--brl:rgba(255,255,255,0.11);--tx:#D8D6E8;--txd:#6A6880;--txm:#32314A;--grn:#22C55E;--grn2:#16A34A;--grnbg:rgba(34,197,94,0.08);--red:#EF4444;--red2:#DC2626;--redbg:rgba(239,68,68,0.08);--amb:#F59E0B;--ambbg:rgba(245,158,11,0.08);--blu:#3B82F6;--blubg:rgba(59,130,246,0.08);--cya:#06B6D4;--cyabg:rgba(6,182,212,0.08);--pur:#A855F7;--purbg:rgba(168,85,247,0.08);--gold:#F5C542;--goldbg:rgba(245,197,66,0.08);--fm:'IBM Plex Mono',monospace;--fd:'Syne',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:100vh;font-size:13px}
+.gbar{background:var(--bg2);border-bottom:1px solid var(--br);height:46px;display:flex;align-items:center;padding:0 1rem;gap:0;position:sticky;top:0;z-index:200}
+.gbar-logo{font-family:var(--fm);font-size:14px;font-weight:500;color:var(--gold);letter-spacing:2px;padding-right:16px;border-right:1px solid var(--br);margin-right:14px;flex-shrink:0}
+.mode-tabs{display:flex;height:100%;gap:0;margin-right:16px;border-right:1px solid var(--br);padding-right:12px}
+.mode-tab{display:flex;align-items:center;gap:7px;padding:0 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--txd);transition:all .18s;border-bottom:2px solid transparent;white-space:nowrap}
+.mode-tab:hover{color:var(--tx)}
+.mode-tab.active{color:var(--tx);border-bottom-color:var(--gold)}
+.mode-tab .mt-icon{font-size:14px}
+.gbar-right{display:flex;align-items:center;gap:10px;padding-left:12px;border-left:1px solid var(--br);flex-shrink:0;margin-left:auto}
+.rfbtn{font-size:10px;font-family:var(--fm);padding:4px 12px;border-radius:4px;border:1px solid var(--brl);background:transparent;color:var(--gold);cursor:pointer;transition:all .15s}
+.rfbtn:hover:not(:disabled){background:var(--goldbg)}
+.log-container{max-width:1200px;margin:2rem auto;padding:0 1.5rem}
+.log-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem}
+.log-title{font-family:var(--fd);font-size:24px;font-weight:800;color:var(--tx)}
+.stat-cards{display:grid;grid-template-columns:repeat(4, 1fr);gap:1rem;margin-bottom:2rem}
+.scard{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:1.5rem}
+.scard-title{font-family:var(--fm);font-size:10px;color:var(--txd);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.scard-val{font-family:var(--fm);font-size:28px;font-weight:700}
+.scard-sub{font-size:11px;color:var(--txd);margin-top:4px}
+.log-table-wrap{background:var(--bg2);border:1px solid var(--br);border-radius:12px;overflow:hidden}
+.log-tbl{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:11px;text-align:left}
+.log-tbl th{background:var(--bg3);color:var(--txd);font-weight:600;padding:12px 16px;text-transform:uppercase;letter-spacing:0.5px;font-size:10px;border-bottom:1px solid var(--br)}
+.log-tbl td{padding:12px 16px;border-bottom:1px solid var(--br);color:var(--tx)}
+.log-tbl tr:last-child td{border-bottom:none}
+.log-tbl tr:hover td{background:var(--bg3)}
+.badge{display:inline-flex;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0.5px}
+.b-buy{background:var(--grnbg);color:var(--grn)}
+.b-sell{background:var(--redbg);color:var(--red)}
+.b-open{background:var(--ambbg);color:var(--amb)}
+.b-t1{background:var(--grnbg);color:var(--grn);border:1px solid rgba(34,197,94,.2)}
+.b-t2{background:var(--grnbg);color:#4ADE80;border:1px solid rgba(74,222,128,.2)}
+.b-sl{background:var(--redbg);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.c-grn{color:var(--grn)}
+.c-red{color:var(--red)}
+.empty-state{text-align:center;padding:4rem 2rem;color:var(--txd)}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:999;display:none;justify-content:center;align-items:center;}
+.modal{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:2rem;width:90%;max-width:500px;position:relative}
+.modal-close{position:absolute;top:1rem;right:1.5rem;cursor:pointer;color:var(--txd);font-size:18px;}
+.modal-close:hover{color:var(--tx)}
+.modal-title{font-family:var(--fd);font-size:20px;font-weight:700;margin-bottom:1.5rem;color:var(--gold)}
+.health-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--br);font-family:var(--fm);font-size:12px;color:var(--tx)}
+.health-row:last-child{border-bottom:none}
+.audit-log{background:var(--bg3);border:1px solid var(--br);padding:1rem;border-radius:8px;font-family:var(--fm);font-size:11px;color:var(--txd);max-height:300px;overflow-y:auto}
+.audit-entry{margin-bottom:8px}
+.audit-time{color:var(--gold);margin-right:8px}
+.btn-sm{background:transparent;border:1px solid var(--br);color:var(--txd);padding:4px 8px;border-radius:4px;cursor:pointer;font-family:var(--fm);font-size:9px;margin-left:8px;transition:all .15s}
+.btn-sm:hover{background:var(--bg3);color:var(--tx)}
+@media(max-width:768px){
+  .stat-cards{grid-template-columns:repeat(2, 1fr)}
+  .log-tbl{display:block;overflow-x:auto;white-space:nowrap}
+}
+</style>
+</head>
+<body>
+
+<div class="gbar">
+  <div class="gbar-logo">MCX</div>
+  <div class="mode-tabs">
+    <div class="mode-tab" id="tab-beg" onclick="setMode('beg')">
+      <span class="mt-icon">🟢</span> Beginner
+    </div>
+    <div class="mode-tab" id="tab-pro" onclick="setMode('pro')">
+      <span class="mt-icon">⚡</span> Pro
+    </div>
+    <div class="mode-tab active" id="tab-log" onclick="setMode('log')">
+      <span class="mt-icon">📋</span> Trade Log
+    </div>
+  </div>
+  <div class="gbar-right">
+    <button class="rfbtn" onclick="openHealthModal()">⚙️ Engine Health</button>
+    <button class="rfbtn" onclick="loadLogs()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="log-container">
+  <div class="log-header">
+    <div class="log-title">Automated Track Record</div>
+  </div>
+
+  <div class="stat-cards">
+    <div class="scard">
+      <div class="scard-title">Total Trades</div>
+      <div class="scard-val" id="st-total">0</div>
+      <div class="scard-sub">All signals generated</div>
+    </div>
+    <div class="scard">
+      <div class="scard-title">Win Rate</div>
+      <div class="scard-val" id="st-wr">0%</div>
+      <div class="scard-sub">T1 or T2 Hit</div>
+    </div>
+    <div class="scard">
+      <div class="scard-title">Net P&L (pts)</div>
+      <div class="scard-val" id="st-pnl">0</div>
+      <div class="scard-sub">Gross point capture</div>
+    </div>
+    <div class="scard">
+      <div class="scard-title">Open Trades</div>
+      <div class="scard-val" id="st-open">0</div>
+      <div class="scard-sub" style="color:var(--amb)">Currently active</div>
+    </div>
+  </div>
+
+  <div class="log-table-wrap">
+    <table class="log-tbl">
+      <thead>
+        <tr>
+          <th>Trade ID / Time</th>
+          <th>Commodity</th>
+          <th>Signal</th>
+          <th>Entry</th>
+          <th>Stop Loss</th>
+          <th>Target 1</th>
+          <th>Target 2</th>
+          <th>Exit</th>
+          <th>Status</th>
+          <th>P&L (pts)</th>
+          <th>Audit</th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        <tr>
+          <td colspan="10">
+            <div class="empty-state">
+              <span style="font-size:32px;display:block;margin-bottom:1rem">📭</span>
+              No signals recorded yet. Keep the Beginner or Pro dashboard open during market hours to log signals.
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="health-modal" onclick="if(event.target===this) this.style.display='none'">
+  <div class="modal">
+    <div class="modal-close" onclick="document.getElementById('health-modal').style.display='none'">✕</div>
+    <div class="modal-title">Engine Health</div>
+    <div id="health-content"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="audit-modal" onclick="if(event.target===this) this.style.display='none'">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-close" onclick="document.getElementById('audit-modal').style.display='none'">✕</div>
+    <div class="modal-title">Trade Audit Trail</div>
+    <div id="audit-meta" style="font-family:var(--fm);font-size:11px;color:var(--txd);margin-bottom:1rem"></div>
+    <div id="audit-content" class="audit-log"></div>
+  </div>
+</div>
+
+<script>
+function setMode(mode) {
+  if (mode === 'beg') window.location.href = 'mcx-beginner.html';
+  if (mode === 'pro') window.location.href = 'mcx-pro.html';
+}
+
+function openHealthModal() {
+  let health = { apiSuccess: 0, apiTotal: 0, avgResponse: 0, lastRefresh: null, signalsToday: 0 };
+  try { health = JSON.parse(localStorage.getItem('mcx_health_v1') || JSON.stringify(health)); } catch(e){}
+  
+  const sr = health.apiTotal > 0 ? ((health.apiSuccess / health.apiTotal) * 100).toFixed(1) : 0;
+  const lr = health.lastRefresh ? new Date(health.lastRefresh).toLocaleTimeString() : 'Never';
+  const ar = health.avgResponse ? Math.round(health.avgResponse) : 0;
+
+  document.getElementById('health-content').innerHTML = `
+    <div class="health-row"><span>API Success Rate</span><span style="color:${sr>90?'var(--grn)':'var(--red)'}">${sr}% (${health.apiSuccess}/${health.apiTotal})</span></div>
+    <div class="health-row"><span>Average Calc Time</span><span>${ar} ms</span></div>
+    <div class="health-row"><span>Last Heartbeat</span><span>${lr}</span></div>
+    <div class="health-row"><span>Signals Today</span><span>${health.signalsToday}</span></div>
+  `;
+  document.getElementById('health-modal').style.display = 'flex';
+}
+
+function openAuditModal(tradeId) {
+  let logs = [];
+  try { logs = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(e){}
+  const trade = logs.find(l => l.tradeId === tradeId);
+  if(!trade) return;
+
+  const m = trade.metadata || {};
+  document.getElementById('audit-meta').innerHTML = `Engine Version: ${m.engineVersion||'N/A'} | Strategy: ${m.strategy||'N/A'} | Model: ${m.signalModel||'N/A'}`;
+
+  let ah = '';
+  (trade.audit || []).forEach(a => {
+    const d = new Date(a.time);
+    const ts = d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    ah += `<div class="audit-entry"><span class="audit-time">[${ts}]</span> ${a.event}</div>`;
+  });
+  document.getElementById('audit-content').innerHTML = ah || 'No audit events found.';
+  document.getElementById('audit-modal').style.display = 'flex';
+}
+
+function loadLogs() {
+  let logs = [];
+  try {
+    logs = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]');
+  } catch(e) {
+    console.error(e);
+  }
+
+  const tbody = document.getElementById('log-body');
+  
+  if (!logs.length) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><span style="font-size:32px;display:block;margin-bottom:1rem">📭</span>No signals recorded yet. Keep the Beginner or Pro dashboard open to log signals.</div></td></tr>`;
+    document.getElementById('st-total').textContent = '0';
+    document.getElementById('st-wr').textContent = '0%';
+    document.getElementById('st-pnl').textContent = '0';
+    document.getElementById('st-open').textContent = '0';
+    return;
+  }
+
+  let totalClosed = 0;
+  let wins = 0;
+  let netPnl = 0;
+  let openTrades = 0;
+
+  let html = '';
+  logs.forEach(log => {
+    const status = log.status || log.result || '';
+    if (status === 'OPEN' || status === 'RUNNING') openTrades++;
+    else {
+      totalClosed++;
+      if (status.includes('T1') || status.includes('T2')) wins++;
+      if (log.pnl) netPnl += log.pnl;
+    }
+
+    const dt = new Date(log.id).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    
+    let resBadge = '';
+    if (status === 'OPEN') resBadge = `<span class="badge b-open">OPEN</span>`;
+    else if (status === 'RUNNING') resBadge = `<span class="badge b-open" style="color:var(--cya)">RUNNING</span>`;
+    else if (status === 'T1 HIT') resBadge = `<span class="badge b-t1">T1 HIT</span>`;
+    else if (status === 'T2 HIT') resBadge = `<span class="badge b-t2">T2 HIT</span>`;
+    else if (status === 'SL HIT') resBadge = `<span class="badge b-sl">SL HIT</span>`;
+    else resBadge = `<span style="color:var(--txd)">${status}</span>`;
+
+    let pnlFmt = '—';
+    if (log.pnl !== null) {
+      pnlFmt = log.pnl > 0 ? `<span class="c-grn">+${log.pnl}</span>` : `<span class="c-red">${log.pnl}</span>`;
+    }
+
+    html += `<tr>
+      <td><div style="font-size:9px;color:var(--txd);margin-bottom:2px">${log.tradeId||''}</div><div style="color:var(--txd)">${dt}</div></td>
+      <td style="font-weight:700;color:var(--gold)">${log.comId}</td>
+      <td><span class="badge ${log.action === 'BUY' ? 'b-buy' : 'b-sell'}">${log.action}</span></td>
+      <td>${log.entryPrice || log.price}</td>
+      <td style="color:var(--red)">${log.sl}</td>
+      <td style="color:var(--grn)">${log.t1}</td>
+      <td style="color:#4ADE80">${log.t2}</td>
+      <td>${log.exitPrice || '—'}</td>
+      <td>${resBadge}</td>
+      <td>${pnlFmt}</td>
+      <td><button class="btn-sm" onclick="openAuditModal('${log.tradeId}')">Audit</button></td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = html;
+
+  document.getElementById('st-total').textContent = logs.length;
+  document.getElementById('st-wr').textContent = totalClosed > 0 ? Math.round((wins/totalClosed)*100) + '%' : '0%';
+  
+  const pnlEl = document.getElementById('st-pnl');
+  pnlEl.textContent = (netPnl > 0 ? '+' : '') + netPnl;
+  pnlEl.style.color = netPnl > 0 ? 'var(--grn)' : netPnl < 0 ? 'var(--red)' : 'var(--tx)';
+
+  document.getElementById('st-open').textContent = openTrades;
+}
+
+setInterval(loadLogs, 5000);
+loadLogs();
+</script>
+</body>
+</html>

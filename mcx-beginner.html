@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MCX Signal Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+
+<style>:root{--bg:#07070A;--bg2:#0E0E14;--bg3:#14141C;--bg4:#1A1A24;--bg5:#21212E;--br:rgba(255,255,255,0.06);--brl:rgba(255,255,255,0.11);--tx:#D8D6E8;--txd:#6A6880;--txm:#32314A;--grn:#22C55E;--grn2:#16A34A;--grnbg:rgba(34,197,94,0.08);--red:#EF4444;--red2:#DC2626;--redbg:rgba(239,68,68,0.08);--amb:#F59E0B;--ambbg:rgba(245,158,11,0.08);--blu:#3B82F6;--blubg:rgba(59,130,246,0.08);--cya:#06B6D4;--cyabg:rgba(6,182,212,0.08);--pur:#A855F7;--purbg:rgba(168,85,247,0.08);--gold:#F5C542;--goldbg:rgba(245,197,66,0.08);--fm:'IBM Plex Mono',monospace;--fd:'Syne',sans-serif}*{box-sizing:border-box;margin:0;padding:0}html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:100vh;font-size:13px}.gbar{background:var(--bg2);border-bottom:1px solid var(--br);height:46px;display:flex;align-items:center;padding:0 1rem;gap:0;position:sticky;top:0;z-index:200}.gbar-logo{font-family:var(--fm);font-size:14px;font-weight:500;color:var(--gold);letter-spacing:2px;padding-right:16px;border-right:1px solid var(--br);margin-right:14px;flex-shrink:0}.mode-tabs{display:flex;height:100%;gap:0;margin-right:16px;border-right:1px solid var(--br);padding-right:12px}.mode-tab{display:flex;align-items:center;gap:7px;padding:0 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--txd);transition:all .18s;border-bottom:2px solid transparent;white-space:nowrap}.mode-tab:hover{color:var(--tx)}.mode-tab.active{color:var(--tx);border-bottom-color:var(--gold)}.mode-tab .mt-icon{font-size:14px}.com-scroll{display:flex;height:100%;overflow-x:auto;flex:1;scrollbar-width:none}.com-scroll::-webkit-scrollbar{display:none}.com-tab{display:flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer;font-size:10px;font-family:var(--fm);color:var(--txd);border-right:1px solid var(--br);transition:all .15s;white-space:nowrap;flex-shrink:0;height:100%}.com-tab:hover{background:var(--bg3);color:var(--tx)}.com-tab.active{background:var(--bg3);color:var(--tx)}.ct-sig{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.cs-BUY{background:var(--grnbg);color:var(--grn)}.cs-SELL{background:var(--redbg);color:var(--red)}.cs-WAIT{background:var(--bg5);color:var(--txd)}.gbar-right{display:flex;align-items:center;gap:10px;padding-left:12px;border-left:1px solid var(--br);flex-shrink:0;margin-left:auto}.gs{font-size:10px;font-family:var(--fm);color:var(--txd);white-space:nowrap}.gs strong{color:var(--tx)}.rfbtn{font-size:10px;font-family:var(--fm);padding:4px 12px;border-radius:4px;border:1px solid var(--brl);background:transparent;color:var(--gold);cursor:pointer;transition:all .15s}.rfbtn:hover:not(:disabled){background:var(--goldbg)}.rfbtn:disabled{opacity:.4;cursor:not-allowed}.spin{animation:sp 1s linear infinite;display:inline-block}.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block}.dlive{background:var(--grn);animation:pl 1.5s infinite}.dwait{background:var(--amb)}.doff{background:var(--txd)}.view{display:none}.view.active{display:block}.bst{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--fm);color:var(--txd)}.bst strong{color:var(--tx)}.bl{border-radius:10px;padding:11px;text-align:center;border:1px solid var(--br)}.bfbg{background:linear-gradient(90deg,var(--grn2),var(--grn))}.bfbr{background:linear-gradient(90deg,var(--red2),var(--red))}.bfba{background:var(--amb)}.psb{display:flex;align-items:center;gap:4px;font-size:10px;font-family:var(--fm);color:var(--txd);flex-shrink:0}.psb strong{color:var(--tx)}.psb-div{width:1px;height:12px;background:var(--br);flex-shrink:0}.ppb{padding:9px 11px}.ic-BUY,.ic-OVERSOLD{color:var(--grn)}.ic-SELL,.ic-OVERBOUGHT{color:var(--red)}.ic-NEUTRAL{color:var(--txd)}.chart-canvas-wrap{position:relative;width:100%;height:100%;min-height:170px}.pps-BUY{background:var(--grnbg);color:var(--grn)}.pps-SELL{background:var(--redbg);color:var(--red)}.pt-lbl{color:var(--txd)}.pt-val{text-align:right;font-weight:500;color:var(--tx)}.pt-R{color:var(--red)}.pt-S{color:var(--grn)}.pt-P{color:var(--gold)}.risk-form{padding:9px 11px;display:flex;flex-direction:column;gap:5px}.jtbl{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:9px}.jtbl th{font-size:7px;color:var(--txd);text-transform:uppercase;letter-spacing:.4px;padding:5px 7px;border-bottom:1px solid var(--br);text-align:left;background:var(--bg3);position:sticky;top:0}.jtbl td{padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.025);color:var(--tx)}.jtbl tr:hover td{background:var(--bg3)}.j-empty{font-size:9px;color:var(--txm);text-align:center;padding:16px;font-family:var(--fm)}.inter-row{display:flex;align-items:center;justify-content:space-between;padding:5px 7px;background:var(--bg3);border-radius:3px;margin-bottom:3px}.ir-n{font-size:9px;font-family:var(--fm);color:var(--txd)}.ir-v{font-size:9px;font-family:var(--fm);color:var(--tx)}.ir-s{font-size:8px;font-family:var(--fm);font-weight:600}.ldg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:1.5rem}.ring{width:22px;height:22px;border:2px solid var(--br);border-top-color:var(--gold);border-radius:50%;animation:ring-sp .9s linear infinite;flex-shrink:0}.ring-sm{width:16px;height:16px;border-width:1.5px}.ldg p{font-size:10px;color:var(--txd);font-family:var(--fm);text-align:center}.ni{border-left:2px solid var(--txm);border-radius:0 5px 5px 0;padding:8px 10px;background:var(--bg3);margin-bottom:1px}.ni-B{border-left-color:var(--grn)}.ni-S{border-left-color:var(--red)}.ni-N{border-left-color:var(--txm)}.ni-hl{font-size:11px;color:var(--tx);line-height:1.4;margin-bottom:3px}.ni-why{font-size:10px;color:var(--txd);line-height:1.5;margin-bottom:4px}.ni-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ni-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.nb-B{background:var(--grnbg);color:var(--grn)}.nb-S{background:var(--redbg);color:var(--red)}.nb-N{background:var(--bg5);color:var(--txd)}.ni-src{font-size:9px;color:var(--txm);font-family:var(--fm)}.ni-imp{font-size:9px;font-family:var(--fm);font-weight:600}.ni-HIGH{color:var(--red)}.ni-MEDIUM{color:var(--amb)}.ni-LOW{color:var(--txd)}.pvt-tabs{display:flex;gap:2px}.pvt-tab{font-size:8px;font-family:var(--fm);padding:2px 6px;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--txd);cursor:pointer;transition:all .15s}.pvt-tab:hover{color:var(--tx)}.pvt-tab.active{background:var(--bg5);border-color:var(--brl);color:var(--tx)}.hdiv{height:1px;background:var(--br);margin:.9rem 0}.geo-row{padding:5px 0;border-bottom:1px solid var(--br);display:flex;align-items:flex-start;gap:6px;font-size:11px}.ic-red{color:var(--red);flex-shrink:0}.c-red{color:var(--red)}.c-txm{color:var(--txm)}.evb-HIGH{background:var(--redbg);color:var(--red)}.evb-MEDIUM{background:var(--ambbg);color:var(--amb)}.evb-LOW{background:var(--bg5);color:var(--txd)}.ev{background:var(--bg3);border-radius:3px;padding:5px 7px;display:flex;align-items:center;gap:6px;margin-bottom:3px}@keyframes sp{to{transform:rotate(360deg)}}@keyframes pl{0%,100%{opacity:1}50%{opacity:.2}}@keyframes ring-sp{to{transform:rotate(360deg)}}@media(max-width:1100px){.pro-grid{grid-template-columns:230px 1fr}.pro-col:last-child{display:none}}@media(max-width:780px){.gbar{height:auto;flex-wrap:wrap;padding:8px 10px;gap:8px}.gbar-logo{border-right:none;padding-right:0}.mode-tabs{width:100%;order:-1}.mode-tab{flex:1;justify-content:center;font-size:11px;padding:6px 0}.com-scroll{order:3;width:100%;border-top:1px solid var(--br);margin-top:4px}.gbar-right{width:100%;justify-content:space-between;padding-left:0;border-left:none;font-size:10px}.gs{font-size:9px}.beg{padding:0.75rem 0.6rem}.beg-header h2{font-size:18px}.beg-statusrow{gap:8px}.bst{font-size:9px}.tlight{padding:10px 12px;gap:8px}.tl-dot{width:22px;height:22px}.tl-label{font-size:13px}.b-pillars{grid-template-columns:1fr}.b-levels{grid-template-columns:1fr 1fr}.b-explain{grid-template-columns:1fr}.b-bottom{grid-template-columns:1fr}.bsig-card{padding:1.1rem}.bsc-price{font-size:22px}.bsc-title{font-size:16px}.bcap-stats{grid-template-columns:1fr 1fr}.pro-statusbar{display:none}.pro-grid{grid-template-columns:1fr;height:auto}.pro-col:first-child,.pro-col:last-child{display:none}.pro-col:nth-child(2){display:flex;height:auto}.chart-wrap-pro{min-height:200px;height:220px}.vol-wrap{height:40px}.ind-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:480px){.b-levels{grid-template-columns:1fr}.ind-grid{grid-template-columns:repeat(2,1fr)}.pmtf-grid{grid-template-columns:repeat(3,1fr)}.bsig-card{padding:0.9rem}}.beg{max-width:1050px;margin:0 auto;padding:1.5rem 1rem}.beg-header{text-align:center;margin-bottom:1.5rem}.beg-header h2{font-size:22px;font-weight:800;color:var(--gold);letter-spacing:-.3px}.beg-header p{font-size:12px;color:var(--txd);margin-top:5px}.beg-statusrow{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:10px;flex-wrap:wrap}.bsig-card{border-radius:14px;padding:1.75rem;margin-bottom:1.25rem;border:2px solid}.bsc-BUY{background:var(--grnbg);border-color:rgba(34,197,94,.25)}.bsc-SELL{background:var(--redbg);border-color:rgba(239,68,68,.25)}.bsc-WAIT{background:var(--bg2);border-color:var(--br)}.bsc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:1rem}.bsc-badge{display:inline-flex;align-items:center;gap:10px;border-radius:14px;padding:12px 28px;font-family:var(--fd);font-size:22px;font-weight:800;margin-bottom:12px;letter-spacing:-.3px}.bb-BUY{background:linear-gradient(135deg,var(--grn2),#15803D);color:#fff;box-shadow:0 4px 24px rgba(34,197,94,0.35)}.bb-SELL{background:linear-gradient(135deg,var(--red2),#991B1B);color:#fff;box-shadow:0 4px 24px rgba(239,68,68,0.35)}.bb-WAIT{background:var(--bg4);color:var(--txd);border:1px solid var(--brl)}.bsc-title{font-family:var(--fd);font-size:22px;font-weight:700;line-height:1.3;margin-bottom:8px}.bsc-reason{font-size:13px;color:var(--txd);line-height:1.7;max-width:540px}.bsc-price{font-family:var(--fm);font-size:28px;font-weight:500;letter-spacing:-1px}.bsc-chg{font-size:12px;font-family:var(--fm);margin-top:4px}.bsc-src{font-size:9px;color:var(--txm);margin-top:5px;font-family:var(--fm)}.b-levels{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:.75rem}.bl-ent{background:rgba(245,197,66,.06);border-color:rgba(245,197,66,.2)}.bl-sl{background:var(--redbg);border-color:rgba(239,68,68,.2)}.bl-t1{background:var(--grnbg);border-color:rgba(34,197,94,.2)}.bl-t2{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)}.bl-label{font-size:9px;color:var(--txd);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;font-family:var(--fm)}.bl-val{font-size:15px;font-weight:700;font-family:var(--fm)}.bl-hint{font-size:10px;color:var(--txd);margin-top:3px;line-height:1.4}.bval-ent{color:var(--gold)}.bval-sl{color:var(--red)}.bval-t1{color:var(--grn)}.bval-t2{color:#4ADE80}.b-wait-box{background:var(--bg3);border-radius:10px;padding:1.25rem;text-align:center}.bwb-icon{font-size:28px;margin-bottom:7px}.bwb-title{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--txd);margin-bottom:5px}.bwb-msg{font-size:12px;color:var(--txm);line-height:1.6}.b-pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:1.25rem}.bp{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bp-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px}.bp-icon{font-size:16px}.bp-title{font-size:11px;font-weight:600;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;font-family:var(--fd)}.bp-verdict{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-bottom:7px;font-family:var(--fm)}.bpv-BUY,.bpv-BULLISH{background:var(--grnbg);color:var(--grn)}.bpv-SELL,.bpv-BEARISH{background:var(--redbg);color:var(--red)}.bpv-NEUTRAL,.bpv-WAIT,.bpv-MIXED{background:var(--ambbg);color:var(--amb)}.bp-body{font-size:11px;color:var(--txd);line-height:1.6}.bp-body strong{color:var(--tx)}.bfbar{height:5px;border-radius:3px;background:var(--bg4);margin-top:8px;overflow:hidden}.bfbar-fill{height:100%;border-radius:3px;transition:width 1s ease}.b-explain{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:1.25rem}.bexp{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bexp-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txd);font-family:var(--fd);margin-bottom:7px}.bexp-body{font-size:11px;color:var(--txd);line-height:1.7}.bexp-body strong{color:var(--tx)}.bnews-section{background:var(--bg2);border:1px solid var(--br);border-radius:12px;margin-bottom:1.25rem;overflow:hidden}.bnews-hdr{padding:12px 16px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between}.bnews-title{font-family:var(--fd);font-size:12px;font-weight:700}.bnews-list{padding:10px;display:flex;flex-direction:column;gap:7px;max-height:340px;overflow-y:auto}.bnews-list::-webkit-scrollbar{width:2px}.bnews-list::-webkit-scrollbar-thumb{background:var(--br)}.bevents{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:1.25rem}.bevents-title{font-family:var(--fd);font-size:12px;font-weight:700;margin-bottom:9px;color:var(--amb)}.bev-list{display:flex;flex-direction:column;gap:5px}.bev{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:7px;padding:8px 10px}.bev-n{flex:1;font-size:11px}.bev-d{font-size:10px;color:var(--txd);font-family:var(--fm)}.bev-b{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px}.bevb-HIGH{background:var(--redbg);color:var(--red)}.bevb-MEDIUM{background:var(--ambbg);color:var(--amb)}.bevb-LOW{background:var(--bg5);color:var(--txd)}.b-bottom{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:1.25rem}.bcap{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bcap-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txd);margin-bottom:10px;font-family:var(--fd)}.bcap-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}.bcs{background:var(--bg3);border-radius:7px;padding:8px 10px}.bcs-l{font-size:9px;color:var(--txd);margin-bottom:2px;font-family:var(--fm)}.bcs-v{font-size:16px;font-weight:700;font-family:var(--fm)}.tlight{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:1.25rem;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:12px}.tl-dot{width:28px;height:28px;border-radius:50%;transition:all .4s ease;flex-shrink:0}.tl-dot.active{box-shadow:0 0 16px 4px currentColor}.tl-red{background:var(--red);color:var(--red)}.tl-red.off{background:rgba(239,68,68,0.15);box-shadow:none}.tl-amb{background:var(--amb);color:var(--amb)}.tl-amb.off{background:rgba(245,158,11,0.15);box-shadow:none}.tl-grn{background:var(--grn);color:var(--grn)}.tl-grn.off{background:rgba(34,197,94,0.15);box-shadow:none}.tl-label{font-family:var(--fd);font-size:15px;font-weight:700}.tl-sub{font-size:11px;color:var(--txd);margin-top:2px}.disclaimer{background:var(--ambbg);border:1px solid rgba(245,158,11,.2);border-radius:9px;padding:10px 14px;font-size:11px;color:var(--amb);line-height:1.6;margin-bottom:1.25rem;text-align:center}.b-perf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.bpcard{background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center}.bpcard-l{font-size:9px;color:var(--txd);font-family:var(--fm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}.bpcard-v{font-size:20px;font-weight:700;font-family:var(--fm)}</style>
+</head>
+<body>
+
+</head>
+<body>
+
+<!-- ═══════════ GLOBAL TOP BAR ═══════════ -->
+<div class="gbar">
+  <div class="gbar-logo">MCX</div>
+  <div class="mode-tabs">
+    <div class="mode-tab active" id="tab-beg" onclick="setMode('beg')">
+  <span class="mt-icon">🟢</span> Beginner
+    </div>
+    <div class="mode-tab" id="tab-pro" onclick="setMode('pro')">
+  <span class="mt-icon">⚡</span> Pro
+    </div>
+    <div class="mode-tab" id="tab-log" onclick="setMode('log')">
+  <span class="mt-icon">📋</span> Trade Log
+    </div>
+    <div class="mode-tab" id="tab-india" onclick="setMode('india')">
+  <span class="mt-icon">🇮🇳</span> India Dashboard
+    </div>
+  </div>
+  <div class="com-scroll" id="comTabs"></div>
+  <div class="gbar-right">
+    <div class="gs"><span class="dot doff" id="connDot"></span> <span id="connTxt" style="font-size:10px;font-family:var(--fm);color:var(--txd)">—</span></div>
+    <div class="gs">INR <strong id="st-inr">₹93.95</strong></div>
+    <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
+    <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
+    <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
+    <button class="rfbtn" id="rfbtn" onclick="fullRefresh()"><span id="rfIcon">↻</span> Refresh</button>
+    <button class="rfbtn" onclick="openSettings()"><span style="font-size:12px">⚙</span></button>
+  </div>
+</div>
+
+
+<div class="view active" id="view-beg">
+  <div class="beg">
+    <div class="beg-header">
+  <h2>MCX Signal Engine</h2>
+  <p>Plain-English signals for 8 commodities · Built on news + fundamentals · For everyone</p>
+  <div class="beg-statusrow">
+  <div class="bst"><span class="dot doff" id="b-connDot"></span><span id="b-connTxt">Connecting...</span></div>
+  <div class="bst">USD/INR <strong id="b-inr">₹93.95</strong></div>
+  <div class="bst">Gold <strong id="b-xau" style="color:var(--gold)">$4,506.76</strong></div>
+  <div class="bst" id="b-usd-row" style="display:none"><span id="b-usd-name" style="color:var(--txd)">—</span> <strong id="b-usd-val" style="color:var(--cya)">$—</strong></div>
+  <div class="bst">Refresh in <strong id="b-cd" style="color:var(--amb)">—</strong></div>
+  <div class="bst">Updated <strong id="b-upd">—</strong></div>
+  </div>
+    </div>
+    <!-- TODAY'S FOCUS WIDGET -->
+    <div class="todays-focus" id="todays-focus-widget" style="display:none; background: var(--bg2); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid var(--cya);">
+      <div style="font-size: 10px; color: var(--cya); font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">TODAY'S FOCUS</div>
+      <div style="border-top: 1px solid var(--bdr); margin-bottom: 8px;"></div>
+      <div id="tf-header" style="font-size: 14px; font-weight: bold; margin-bottom: 8px;">
+        🥇 GOLD &nbsp;&nbsp;<span style="color:var(--grn)">▲ BUY</span> &nbsp;&nbsp;<span style="color:var(--txd)">87% confidence</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-family: var(--fm); font-size: 12px; margin-bottom: 8px;">
+        <div>Entry: <span id="tf-entry" style="color:var(--tx)">₹1,42,500</span></div>
+        <div>Stop: <span id="tf-stop" style="color:var(--red)">₹1,41,800</span></div>
+        <div>Target 1: <span id="tf-t1" style="color:var(--grn)">₹1,43,100</span> <span id="tf-p1" style="color:var(--txm); font-size: 10px">(profit: ₹600)</span></div>
+        <div>Target 2: <span id="tf-t2" style="color:var(--grn)">₹1,43,900</span> <span id="tf-p2" style="color:var(--txm); font-size: 10px">(profit: ₹1,400)</span></div>
+        <div style="grid-column: 1 / -1; margin-top: 4px;">Risk: <span id="tf-risk" style="color:var(--amb)">₹700 per 10g</span></div>
+      </div>
+      <div style="border-top: 1px solid var(--bdr); margin-bottom: 8px;"></div>
+      <div style="font-size: 10px; color: var(--txm);">Signal active since: <span id="tf-time">08:52 AM</span></div>
+    </div>
+
+    <!-- TRAFFIC LIGHT -->
+    <div class="tlight" id="b-tlight">
+  <div style="display:flex;align-items:center;gap:10px">
+  <div class="tl-dot tl-red off" id="tl-red"></div>
+  <div class="tl-dot tl-amb active" id="tl-amb"></div>
+  <div class="tl-dot tl-grn off" id="tl-grn"></div>
+  </div>
+  <div>
+  <div class="tl-label" id="tl-label" style="color:var(--amb)">Loading signal...</div>
+  <div class="tl-sub" id="tl-sub">Fetching prices and news</div>
+  </div>
+    </div>
+
+    <div id="b-signalCard">
+  <div class="bsig-card bsc-WAIT"><div class="ldg"><div class="ring"></div><p>Loading signal...</p></div></div>
+    </div>
+
+    <div class="b-pillars" id="b-pillars">
+  <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
+  <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
+  <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
+    </div>
+
+    <div class="b-explain" id="b-explain" style="display:none"></div>
+
+    <div class="bnews-section">
+  <div class="bnews-hdr">
+  <span class="bnews-title">Why the market is moving</span>
+  <span id="b-ncount" style="font-size:10px;color:var(--txd);font-family:var(--fm)">—</span>
+  </div>
+  <div id="b-newsWrap"><div class="ldg"><div class="ring"></div><p>Fetching news...</p></div></div>
+    </div>
+
+    <div id="b-eventsRow" style="display:none">
+  <div class="bevents">
+  <div class="bevents-title">⚠ Upcoming events that could move prices</div>
+  <div class="bev-list" id="b-evList"></div>
+  </div>
+    </div>
+
+    <!-- BACKTEST TAB TOGGLE -->
+    <div style="display:flex;gap:0;margin-bottom:1.25rem;background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:4px;width:fit-content">
+  <button id="btab-signals" onclick="showBegTab('signals')" style="font-size:11px;font-family:var(--fd);font-weight:600;padding:6px 16px;border-radius:7px;border:none;cursor:pointer;background:var(--bg4);color:var(--tx);transition:all .2s">📊 Signal History</button>
+  <button id="btab-analysis" onclick="showBegTab('analysis')" style="font-size:11px;font-family:var(--fd);font-weight:600;padding:6px 16px;border-radius:7px;border:none;cursor:pointer;background:transparent;color:var(--txd);transition:all .2s">📈 Performance</button>
+    </div>
+
+    <div id="beg-tab-signals">
+  <div class="bnews-section" style="margin-bottom:1.25rem">
+  <div class="bnews-hdr">
+  <span class="bnews-title">📋 Signal History — Last 30 Signals</span>
+  <span id="b-bt-stats" style="font-size:10px;color:var(--txd);font-family:var(--fm)">—</span>
+  </div>
+  <div id="b-backtest" style="padding:10px">
+  <div style="font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:16px">Signals will appear here as they are generated. Keep the app open to build history.</div>
+  </div>
+  </div>
+    </div>
+
+    <div id="beg-tab-analysis" style="display:none;margin-bottom:1.25rem">
+  <div class="b-perf-grid4" id="b-perf-grid">
+    <div class="bpcard"><div class="bpcard-l">Total Signals</div><div id="bp-total" class="bpcard-v">0</div></div>
+    <div class="bpcard"><div class="bpcard-l">Target Hit %</div><div id="bp-win" class="bpcard-v" style="color:var(--grn)">—</div></div>
+    <div class="bpcard"><div class="bpcard-l">Stop Loss %</div><div id="bp-loss" class="bpcard-v" style="color:var(--red)">—</div></div>
+    <div class="bpcard"><div class="bpcard-l">Best Market</div><div id="bp-best" class="bpcard-v" style="color:var(--gold)">—</div></div>
+  </div>
+  <div style="background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:14px">
+  <div style="font-size:11px;font-weight:700;margin-bottom:10px;font-family:var(--fd)">Accuracy by Commodity</div>
+  <div id="bp-by-com" style="display:flex;flex-direction:column;gap:7px"></div>
+  </div>
+    </div>
+
+    <div class="disclaimer">⚠ For learning only. Always use the stop loss shown. Never risk more than 10% per trade.</div>
+
+    <!-- TELEGRAM ALERT SETUP -->
+    <div class="tg-setup">
+  <div class="tg-hdr">
+  <span class="tg-icon">✈️</span>
+  <div>
+  <div class="tg-title" style="color:#0088CC">Telegram Alert Bot Setup</div>
+  <div class="tg-sub">Get BUY/SELL alerts pushed to your Telegram channel automatically</div>
+  </div>
+  <button onclick="toggleTgSetup()" style="margin-left:auto;background:transparent;border:1px solid var(--br);border-radius:6px;color:var(--txd);font-size:10px;padding:4px 10px;cursor:pointer;font-family:var(--fm)" id="tg-toggle">▼ Show setup</button>
+  </div>
+  <div id="tg-setup-body" style="display:none">
+  <div class="tg-steps">
+  <div class="tg-step">
+  <div class="tg-num">1</div>
+  <div class="tg-step-body">
+  <strong>Create a Telegram bot</strong> — Open Telegram, search <strong>@BotFather</strong>, send <code>/newbot</code>, give it a name. Copy the API token it gives you.
+  <span class="tg-code" onclick="copyText(this,'6123456789:AAF...')" title="Paste your token here">📋 Example token: 6123456789:AAFxxxxxxxxxxxxxxxxxxxxxxx</span>
+  </div>
+  </div>
+  <div class="tg-step">
+  <div class="tg-num">2</div>
+  <div class="tg-step-body">
+  <strong>Get your Chat ID</strong> — Create a channel or group, add your bot as admin. Then visit:<br>
+  <span class="tg-code" onclick="copyText(this,'https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates')">📋 https://api.telegram.org/bot&lt;YOUR_TOKEN&gt;/getUpdates</span>
+  Send a message to the group, refresh the URL — look for <code>"chat":{"id":-100xxxxxxxxxx}</code>
+  </div>
+  </div>
+  <div class="tg-step">
+  <div class="tg-num">3</div>
+  <div class="tg-step-body">
+  <strong>Enter your details below</strong> — paste token and chat ID. The terminal will push alerts when confidence ≥ 75%.
+  </div>
+  </div>
+  </div>
+  <div class="tg-input-row">
+  <input class="tg-input" id="tg-token" placeholder="Bot Token: 6123456789:AAF...">
+  <input class="tg-input" id="tg-chatid" placeholder="Chat ID: -1001234567890" style="max-width:180px">
+  <button class="tg-btn" onclick="saveTgConfig()">Save & Test</button>
+  </div>
+  <div class="tg-status" id="tg-status"></div>
+  <div style="margin-top:8px;font-size:10px;color:var(--txm);font-family:var(--fm);line-height:1.6">
+  Alerts fire when: signal is BUY or SELL · confidence ≥ 75% · volume confirmed · not sent in last 30 min for same commodity
+  </div>
+  </div>
+    </div>
+
+    <div class="b-bottom">
+  <div class="bcap">
+  <div class="bcap-label">Capital Tracker</div>
+  <div class="bcap-stats">
+  <div class="bcs"><div class="bcs-l">Capital</div><div class="bcs-v" id="b-cap" style="color:var(--gold)">₹5,000</div></div>
+  <div class="bcs"><div class="bcs-l">P&L</div><div class="bcs-v" id="b-pnl" style="color:var(--txd)">₹0</div></div>
+  <div class="bcs"><div class="bcs-l">Trades</div><div class="bcs-v" id="b-trades">0</div></div>
+  <div class="bcs"><div class="bcs-l">Win Rate</div><div class="bcs-v" id="b-wr" style="color:var(--txd)">—</div></div>
+  </div>
+  </div>
+  <div class="bcap">
+  <div class="bcap-label">Trade Journal</div>
+  <div class="pj-form" style="padding:9px 11px">
+  <input class="pji" id="b-jEnt" type="number" placeholder="Entry ₹" style="width:85px">
+  <input class="pji" id="b-jEx"  type="number" placeholder="Exit ₹"  style="width:85px">
+  <input class="pji" id="b-jQty" type="number" value="1" style="width:45px">
+  <button class="pjb pjb-buy"  onclick="logTrade('BUY','beg')">BUY</button>
+  <button class="pjb pjb-sell" onclick="logTrade('SELL','beg')">SELL</button>
+  <button class="pjb pjb-clr"  onclick="clearJournal()" style="margin-left:auto">⌫</button>
+  </div>
+  <div style="overflow-x:auto;max-height:120px">
+  <table class="jtbl"><thead><tr><th>Com</th><th>Type</th><th>Entry</th><th>P&L</th><th>Date</th></tr></thead>
+  <tbody id="b-jbody"></tbody></table>
+  <div class="j-empty" id="b-jempty">No trades yet</div>
+  </div>
+  </div>
+    </div>
+  </div>
+</div>
+
+
+<script>const COMMS = [
+  {id:'gold',   n:'GOLD',   icon:'🥇', unit:'₹/10g',   usd:'$/oz',    ticker:'GC=F', conv:(p,r)=>p*r*10/31.1035*1.0426, sl_atr:2.5,t1_atr:4,t2_atr:7,  base:141900, color:'#F5C542',
+   why:'Gold rises on fear — wars, weak dollar, high inflation. Falls when economies calm.',
+   drivers:['Indian monsoon','US crop report','China textiles'],
+   geo:['US-China tariff war → textile demand drop','Pakistan floods → supply disruption','India-Pakistan tension → trade disruption']},
+  {id:'silver', n:'SILVER', icon:'🥈', unit:'₹/kg',    usd:'$/oz',    ticker:'SI=F', conv:(p,r)=>p*r*1000/31.1035*1.0771,sl_atr:2,  t1_atr:3,t2_atr:6,  base:221000, color:'#B0BEC5',
+   why:'Silver tracks gold plus industrial demand from solar and electronics.',
+   drivers:['Gold price movement','Solar energy demand','Industrial output'],
+   geo:['US-Iran War — safe-haven demand pushes silver higher along with gold','China factory activity — slowdown hurts silver industrial demand','US tariff wars — higher tariffs disrupt global manufacturing = silver falls']},
+  {id:'crude',  n:'CRUDE',  icon:'🛢️', unit:'₹/bbl',   usd:'$/bbl',   ticker:'CL=F', conv:(p,r)=>p*r,             sl_atr:2,  t1_atr:3,t2_atr:5,  base:8999,   color:'#8D6E63',
+   why:'Oil rises on Middle East tensions and OPEC cuts. Falls on demand slowdown.',
+   drivers:['OPEC+ supply decisions','Middle East conflicts','US oil inventories'],
+   geo:['US-Iran War — Iran controls Strait of Hormuz (20% of world oil) → blockade spikes crude 30-50%','Russia-Ukraine — Russian oil sanctions cut global supply → crude higher','OPEC+ cuts — Saudi Arabia reducing output pushes prices up']},
+  {id:'natgas', n:'NATGAS', icon:'🔥', unit:'₹/MMBtu', usd:'$/MMBtu', ticker:'NG=F', conv:(p,r)=>p*r,             sl_atr:2,  t1_atr:3,t2_atr:5.5,base:315,    color:'#FF8A65',
+   why:'Gas spikes in winter and on Russian supply disruptions.',
+   drivers:['Winter weather','Russian supply','LNG exports'],
+   geo:['Russia-Ukraine War — Russian gas pipeline cuts to Europe raised global LNG demand massively','US-Iran tension — Iran gas supply disruption affects LNG pricing','European energy crisis — EU buying US LNG, supporting prices']},
+  {id:'copper', n:'COPPER', icon:'🟤', unit:'₹/kg',    usd:'$/lb',    ticker:'HG=F', conv:(p,r)=>p*r*2.20462,     sl_atr:2.5,t1_atr:3.5,t2_atr:6,base:1139,   color:'#A1887F',
+   why:'Copper tracks global growth. China demand drives 50% of prices.',
+   drivers:['China economic data','EV demand','Manufacturing PMI'],
+   geo:['US-China trade war — tariffs on Chinese goods hurt copper-heavy manufacturing','China stimulus announcements — infrastructure spending = copper demand surge','Chile/Peru political unrest — mine strikes cut supply, copper spikes']},
+  {id:'zinc',   n:'ZINC',   icon:'⚙️', unit:'₹/kg',    usd:'$/t',     ticker:'ZNC=F',conv:(p,r)=>p*r/1000, // LME Zinc $/t → ₹/kg                   sl_atr:2,  t1_atr:3,t2_atr:5,  base:307,    color:'#80DEEA',
+   why:'Zinc follows steel and construction spending cycles.',
+   drivers:['Construction activity','China steel demand','LME inventory'],
+   geo:['China reopening/lockdowns — biggest zinc consumer, policy changes move price','US infrastructure bill — new construction projects = zinc demand spike','Russia-Ukraine — Ukraine produces 8% of global zinc ore']},
+  {id:'alum',   n:'ALUM',   icon:'🔩', unit:'₹/kg',    usd:'$/t',     ticker:'ALI=F',conv:(p,r)=>p*r/1000, // LME Aluminium $/t → ₹/kg                   sl_atr:2.5,t1_atr:4,t2_atr:7,  base:336,    color:'#90CAF9',
+   why:'Aluminium tracks energy costs — smelting needs huge electricity.',
+   drivers:['Energy prices','Auto sector demand','Packaging industry'],
+   geo:['Russia-Ukraine — Russia is world largest aluminium exporter; sanctions = supply shock','European energy crisis — aluminium smelters shut down due to power costs','China export quotas — China restricting exports tightens global supply']},
+  {id:'cotton', n:'COTTON', icon:'☁️', unit:'₹/bale',  usd:'¢/lb',    ticker:'CT=F', conv:(p,r)=>p*r*0.4536*480/100, // USc/lb → ₹/bale (1 bale=480lb)                   sl_atr:2,  t1_atr:3,t2_atr:5,  base:60500,  color:'#E0E0E0',
+   why:'Cotton follows Indian monsoon, US crop reports and textile demand.',
+   drivers:['Indian monsoon','US crop reports','China textile demand'],
+   geo:['US-China trade war — tariffs on textiles hurt cotton demand','Pakistan floods — major cotton producer disruption spikes global prices','Bangladesh garment sector — any political instability affects textile demand']},
+];
+const SIG_T={},SIG_A={};
+
+let activeC    = COMMS[0];
+let usdInr     = 93.95; // USD/INR as of March 27, 2026
+let priceCache = {};
+let liveData   = {};
+let allInds    = {};
+let allSigs    = {};
+let newsData   = null;
+let journal    = [];
+let isBusy     = false;
+let countdown  = 30;
+let cdTimer    = null;
+let newsTimer  = null;
+let pivotType  = 'classic';
+let currentTF  = '5m';
+let CH         = {main:null,vol:null};
+let currentMode = 'beg';
+let signalHistory = [];
+try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(_) {}
+const signalLocks = {}; // comId → { action, lockedAt, confidence }
+
+function updateHealth(metric, val) {
+  try {
+    const health = JSON.parse(localStorage.getItem('mcx_health_v1') || '{"apiSuccess":0,"apiTotal":0,"avgResponse":0,"lastRefresh":null,"signalsToday":0}');
+    if (metric === 'api') {
+      health.apiTotal++;
+      if (val === true) health.apiSuccess++;
+      health.lastRefresh = Date.now();
+    } else if (metric === 'time') {
+      health.avgResponse = health.avgResponse ? (health.avgResponse * 0.9) + (val * 0.1) : val;
+    } else if (metric === 'signal') {
+      health.signalsToday++;
+    }
+    localStorage.setItem('mcx_health_v1', JSON.stringify(health));
+  } catch(e) {}
+}
+
+function generateTradeId(comId) {
+  const d = new Date();
+  const ds = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  const ts = String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+  const seq = String(Math.floor(Math.random()*1000)).padStart(3,'0');
+  return `MCX-${comId}-${ds}-${ts}-${seq}`;
+}
+
+function migrateOldSignals() {
+  try {
+    let logs = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]');
+    let changed = false;
+    logs = logs.map(s => {
+      let mod = false;
+      if (s.result && !s.status) { s.status = s.result; mod = true; }
+      if (s.price && !s.entryPrice) { s.entryPrice = s.price; mod = true; }
+      if (!s.tradeId) { s.tradeId = generateTradeId(s.comId); mod = true; }
+      if (!s.audit) { s.audit = [{ time: s.id, event: 'Migrated from legacy schema' }]; mod = true; }
+      if (mod) changed = true;
+      return s;
+    });
+    if (changed) localStorage.setItem('mcx_signals_v2', JSON.stringify(logs));
+  } catch(e) {}
+}
+migrateOldSignals();
+
+function recordSignal(sig, comId) {
+  if (!sig || sig.action === 'WAIT') return;
+  try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(_) {}
+  const com = COMMS.find(c => c.id === comId);
+  const now = Date.now();
+  const entry = {
+    id: now,
+    tradeId: generateTradeId(comId),
+    comId,
+    comName: com?.n || comId,
+    action: sig.action,
+    confidence: sig.confidence,
+    entryPrice: sig.price,
+    sl: sig.sl,
+    t1: sig.t1,
+    t2: sig.t2,
+    atr: sig.atr,
+    newsScore: sig.newsScore,
+    techScore: sig.techScore,
+    timestamp: new Date().toISOString(),
+    date: new Date().toLocaleDateString('en-IN'),
+    time: new Date().toLocaleTimeString('en-IN'),
+    status: 'OPEN',
+    exitPrice: null,
+    exitTime: null,
+    pnl: null,
+    metadata: {
+      engineVersion: "2.1.0",
+      strategy: "MultiTimeframe",
+      weights: "v4",
+      signalModel: "ConfidenceModel2"
+    },
+    audit: [
+      { time: now, event: `${sig.action} Generated at ${sig.price}` }
+    ]
+  };
+  signalHistory.unshift(entry);
+  if (signalHistory.length > 200) signalHistory = signalHistory.slice(0, 200);
+  try { localStorage.setItem('mcx_signals_v2', JSON.stringify(signalHistory)); } catch(_) {}
+  updateHealth('signal', true);
+  if(typeof renderBacktest === 'function') renderBacktest();
+}
+
+function checkSignalResults() {
+  try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(_) {}
+  let changed = false;
+  const updated = signalHistory.map(s => {
+    if (s.status === 'CLOSED' || s.status === 'T1 HIT' || s.status === 'T2 HIT' || s.status === 'SL HIT') return s;
+    const ld = liveData[s.comId];
+    if (!ld || !ld.price) return s;
+    const p = ld.price;
+    const now = Date.now();
+    
+    if (s.status === 'OPEN') {
+      changed = true;
+      s.status = 'RUNNING';
+      s.audit.push({ time: now, event: `Entry Triggered at ${p}` });
+      return s;
+    }
+
+    if (s.status === 'RUNNING') {
+      const isBuy = s.action === 'BUY';
+      let exitStatus = null;
+      let exitPrice = p;
+      let pnl = 0;
+      
+      if (isBuy ? p >= s.t2 : p <= s.t2) { exitStatus = 'T2 HIT'; pnl = Math.round(Math.abs(p - s.entryPrice)); }
+      else if (isBuy ? p >= s.t1 : p <= s.t1) { exitStatus = 'T1 HIT'; pnl = Math.round(Math.abs(p - s.entryPrice)); }
+      else if (isBuy ? p <= s.sl : p >= s.sl) { exitStatus = 'SL HIT'; pnl = -Math.round(Math.abs(p - s.entryPrice)); }
+      
+      if (exitStatus) {
+        changed = true;
+        s.status = exitStatus;
+        s.exitPrice = exitPrice;
+        s.exitTime = new Date().toISOString();
+        s.pnl = pnl;
+        s.audit.push({ time: now, event: `${exitStatus} at ${exitPrice}` });
+        s.audit.push({ time: now + 1, event: `Closed with P&L: ${pnl}` });
+      }
+    }
+    return s;
+  });
+  if (changed) {
+    signalHistory = updated;
+    try { localStorage.setItem('mcx_signals_v2', JSON.stringify(signalHistory)); } catch(_) {}
+    if(typeof renderBacktest === 'function') renderBacktest();
+  }
+}
+try{journal=JSON.parse(localStorage.getItem('mcx_v4')||'[]');}catch(_){journal=[];}
+const R   = (a,b)=>Math.random()*(b-a)+a;
+const CLP = (v,a,b)=>Math.max(a,Math.min(b,v));
+function fmt(v){
+  if(v==null||!isFinite(v))return'—';
+  const a=Math.abs(v);
+  if(a<10)return'₹'+v.toFixed(2);
+  if(a<100)return'₹'+v.toFixed(1);
+  return'₹'+Math.round(v).toLocaleString('en-IN');
+}
+function fmtD(d){
+  if(d==null||!isFinite(d))return'—';
+  const a=Math.abs(d);
+  const s=a<10?a.toFixed(2):a<100?a.toFixed(1):Math.round(a).toLocaleString('en-IN');
+  return(d>=0?'+₹':'-₹')+s;
+}
+function fmtPct(ch,base){
+  if(!base||!isFinite(base)||base===0)return'0.00%';
+  const p=(ch/base)*100;return(p>=0?'+':'')+p.toFixed(2)+'%';
+}
+function sp(v){return(v&&isFinite(v)&&v!==0)?v:1;}
+function fmtUSD(intlPx, com) {
+  if (!intlPx || !isFinite(intlPx) || intlPx <= 0) return '—';
+  const u = com?.usd || '';
+  if (intlPx < 10) return '$' + intlPx.toFixed(3) + ' ' + u;
+  if (intlPx < 100) return '$' + intlPx.toFixed(2) + ' ' + u;
+  return '$' + intlPx.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + u;
+}
+function fetchT(url,ms=9000){
+  return new Promise((res,rej)=>{
+    const t=setTimeout(()=>rej(new Error('timeout')),ms);
+    fetch(url).then(r=>{clearTimeout(t);res(r);}).catch(e=>{clearTimeout(t);rej(e);});
+  });
+}
+async function fetchUSDINR(){
+  try{
+    const r=await fetchT('https://api.frankfurter.app/latest?from=USD&to=INR',7000);
+    if(!r.ok)return;
+    const d=await r.json();
+    if(d?.rates?.INR&&isFinite(d.rates.INR)&&d.rates.INR>50){
+ usdInr=d.rates.INR;
+ document.getElementById('st-inr').textContent='₹'+usdInr.toFixed(2);
+ const _bi=document.getElementById('b-inr');if(_bi)_bi.textContent='₹'+usdInr.toFixed(2);
+    }
+  }catch(_){}
+}
+async function fetchMetals(){
+  try{
+    const r=await fetchT('https://api.metals.live/v1/spot',8000);
+    if(!r.ok)return;
+    const d=await r.json();
+    const src=Array.isArray(d)?Object.assign({},...d):d;
+    Object.entries(src).forEach(([k,v])=>{if(isFinite(v)&&v>0)priceCache[k]=v;});
+    if(priceCache.gold){
+ document.getElementById('st-xau').textContent='$'+priceCache.gold.toFixed(2);
+ const _bx=document.getElementById('b-xau');if(_bx)_bx.textContent='$'+priceCache.gold.toFixed(2);
+    }
+  }catch(_){}
+}
+async function fetchYF(ticker, interval, range) {
+  const PROXY = 'https://mcx-yahoo-proxy.vercel.app/api/yahoo';
+  try {
+    const r = await fetchT(`${PROXY}?ticker=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}`, 8000);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.chart?.result?.[0] || null;
+  } catch(_) { return null; }
+}
+function genCandles(base,n,vol){const a=[base];for(let i=1;i<n;i++)a.push(Math.max(base*.85,a[i-1]+R(-vol,vol)));return a;}
+async function fetchCommodity(c){
+  if(!c.ticker){buildEstimated(c);return;}
+  if(!c.conv){buildEstimated(c);return;}
+  if(c.id==='gold'&&priceCache.gold){buildFromSpot(c,priceCache.gold);return;}
+  if(c.id==='silver'&&priceCache.silver){buildFromSpot(c,priceCache.silver);return;}
+  const yf=await fetchYF(c.ticker,'5m','5d');
+  if(yf){
+    const meta=yf.meta,q=yf.indicators?.quote?.[0]||{};
+    const cls=(q.close||[]).filter(x=>x&&isFinite(x));
+    const his=(q.high ||[]).filter(x=>x&&isFinite(x));
+    const los=(q.low  ||[]).filter(x=>x&&isFinite(x));
+    const vls=(q.volume||[]).filter(x=>x&&isFinite(x));
+    const intl=meta.regularMarketPrice||(cls.length?cls[cls.length-1]:0)||c.base;
+    const prev=meta.chartPreviousClose||meta.previousClose||intl;
+    const hi=meta.regularMarketDayHigh||(his.length?Math.max(...his):intl*1.005);
+    const lo=meta.regularMarketDayLow ||(los.length?Math.min(...los):intl*0.995);
+    liveData[c.id]={
+ closes:cls.map(p=>c.conv(p,usdInr)),highs:his.map(p=>c.conv(p,usdInr)),
+ lows:los.map(p=>c.conv(p,usdInr)),vols:vls,
+ price:c.conv(intl,usdInr),prevClose:c.conv(prev,usdInr),
+ high:c.conv(hi,usdInr),low:c.conv(lo,usdInr),
+ intlPrice:intl,src:'Yahoo',
+    };
+    return;
+  }
+  buildEstimated(c);
+}
+function buildFromSpot(c,intlPx){
+  const px=c.conv(intlPx,usdInr);
+  const prev=liveData[c.id]?.price||px*(1+R(-0.005,0.005));
+  const fk=genCandles(px,60,px*0.0012);
+  liveData[c.id]={closes:fk,highs:fk.map(p=>p*(1+R(0,0.001))),lows:fk.map(p=>p*(1-R(0,0.001))),
+    vols:fk.map(()=>Math.round(R(100,900))),price:px,prevClose:prev,high:px*1.004,low:px*0.996,intlPrice:intlPx,src:'metals.live'};
+}
+function buildEstimated(c){
+  const last=liveData[c.id]?.price||c.base;
+  const px=last*(1+R(-0.002,0.002));
+  const fk=genCandles(px,60,px*0.0012);
+  const estUSD = px / (usdInr||93.89);
+  liveData[c.id]={closes:fk,highs:fk.map(p=>p*(1+R(0,0.001))),lows:fk.map(p=>p*(1-R(0,0.001))),
+    vols:fk.map(()=>Math.round(R(100,700))),price:px,prevClose:px*(1+R(-0.003,0.003)),high:px*1.003,low:px*0.997,intlPrice:estUSD,src:'Est'};
+}
+function ema(arr,n){
+  if(!arr.length)return 0;
+  const k=2/(n+1);
+  let e=arr.slice(0,Math.min(n,arr.length)).reduce((s,v)=>s+v,0)/Math.min(n,arr.length);
+  for(let i=Math.min(n,arr.length);i<arr.length;i++)e=arr[i]*k+e*(1-k);
+  return e;
+}
+function sma(arr,n){const s=arr.slice(-Math.min(n,arr.length));return s.length?s.reduce((a,b)=>a+b,0)/s.length:0;}
+function calcRSI(arr,n=14){
+  if(arr.length<n+1)return 50;
+  let g=0,l=0;
+  for(let i=arr.length-n;i<arr.length;i++){const d=arr[i]-arr[i-1];d>0?g+=d:l+=Math.abs(d);}
+  const rs=(g/n)/((l/n)||.001);return CLP(100-100/(1+rs),1,99);
+}
+function calcMACD(arr){
+  const e12=ema(arr,12),e26=ema(arr,26),line=e12-e26;
+  const signal=ema(arr.map((_,i)=>{
+    if(i<26)return 0;
+    return ema(arr.slice(0,i+1),12)-ema(arr.slice(0,i+1),26);
+  }).slice(26),9);
+  return{line,signal,hist:line-signal};
+}
+function calcBB(arr,n=20,mult=2){
+  const mid=sma(arr,n);
+  const sl=arr.slice(-Math.min(n,arr.length));
+  const std=Math.sqrt(sl.reduce((s,p)=>s+(p-mid)**2,0)/(sl.length||1));
+  return{upper:mid+mult*std,mid,lower:mid-mult*std,width:(mult*2*std)/sp(mid)*100};
+}
+function calcATR(cls,his,los,n=14){
+  const l=Math.min(cls.length,his.length,los.length);
+  const trs=[];
+  for(let i=1;i<l;i++)trs.push(Math.max(his[i]-los[i],Math.abs(his[i]-cls[i-1]),Math.abs(los[i]-cls[i-1])));
+  if(!trs.length)return 0;
+  return trs.slice(-n).reduce((a,b)=>a+b,0)/Math.min(n,trs.length);
+}
+function calcStoch(cls,his,los,n=14){
+  const sc=cls.slice(-n),sh=his.slice(-n),sl=los.slice(-n);
+  if(!sc.length)return{k:50,d:50};
+  const hi=Math.max(...sh),lo=Math.min(...sl);
+  const k=hi===lo?50:(sc[sc.length-1]-lo)/(hi-lo)*100;
+  return{k:CLP(k,0,100),d:CLP(sma([k,k,k],3),0,100)};
+}
+function calcADX(cls,his,los,n=14){
+  const l=Math.min(cls.length,his.length,los.length);
+  if(l<n+1)return{adx:25,plus:25,minus:25};
+  let smTR=0,smP=0,smM=0;
+  for(let i=1;i<=Math.min(n,l-1);i++){
+    const tr=Math.max(his[i]-los[i],Math.abs(his[i]-cls[i-1]),Math.abs(los[i]-cls[i-1]));
+    smTR+=tr;smP+=Math.max(his[i]-his[i-1],0);smM+=Math.max(los[i-1]-los[i],0);
+  }
+  const pDI=smTR?smP/smTR*100:0,mDI=smTR?smM/smTR*100:0;
+  const dx=pDI+mDI?Math.abs(pDI-mDI)/(pDI+mDI)*100:0;
+  return{adx:CLP(dx,0,100),plus:CLP(pDI,0,100),minus:CLP(mDI,0,100)};
+}
+function calcCCI(cls,his,los,n=20){
+  const sl=cls.slice(-n),sh=his.slice(-n),slo=los.slice(-n);
+  const tp=sl.map((_,i)=>(sl[i]+(sh[i]||sl[i])+(slo[i]||sl[i]))/3);
+  const ma=tp.reduce((a,b)=>a+b,0)/(tp.length||1);
+  const md=tp.reduce((s,v)=>s+Math.abs(v-ma),0)/(tp.length||1);
+  return md?CLP((tp[tp.length-1]-ma)/(0.015*md),-300,300):0;
+}
+function calcWR(cls,his,los,n=14){
+  const sc=cls.slice(-n),sh=his.slice(-n),sl=los.slice(-n);
+  if(!sc.length)return -50;
+  const hi=Math.max(...sh),lo=Math.min(...sl);
+  return hi===lo?-50:CLP((hi-sc[sc.length-1])/(hi-lo)*-100,-100,0);
+}
+function calcOBV(cls,vls){
+  let o=0;for(let i=1;i<Math.min(cls.length,vls.length);i++){cls[i]>cls[i-1]?o+=vls[i]:cls[i]<cls[i-1]?o-=vls[i]:null;}return o;
+}
+function calcVWAP(cls,vls){
+  let tv=0,tpv=0;for(let i=0;i<Math.min(cls.length,vls.length);i++){tv+=vls[i];tpv+=cls[i]*vls[i];}return tv?tpv/tv:cls[cls.length-1]||0;
+}
+function calcIch(cls,his,los){
+  const n9h=his.length?Math.max(...his.slice(-9)):0,n9l=los.length?Math.min(...los.slice(-9)):0;
+  const n26h=his.length?Math.max(...his.slice(-26)):0,n26l=los.length?Math.min(...los.slice(-26)):0;
+  const n52h=his.length?Math.max(...his.slice(-52)):0,n52l=los.length?Math.min(...los.slice(-52)):0;
+  const t=(n9h+n9l)/2,k=(n26h+n26l)/2;
+  return{tenkan:t,kijun:k,senkouA:(t+k)/2,senkouB:(n52h+n52l)/2};
+}
+function calcMFI(cls,his,los,vls,n=14){
+  let pos=0,neg=0;
+  for(let i=Math.max(1,cls.length-n);i<cls.length;i++){
+    const tp=(cls[i]+(his[i]||cls[i])+(los[i]||cls[i]))/3;
+    const ptp=((cls[i-1]||cls[i])+(his[i-1]||cls[i-1])+(los[i-1]||cls[i-1]))/3;
+    const mf=tp*(vls[i]||0);
+    tp>ptp?pos+=mf:neg+=mf;
+  }
+  return neg?CLP(100-100/(1+pos/neg),0,100):100;
+}
+function detectPatterns(cls,his,los){
+  const pats=[],n=cls.length;if(n<3)return pats;
+  const L=n-1,P=n-2,P2=n-3;
+  const op=cls.map((p,i)=>i>0?cls[i-1]:p);
+  const bL=Math.abs(cls[L]-op[L]),rL=his[L]-los[L],bull=cls[L]>op[L],bear=cls[L]<op[L];
+  const bP=Math.abs(cls[P]-op[P]);
+  if(rL>0&&bL/rL<0.1)pats.push({name:'Doji',icon:'〤',sig:'WAIT',desc:'Market indecision — neither bulls nor bears winning'});
+  if(bull&&bL>0&&(los[L]-Math.min(cls[L],op[L]))>2*bL&&(his[L]-Math.max(cls[L],op[L]))<bL)
+    pats.push({name:'Hammer',icon:'🔨',sig:'BUY',desc:'Buyers stepped in strongly at lows'});
+  if(bear&&bL>0&&(Math.max(cls[L],op[L])-his[L])<bL&&(Math.min(cls[L],op[L])-los[L])>2*bL)
+    pats.push({name:'Shooting Star',icon:'⭐',sig:'SELL',desc:'Sellers rejected the high — bearish reversal'});
+  if(bull&&cls[P]<op[P]&&op[L]<cls[P]&&cls[L]>op[P])
+    pats.push({name:'Bullish Engulfing',icon:'🟢',sig:'BUY',desc:'Bulls completely engulfed bears — strong reversal'});
+  if(bear&&cls[P]>op[P]&&op[L]>cls[P]&&cls[L]<op[P])
+    pats.push({name:'Bearish Engulfing',icon:'🔴',sig:'SELL',desc:'Bears engulfed bulls — strong reversal'});
+  if(n>=3&&cls[P2]<op[P2]&&bP<bL*0.4&&cls[L]>op[L]&&cls[L]>cls[P2])
+    pats.push({name:'Morning Star',icon:'🌅',sig:'BUY',desc:'3-candle bullish reversal pattern'});
+  if(n>=3&&cls[P2]>op[P2]&&bP<bL*0.4&&cls[L]<op[L]&&cls[L]<cls[P2])
+    pats.push({name:'Evening Star',icon:'🌆',sig:'SELL',desc:'3-candle bearish reversal pattern'});
+  if(rL>0&&bL/rL>0.9)pats.push({name:bull?'Bull Marubozu':'Bear Marubozu',icon:bull?'📗':'📕',sig:bull?'BUY':'SELL',desc:bull?'Full bull control — no selling pressure':'Full bear control — no buying pressure'});
+  if(n>=3&&cls[L]>op[L]&&cls[P]>op[P]&&cls[P2]>op[P2]&&cls[L]>cls[P]&&cls[P]>cls[P2])
+    pats.push({name:'3 White Soldiers',icon:'🪖',sig:'BUY',desc:'Strong consecutive bullish candles'});
+  if(n>=3&&cls[L]<op[L]&&cls[P]<op[P]&&cls[P2]<op[P2]&&cls[L]<cls[P]&&cls[P]<cls[P2])
+    pats.push({name:'3 Black Crows',icon:'🐦',sig:'SELL',desc:'Strong consecutive bearish candles'});
+  return pats.slice(0,6);
+}
+function calcPivots(h,l,c,type='classic'){
+  const P=(h+l+c)/3;
+  if(type==='camarilla'){const rng=h-l;return{P,R1:c+rng*1.1/12,R2:c+rng*1.1/6,R3:c+rng*1.1/4,S1:c-rng*1.1/12,S2:c-rng*1.1/6,S3:c-rng*1.1/4};}
+  if(type==='woodie'){const wP=(h+l+2*c)/4;return{P:wP,R1:2*wP-l,R2:wP+(h-l),R3:h+2*(wP-l),S1:2*wP-h,S2:wP-(h-l),S3:l-2*(h-wP)};}
+  return{P,R1:2*P-l,R2:P+(h-l),R3:h+2*(P-l),S1:2*P-h,S2:P-(h-l),S3:l-2*(h-P)};
+}
+function calcFib(hi,lo,price){
+  const diff=hi-lo;
+  return[0,0.236,0.382,0.5,0.618,0.786,1,1.272,1.618].map(lvl=>({
+    pct:lvl*100,price:hi-diff*lvl,nearest:Math.abs(price-(hi-diff*lvl))<diff*0.025
+  }));
+}
+function detectStructure(cls){
+  if(cls.length<10)return{str:'Unknown',trend:'NEUTRAL',mom:'0.00'};
+  const last5=cls.slice(-5),prev5=cls.slice(-10,-5);
+  const lA=last5.reduce((a,b)=>a+b,0)/5,pA=prev5.reduce((a,b)=>a+b,0)/5;
+  const mom=(lA-pA)/sp(pA)*100;
+  const isHH=last5[4]>last5[2]&&last5[2]>last5[0];
+  const isLL=last5[4]<last5[2]&&last5[2]<last5[0];
+  let str='Ranging',trend='NEUTRAL';
+  if(isHH&&mom>0.3){str='Higher Highs';trend='BULLISH';}
+  else if(isLL&&mom<-0.3){str='Lower Lows';trend='BEARISH';}
+  else if(mom>0.5){str='Uptrend';trend='BULLISH';}
+  else if(mom<-0.5){str='Downtrend';trend='BEARISH';}
+  return{str,trend,mom:mom.toFixed(2)};
+}
+function detectRSIDivergence(cls,his,los){
+  if(cls.length<20)return{type:'NONE',label:'Not enough data'};
+  const n=cls.length;
+  const rsi_now=calcRSI(cls);
+  const rsi_prev=calcRSI(cls.slice(0,-5));
+  const price_now=cls[n-1];
+  const price_prev=cls[n-6]||cls[0];
+  const priceUp=price_now>price_prev;
+  const rsiUp=rsi_now>rsi_prev;
+  if(priceUp&&!rsiUp&&rsi_now>55)return{type:'BEARISH',label:'Bearish RSI divergence — price rising but RSI weakening (reversal risk)'};
+  if(!priceUp&&rsiUp&&rsi_now<45)return{type:'BULLISH',label:'Bullish RSI divergence — price falling but RSI strengthening (reversal chance)'};
+  return{type:'NONE',label:'No RSI divergence'};
+}
+function computeIndicators(c){
+  const ld=liveData[c.id];if(!ld||!ld.closes.length)return null;
+  const cls=ld.closes,his=ld.highs,los=ld.lows,vls=ld.vols||[];
+  const price=ld.price;
+  const rsi=calcRSI(cls);
+  const macd=calcMACD(cls);
+  const bb=calcBB(cls);
+  const atr=calcATR(cls,his,los);
+  const stoch=calcStoch(cls,his,los);
+  const adx=calcADX(cls,his,los);
+  const cci=calcCCI(cls,his,los);
+  const willr=calcWR(cls,his,los);
+  const obv=calcOBV(cls,vls);
+  const vwap=calcVWAP(cls,vls);
+  const ich=calcIch(cls,his,los);
+  const mfi=calcMFI(cls,his,los,vls);
+  const e9=ema(cls,9),e21=ema(cls,21),e50=ema(cls,50),e200=ema(cls,200);
+  const struct=detectStructure(cls);
+  const patterns=detectPatterns(cls,his,los);
+  const rsiDiv = detectRSIDivergence(cls,his,los);
+  const pivots=calcPivots(ld.high||price,ld.low||price,ld.prevClose||price,pivotType);
+  const fib=calcFib(ld.high||price,ld.low||price,price);
+  const sigs={
+    rsi:rsi<35?'BUY':rsi>65?'SELL':'NEUTRAL',
+    macd_hist:macd.hist>0?'BUY':'SELL',
+    bb:price<bb.lower?'BUY':price>bb.upper?'SELL':'NEUTRAL',
+    ema9:price>e9?'BUY':'SELL',ema21:price>e21?'BUY':'SELL',
+    ema50:price>e50?'BUY':'SELL',ema200:price>e200?'BUY':'SELL',
+    ema_cross:e9>e21?'BUY':'SELL',
+    stoch:stoch.k<20?'BUY':stoch.k>80?'SELL':'NEUTRAL',
+    cci:cci<-100?'BUY':cci>100?'SELL':'NEUTRAL',
+    willr:willr<-80?'BUY':willr>-20?'SELL':'NEUTRAL',
+    adx:adx.plus>adx.minus?'BUY':'SELL',
+    ich:price>ich.senkouA&&price>ich.senkouB?'BUY':price<ich.senkouA&&price<ich.senkouB?'SELL':'NEUTRAL',
+    vwap:price>vwap?'BUY':'SELL',
+    struct:struct.trend==='BULLISH'?'BUY':struct.trend==='BEARISH'?'SELL':'NEUTRAL',
+    obv:obv>0?'BUY':'SELL',mfi:mfi<25?'BUY':mfi>75?'SELL':'NEUTRAL',
+  };
+  const allV=Object.values(sigs).filter(v=>v!=='NEUTRAL');
+  const buys=allV.filter(v=>v==='BUY').length;
+  const sells=allV.filter(v=>v==='SELL').length;
+  const confluence=Math.round(Math.max(buys,sells)/(allV.length||1)*100);
+  const direction=buys>sells?'BUY':sells>buys?'SELL':'WAIT';
+  const sl=direction==='BUY'?price-atr*c.sl_atr:price+atr*c.sl_atr;
+  const t1=direction==='BUY'?price+atr*c.t1_atr:price-atr*c.t1_atr;
+  const t2=direction==='BUY'?price+atr*c.t2_atr:price-atr*c.t2_atr;
+  const rr=c.t1_atr/c.sl_atr;
+  return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,vwap,ich,mfi,e9,e21,e50,e200,
+    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,
+    prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
+    _vols:vls};
+}
+function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
+  if(!ind) return null;
+  const s = ind.sigs;
+  const weighted = {
+    ema_cross: s.ema_cross==='BUY'?3:s.ema_cross==='SELL'?-3:0,  // strongest trend signal
+    ema200:    s.ema200==='BUY'?2.5:s.ema200==='SELL'?-2.5:0,     // macro trend
+    ema50:     s.ema50==='BUY'?2:s.ema50==='SELL'?-2:0,
+    adx:       s.adx==='BUY'?2:s.adx==='SELL'?-2:0,
+    ich:       s.ich==='BUY'?2:s.ich==='SELL'?-2:0,               // Ichimoku cloud
+    macd_hist: s.macd_hist==='BUY'?1.5:s.macd_hist==='SELL'?-1.5:0,
+    vwap:      s.vwap==='BUY'?1.5:s.vwap==='SELL'?-1.5:0,
+    bb:        s.bb==='BUY'?1:s.bb==='SELL'?-1:0,
+    struct:    s.struct==='BUY'?1.5:s.struct==='SELL'?-1.5:0,     // market structure
+    ema21:     s.ema21==='BUY'?1:s.ema21==='SELL'?-1:0,
+    ema9:      s.ema9==='BUY'?0.5:s.ema9==='SELL'?-0.5:0,
+    rsi:       s.rsi==='BUY'?1:s.rsi==='SELL'?-1:0,               // oscillators get less weight
+    stoch:     s.stoch==='BUY'?0.8:s.stoch==='SELL'?-0.8:0,
+    cci:       s.cci==='BUY'?0.5:s.cci==='SELL'?-0.5:0,
+    willr:     s.willr==='BUY'?0.5:s.willr==='SELL'?-0.5:0,
+    mfi:       s.mfi==='BUY'?0.7:s.mfi==='SELL'?-0.7:0,
+    obv:       s.obv==='BUY'?0.8:s.obv==='SELL'?-0.8:0,
+  };
+  const maxScore = Object.values(weighted).reduce((a,v)=>a+Math.abs(v),0);
+  const rawScore = Object.values(weighted).reduce((a,v)=>a+v,0);
+  const techScore = CLP(Math.round(50 + (rawScore/maxScore)*50), 5, 95);
+  const vols = ind._vols || [];
+  let volScore = 55; // default neutral-positive
+  let volLabel = 'Normal volume';
+  let volConfirmed = true;
+  if(vols.length >= 6){
+    const avgVol = vols.slice(0,-3).reduce((s,v)=>s+v,0) / Math.max(1,vols.length-3);
+    const recentVol = vols.slice(-3).reduce((s,v)=>s+v,0) / 3;
+    const ratio = recentVol / Math.max(1, avgVol);
+    volScore = CLP(Math.round(ratio * 55), 5, 95);
+    volConfirmed = ratio >= 0.85; // only flag when clearly low
+    volLabel = ratio >= 1.3 ? 'High volume ✓' : ratio >= 0.85 ? 'Normal volume' : 'Low volume ⚠';
+  }
+  newsVerdict = newsVerdict || 'NEUTRAL'; // guard null/undefined
+  
+  // 1. Dynamic Weighting: Strong news controls 50% of the signal
+  const isNewsStrong = (newsScore >= 70 || newsScore <= 30);
+  const newsWeight = isNewsStrong ? 0.50 : 0.20; 
+  const techWeight = 1 - newsWeight;
+  const combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+  
+  let action = 'WAIT';
+  
+  // 2. Strict Thresholds for Beginners (>=65 instead of >=62)
+  if(combined >= 65) action = 'BUY';
+  else if(combined <= 35) action = 'SELL';
+
+  // 3. The News Veto (Fundamental Filter)
+  // If technicals trigger a trade against strong fundamental news, we veto the trade.
+  if (action === 'BUY' && newsScore < 40) action = 'WAIT'; 
+  if (action === 'SELL' && newsScore > 60) action = 'WAIT';
+
+  // 4. Strict Volume Confirmation
+  // If volume is low, fake breakouts are common, so we demand extremely high combined conviction (>=75)
+  if (!volConfirmed) {
+     if (action === 'BUY' && combined < 75) action = 'WAIT';
+     if (action === 'SELL' && combined > 25) action = 'WAIT';
+  }
+  const comObj = com || activeC; // use passed commodity, fall back to active
+  const comId = comObj.id;
+  const now = Date.now();
+
+  try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(_) {}
+  const openTrade = signalHistory.find(s => s.comId === comId && (s.status === 'OPEN' || s.status === 'RUNNING'));
+  if (openTrade) {
+    action = openTrade.action;
+    signalLocks[comId] = { action, lockedAt: now, confidence: combined };
+  } else {
+    const lock = signalLocks[comId];
+    const LOCK_MS = 15 * 60 * 1000; // 15 minutes
+
+    if (lock && (now - lock.lockedAt) < LOCK_MS) {
+      if (action !== lock.action && (action === 'BUY' ? combined > 70 : action === 'SELL' ? combined < 30 : false)) {
+        signalLocks[comId] = { action, lockedAt: now, confidence: combined };
+      } else if (action === 'WAIT' && combined < 60 && combined > 40) {
+        delete signalLocks[comId];
+      } else {
+        action = lock.action;
+      }
+    } else if (action !== 'WAIT') {
+      signalLocks[comId] = { action, lockedAt: now, confidence: combined };
+    }
+  }
+
+  let conf = 0;
+  if(action !== 'WAIT'){
+    const techContrib = Math.abs(techScore - 50) / 50 * 50;      // 0-50 from technicals
+    const newsContrib = Math.abs(newsScore - 50) / 50 * 30;      // 0-30 from news
+    const volContrib  = volConfirmed ? 15 : 5;                    // 5 or 15 from volume
+    const alignBonus  = (action==='BUY'&&newsVerdict==='BULLISH') || (action==='SELL'&&newsVerdict==='BEARISH') ? 5 : 0;
+    conf = CLP(Math.round(techContrib + newsContrib + volContrib + alignBonus), 30, 94);
+  }
+  const price = ind.price;
+  const atr = ind.atr || 0;
+  const sl = action==='BUY' ? price - atr*comObj.sl_atr : price + atr*comObj.sl_atr;
+  const t1 = action==='BUY' ? price + atr*comObj.t1_atr : price - atr*comObj.t1_atr;
+  const t2 = action==='BUY' ? price + atr*comObj.t2_atr : price - atr*comObj.t2_atr;
+  const ld = liveData[comId] || {}; // comId is now always correct
+  const dayMove = ld.price ? (ind.price - (ind.prevClose||ind.price)) / Math.max(1,Math.abs(ind.prevClose||ind.price)) : 0;
+  const p1v = techScore>=62?'BUY':techScore<=38?'SELL':'NEUTRAL';
+  const p2v = newsVerdict==='BULLISH'?'BUY':newsVerdict==='BEARISH'?'SELL':'NEUTRAL';
+  const moScore = CLP(50 + dayMove*4000, 5, 95);
+  const p3v = moScore>=58?'BUY':moScore<=42?'SELL':'NEUTRAL';
+  const ldIntl = liveData[comId]?.intlPrice || 0;
+  return {
+    ...ind, action, confidence:conf, techScore, newsScore, combined,
+    intlPrice:ldIntl, volScore, volLabel, volConfirmed,
+    sl, t1, t2, rr: comObj.t1_atr/comObj.sl_atr,
+    pillar1:{label:'Technical Analysis',icon:'📈',verdict:p1v,score:techScore,
+ detail:techScore>=62?`${ind.buys}/${ind.buys+ind.sells} indicators bullish — trend confirmed`:techScore<=38?`${ind.sells}/${ind.buys+ind.sells} indicators bearish — downtrend`:`Mixed — ${ind.buys} buy vs ${ind.sells} sell signals`},
+    pillar2:{label:'News & Geopolitics',icon:'📰',verdict:p2v,score:newsScore,
+ detail:newsVerdict||'Analyzing news...'},
+    pillar3:{label:"Today's Momentum",icon:'⚡',verdict:p3v,score:moScore,
+ detail:dayMove>0.003?`+${(dayMove*100).toFixed(2)}% — buyers in control`:dayMove<-0.003?`${(dayMove*100).toFixed(2)}% — sellers in control`:'Flat — no strong momentum yet'},
+  };
+}
+function killC(k){if(CH[k]){try{CH[k].destroy();}catch(_){}CH[k]=null;}} function canChart(){return typeof Chart!=='undefined';}
+function renderComTabs(){
+  document.getElementById('comTabs').innerHTML=COMMS.map(c=>{
+    const sig=allSigs[c.id],ld=liveData[c.id];
+    const action=sig?.action||'—',px=ld?fmt(ld.price):'—';
+    const on=c.id===activeC.id;
+    const usdPx = ld?.intlPrice && isFinite(ld.intlPrice) ? fmtUSD(ld.intlPrice, c) : '';
+    return`<div class="com-tab${on?' active':''}" onclick="switchCom('${c.id}')" style="${on?'border-bottom:2px solid '+activeC.color:''}"><span style="font-size:11px">${c.icon}</span><span style="color:${on?activeC.color:'var(--txd)'}">${c.n}</span><div style="text-align:right"><div>${px}</div>
+  ${usdPx?`<div style="font-size:9px;color:var(--txd);font-family:var(--fm)">${usdPx}</div>`:''}
+ </div>
+ ${action!=='—'?`<span class="ct-sig cs-${action}">${action==='BUY'?'▲':action==='SELL'?'▼':'—'}</span>`:''}
+    </div>`;
+  }).join('');
+}
+function switchCom(id){
+  activeC=COMMS.find(c=>c.id===id);
+  newsData=null;
+  renderComTabs();
+  updateTopbarUSD();
+  if(currentMode==='beg'){
+    if(allSigs[activeC.id])renderBeg();
+    else{const _sc=document.getElementById('b-signalCard');if(_sc)_sc.innerHTML='<div class="bsig-card bsc-WAIT"><div class="ldg"><div class="ring"></div><p>Loading '+activeC.n+'...</p></div></div>';}
+  }else{
+    /* pro mode - not active */
+  }
+  fetchNewsFor(activeC);
+}
+async function fetchNewsFor(c){
+  const el=document.getElementById('b-newsWrap');
+  const nc=document.getElementById('b-ncount');
+  if(el)el.innerHTML=`<div class="ldg"><div class="ring ring-sm"></div><p>Fetching ${c.n} news...</p></div>`;
+  if(nc)nc.textContent='—';
+  try{
+    const ai=await callClaude(c);
+    newsData=ai;
+    const ns=CLP(ai.overall_news_score??50,0,100);
+    const nv=ai.overall_verdict||'NEUTRAL';
+    if(nc)nc.textContent=(ai.news_items||[]).length+' items';
+    renderBegNews(ai.news_items||[]);
+    renderBegEvents(ai.upcoming_events||[]);
+    const ind=allInds[c.id];
+    if(ind){const sig=buildSignal(ind,ns,nv,c);allSigs[c.id]=sig;renderBeg();renderComTabs();}
+  }catch(e){
+    if(el)el.innerHTML=`<div class="ldg"><p class="c-red">${e.message}</p><p style="color:var(--txm);margin-top:5px">Signals still active</p></div>`;
+    if(nc)nc.textContent='Error';
+  }
+}
+async function callClaude(c){
+  const key = localStorage.getItem('mcx_anthropic_key');
+  if (!key) throw new Error('Anthropic API Key missing. Add it in Settings ⚙');
+  const r=await fetch('https://mcx-yahoo-proxy.vercel.app/api/claude',{
+    method:'POST',headers:{'Content-Type':'application/json','x-api-key':key},
+    body:JSON.stringify({
+ model:'claude-sonnet-4-20250514',max_tokens:1200,
+ tools:[{type:'web_search_20250305',name:'web_search'}],
+ system:`You are a commodity analyst for MCX India. Today: ${new Date().toDateString()}. USD/INR=₹${usdInr.toFixed(2)}.
+
+Search for: (1) latest news affecting ${c.n} prices, (2) active wars, conflicts, sanctions, geopolitical tensions that affect ${c.n} right now.
+
+Return ONLY valid JSON, no markdown:
+{
+  "overall_news_score":<0-100>,
+  "overall_verdict":"BULLISH"|"BEARISH"|"NEUTRAL",
+  "overall_summary":"<2 sentences>",
+  "geo_analysis":{
+    "active_conflicts":["<e.g. US-Iran war: oil supply threat — BULLISH crude>","<Russia-Ukraine: energy supply disruption>"],
+    "impact_on_commodity":"<2 sentences: how current wars/geopolitics specifically move ${c.n} price right now>",
+    "geo_verdict":"BULLISH"|"BEARISH"|"NEUTRAL",
+    "risk_level":"HIGH"|"MEDIUM"|"LOW",
+    "watch_for":"<1 sentence: the single geopolitical trigger to watch this week>"
+  },
+  "news_items":[{"headline":"<≤80 chars>","source":"<n>","verdict":"BULLISH"|"BEARISH"|"NEUTRAL","score":<0-100>,"impact":"HIGH"|"MEDIUM"|"LOW","analysis":"<1 sentence>","price_effect":"<e.g. +0.5%>"}],
+  "upcoming_events":[{"event":"<n>","date":"<when>","impact":"HIGH"|"MEDIUM"|"LOW","expected_move":"<e.g. ±1-2%>"}]
+}`,
+ messages:[{role:'user',content:`Search for latest ${c.n} commodity news AND current geopolitical/war situations affecting ${c.n} prices. Return JSON only.`}]
+    })
+  });
+  const d=await r.json();
+  if(d.error)throw new Error(d.error.message||'API error');
+  let raw='';for(const b of(d.content||[]))if(b.type==='text')raw=b.text;
+  if(!raw)throw new Error('No response');
+  raw=raw.replace(/```json|```/g,'').trim();
+  const s=raw.indexOf('{'),e=raw.lastIndexOf('}');
+  if(s===-1||e===-1)throw new Error('No JSON');
+  return JSON.parse(raw.slice(s,e+1));
+}
+function logTrade(type, view){
+  const prefix=view==='beg'?'b-':'p-';
+  const ent=parseFloat(document.getElementById(prefix+'jEnt').value);
+  const ex=parseFloat(document.getElementById(prefix+'jEx').value)||null;
+  const qty=parseFloat(document.getElementById(prefix+'jQty').value)||1;
+  if(!ent||isNaN(ent)){alert('Enter entry price');return;}
+  const pnl=ex?Math.round((type==='BUY'?ex-ent:ent-ex)*qty):null;
+  const ret=(pnl!=null&&ent>0)?((pnl/(ent*qty))*100).toFixed(2):null;
+  journal.unshift({id:journal.length+1,com:activeC.n,type,ent,ex,qty,pnl,ret,date:new Date().toLocaleDateString('en-IN')});
+  try{localStorage.setItem('mcx_v4',JSON.stringify(journal));}catch(_){}
+  document.getElementById(prefix+'jEnt').value='';
+  document.getElementById(prefix+'jEx').value='';
+  renderJournal();
+}
+function clearJournal(){
+  if(!confirm('Clear all trades?'))return;
+  journal=[];try{localStorage.setItem('mcx_v4','[]');}catch(_){}renderJournal();
+}
+function renderJournal(){
+  const closed=journal.filter(t=>t.pnl!=null);
+  let cap=5000;closed.slice().reverse().forEach(t=>{cap+=t.pnl;});
+  const wins=closed.filter(t=>t.pnl>0).length;
+  const wr=closed.length?Math.round(wins/closed.length*100):0;
+  const tot=closed.reduce((s,t)=>s+t.pnl,0);
+  const bCap=document.getElementById('b-cap');if(bCap){bCap.textContent='₹'+Math.round(cap).toLocaleString('en-IN');bCap.style.color=cap>=5000?'var(--grn)':'var(--red)';}
+  const bPnl=document.getElementById('b-pnl');if(bPnl){bPnl.textContent=(tot>=0?'+₹':'-₹')+Math.abs(Math.round(tot)).toLocaleString('en-IN');bPnl.style.color=tot>=0?'var(--grn)':'var(--red)';}
+  const bTr=document.getElementById('b-trades');if(bTr)bTr.textContent=closed.length;
+  const bWR=document.getElementById('b-wr');if(bWR){bWR.textContent=closed.length?wr+'%':'—';bWR.style.color=wr>=55?'var(--grn)':wr>=45?'var(--amb)':'var(--red)';}
+  const pCap=document.getElementById('p-jCap');if(pCap){pCap.textContent='₹'+Math.round(cap/1000*10)/10+'K';pCap.style.color=cap>=5000?'var(--grn)':'var(--red)';}
+  const pPnl=document.getElementById('p-jPnl');if(pPnl){pPnl.textContent=(tot>=0?'+₹':'-₹')+Math.abs(Math.round(tot)).toLocaleString('en-IN');pPnl.style.color=tot>=0?'var(--grn)':'var(--red)';}
+  const pTr=document.getElementById('p-jTrades');if(pTr)pTr.textContent=closed.length;
+  const pWR=document.getElementById('p-jWR');if(pWR){pWR.textContent=closed.length?wr+'%':'—';pWR.style.color=wr>=60?'var(--grn)':wr>=50?'var(--amb)':'var(--red)';}
+  if(!journal.length){
+    ['b-jbody','p-jbody'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+    ['b-jempty','p-jempty'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='block';});
+    return;
+  }
+  ['b-jempty','p-jempty'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  const rows=journal.slice(0,20).map(t=>`<tr><td>${t.com}</td><td style="color:${t.type==='BUY'?'var(--grn)':'var(--red)'};">${t.type}</td><td>₹${t.ent.toLocaleString('en-IN')}</td><td style="color:${t.pnl>0?'var(--grn)':t.pnl<0?'var(--red)':'var(--txd)'}">${t.pnl!=null?(t.pnl>=0?'+₹':'-₹')+Math.abs(t.pnl).toLocaleString('en-IN'):'Open'}</td><td class="c-txm">${t.date}</td></tr>`).join('');
+  ['b-jbody','p-jbody'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=rows;});
+}
+function setConn(state){
+  const dot=document.getElementById('connDot'),txt=document.getElementById('connTxt');
+  const bDot=document.getElementById('b-connDot'),bTxt=document.getElementById('b-connTxt');
+  const m={live:{cls:'dlive',bg:'var(--grn)',t:'Live'},est:{cls:'dwait',bg:'var(--amb)',t:'Estimated'},err:{cls:'doff',bg:'var(--red)',t:'Error'},busy:{cls:'dwait',bg:'var(--amb)',t:'Updating...'}};
+  const s=m[state]||m.err;
+  if(dot){dot.className='dot '+s.cls;dot.style.background=s.bg;}
+  if(txt)txt.textContent=s.t;
+  if(bDot){bDot.className='dot '+s.cls;bDot.style.background=s.bg;}
+  if(bTxt)bTxt.textContent=s.t;
+}
+function startCountdown(secs){
+  countdown=secs;if(cdTimer)clearInterval(cdTimer);
+  cdTimer=setInterval(()=>{
+    countdown--;
+    ['st-cd','b-cd'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=countdown+'s';});
+    if(countdown<=0){clearInterval(cdTimer);fetchPrices();}
+  },1000);
+}
+function updateTopbarUSD(){
+  const ld=liveData[activeC.id];
+  const intl=ld?.intlPrice;
+  const hasUSD=intl&&isFinite(intl)&&intl>0;
+  const isGold=activeC.id==='gold';
+  const wrapEl=document.getElementById('st-usd-wrap');
+  const nameEl=document.getElementById('st-usd-name');
+  const valEl=document.getElementById('st-usd-val');
+  if(wrapEl) wrapEl.style.display=(hasUSD&&!isGold)?'flex':'none';
+  if(hasUSD&&!isGold){
+    if(nameEl)nameEl.textContent=activeC.n;
+    if(valEl)valEl.textContent=fmtUSD(intl,activeC);
+  }
+  const bRow=document.getElementById('b-usd-row');
+  const bName=document.getElementById('b-usd-name');
+  const bVal=document.getElementById('b-usd-val');
+  if(bRow) bRow.style.display=(hasUSD&&!isGold)?'flex':'none';
+  if(hasUSD&&!isGold){
+    if(bName)bName.textContent=activeC.n;
+    if(bVal)bVal.textContent=fmtUSD(intl,activeC);
+  }
+  const xauEl=document.getElementById('st-xau');
+  const lbl=document.getElementById('st-usd-lbl');
+  if(isGold&&hasUSD&&xauEl) xauEl.textContent='$'+intl.toFixed(2);
+  if(lbl) lbl.textContent='XAU';
+}
+async function fetchPrices(){
+  if(isBusy)return;
+  const startT = Date.now();
+  isBusy=true;setConn('busy');
+  try{
+    await fetchUSDINR();
+    await fetchMetals();
+    await fetchCommodity(activeC);
+    updateHealth('api', true);
+    const ind=computeIndicators(activeC);
+    if(ind){
+ allInds[activeC.id]=ind;
+ const ns=newsData?.overall_news_score??50,nv=newsData?.overall_verdict??'NEUTRAL';
+ const prevAction = allSigs[activeC.id]?.action;
+ const sig=buildSignal(ind,ns,nv,activeC);
+ allSigs[activeC.id]=sig;
+ maybeSendTgAlert(sig, activeC);
+ if(sig.action!=='WAIT' && sig.action!==prevAction){
+  recordSignal(sig, activeC.id);
+ }
+ checkSignalResults();
+ if(currentMode==='beg')renderBeg();/* pro mode only */
+    }
+    renderComTabs();
+    updateSession();
+    updateTopbarUSD();
+    const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const _bu=document.getElementById('b-upd');if(_bu)_bu.textContent=now;
+    for(const c of COMMS.filter(c=>c.id!==activeC.id)){
+ await fetchCommodity(c);
+ const ind2=computeIndicators(c);
+ if(ind2){
+  allInds[c.id]=ind2;
+  const prevAct2=allSigs[c.id]?.action;
+  const sig2=buildSignal(ind2,allSigs[c.id]?.newsScore??50,allSigs[c.id]?.pillar2?.verdict||'NEUTRAL',c);
+  allSigs[c.id]=sig2;
+  if(sig2.action!=='WAIT'&&sig2.action!==prevAct2) recordSignal(sig2,c.id);
+ }
+ await new Promise(r=>setTimeout(r,250));
+    }
+    checkSignalResults();
+    updateTodaysFocus();
+    renderComTabs();
+    updateHealth('time', Date.now() - startT);
+    setConn(liveData[activeC.id]?.src==='Est'?'est':'live');
+  }catch(e){
+    updateHealth('api', false);
+    console.warn('fetchPrices:',e.message);
+    setConn('err');
+    const _bu=document.getElementById('b-upd');
+    if(_bu) _bu.textContent = String(e.stack || e.message).substring(0, 100);
+  }
+  finally{isBusy=false;startCountdown(30);}
+}
+async function fullRefresh(){
+  const btn=document.getElementById('rfbtn'),icon=document.getElementById('rfIcon');
+  btn.disabled=true;icon.className='spin';
+  newsData=null;
+  await fetchPrices();
+  await fetchNewsFor(activeC);
+  if(newsTimer)clearInterval(newsTimer);
+  newsTimer=setInterval(()=>fetchNewsFor(activeC),10*60*1000);
+  btn.disabled=false;icon.className='';
+}
+
+function updateTodaysFocus() {
+  try {
+    const tfWidget = document.getElementById('todays-focus-widget');
+    if(!tfWidget) return;
+    
+    let bestCom = null;
+    let bestSig = null;
+    let highestConf = 0;
+
+    for (const c of COMMS) {
+      const sig = allSigs[c.id];
+      if (sig && sig.action !== 'WAIT') {
+        if (sig.confidence > highestConf) {
+          highestConf = sig.confidence;
+          bestSig = sig;
+          bestCom = c;
+        }
+      }
+    }
+
+    if (bestSig && bestCom && highestConf > 0) {
+      tfWidget.style.display = 'block';
+      
+      const isBuy = bestSig.action === 'BUY';
+      const actCol = isBuy ? 'var(--grn)' : 'var(--red)';
+      const actIcon = isBuy ? '▲ BUY' : '▼ SELL';
+      
+      document.getElementById('tf-header').innerHTML = `${bestCom.icon} ${bestCom.n.toUpperCase()} &nbsp;&nbsp;<span style="color:${actCol}">${actIcon}</span> &nbsp;&nbsp;<span style="color:var(--txd)">${bestSig.confidence}% confidence</span>`;
+      
+      document.getElementById('tf-entry').textContent = '₹' + Math.round(bestSig.price).toLocaleString('en-IN');
+      document.getElementById('tf-stop').textContent = '₹' + Math.round(bestSig.sl).toLocaleString('en-IN');
+      
+      document.getElementById('tf-t1').textContent = '₹' + Math.round(bestSig.t1).toLocaleString('en-IN');
+      document.getElementById('tf-p1').textContent = `(profit: ₹${Math.round(Math.abs(bestSig.t1 - bestSig.price)).toLocaleString('en-IN')})`;
+      
+      document.getElementById('tf-t2').textContent = '₹' + Math.round(bestSig.t2).toLocaleString('en-IN');
+      document.getElementById('tf-p2').textContent = `(profit: ₹${Math.round(Math.abs(bestSig.t2 - bestSig.price)).toLocaleString('en-IN')})`;
+      
+      const riskAmt = Math.round(Math.abs(bestSig.price - bestSig.sl));
+      const unitText = bestCom.unit.replace('₹/', '');
+      document.getElementById('tf-risk').textContent = `₹${riskAmt.toLocaleString('en-IN')} per ${unitText}`;
+      
+      const lock = signalLocks[bestCom.id];
+      let timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      if (lock && lock.lockedAt) {
+        timeStr = new Date(lock.lockedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      }
+      document.getElementById('tf-time').textContent = timeStr;
+    } else {
+      tfWidget.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('updateTodaysFocus error:', e);
+  }
+}
+
+function toggleTgSetup(){const el=document.getElementById('tg-setup');if(el)el.style.display=el.style.display==='none'?'block':'none';}
+function saveTgConfig(){alert('Telegram alerts not available in this version');}
+function copyText(t){navigator.clipboard&&navigator.clipboard.writeText(t);}
+
+
+function maybeSendTgAlert(){} // Telegram removed
+function _boot(){renderJournal();renderComTabs();fullRefresh();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
+function setMode(mode){
+  currentMode=mode;
+  ['tab-beg','tab-pro','tab-log','tab-india'].forEach(id=>{
+    const m = id.replace('tab-','');
+    document.getElementById(id)?.classList.toggle('active', m===mode);
+  });
+  ['view-beg','view-pro','view-log','view-india'].forEach(id=>{
+    const m = id.replace('view-','');
+    const el = document.getElementById(id);
+    if(el){ el.classList.toggle('active', m===mode); el.style.display = m===mode?'block':'none'; }
+  });
+  if(mode==='pro') window.location.href='mcx-pro.html';
+  else if(mode==='log') window.location.href='mcx-logger.html';
+  else if(mode==='india') loadIndiaDashboard();
+  else if(mode==='beg'&&allSigs[activeC.id]) renderBeg();
+}
+function renderBeg(){
+  const sig=allSigs[activeC.id];if(!sig)return;
+  renderBegSignal(sig);
+  renderBegPillars(sig);
+  renderBegExplain(activeC,sig);
+}
+
+function renderBegSignal(sig){
+  const price=sig.price,ch=price-(sig.prevClose||price);
+  const pctStr=fmtPct(ch,sp(sig.prevClose||price));
+  const entry=price;
+  const sl=sig.action!=='WAIT'&&sig.sl?sig.sl:price-(sig.atr||0)*activeC.sl_atr;
+  const t1=sig.action!=='WAIT'&&sig.t1?sig.t1:price+(sig.atr||0)*activeC.t1_atr;
+  const t2=sig.action!=='WAIT'&&sig.t2?sig.t2:price+(sig.atr||0)*activeC.t2_atr;
+  const rr=sig.rr?(+sig.rr).toFixed(1):(activeC.t1_atr/activeC.sl_atr).toFixed(1);
+  const titles={BUY:`${activeC.n} looks like a buying opportunity`,SELL:`${activeC.n} is showing weakness — possible sell`,WAIT:`Not the right time to trade ${activeC.n}`};
+  const reasons={
+    BUY:`${sig.confidence}% of our signals agree this is a BUY. The trend, news and today's price movement are pointing upward. The stop loss protects you if the market reverses.`,
+    SELL:`${sig.confidence}% of signals agree this is a SELL. Multiple factors point downward. Use the stop loss to protect capital.`,
+    WAIT:`The signals are mixed — not enough agreement to take a trade safely. Entering now would be guessing, not trading. Wait for conditions to align.`,
+  };
+  let levelsHTML='';
+  if(sig.action!=='WAIT'){
+    levelsHTML=`<div class="hdiv"></div><div style="font-size:11px;color:var(--txd);margin-bottom:9px;font-family:var(--fm)">📋 Your trade plan — set these BEFORE you enter</div><div class="b-levels"><div class="bl bl-ent"><div class="bl-label">Entry Price</div><div class="bl-val bval-ent">${fmt(entry)}</div><div class="bl-hint" style="font-size:9px">${fmtUSD(sig.intlPrice,activeC)}</div></div><div class="bl bl-sl"><div class="bl-label">Stop Loss ⚠</div><div class="bl-val bval-sl">${fmt(sl)}</div><div class="bl-hint">Exit immediately here — limits loss to ~${fmt(Math.abs(price-sl))}</div></div><div class="bl bl-t1"><div class="bl-label">Target 1 ✓</div><div class="bl-val bval-t1">${fmt(t1)}</div><div class="bl-hint">Take 50% profit here</div></div><div class="bl bl-t2"><div class="bl-label">Target 2 ✓✓</div><div class="bl-val bval-t2">${fmt(t2)}</div><div class="bl-hint">Take rest of profit here</div></div></div><div style="font-size:11px;color:var(--txd);margin-top:10px;padding:9px;background:var(--bg3);border-radius:7px;line-height:1.7">
+  📊 Risk/Reward = 1:${rr} &nbsp;·&nbsp; On ₹5,000 capital: risk ₹500 → potential profit ₹${Math.round(500*parseFloat(rr)).toLocaleString('en-IN')}
+ </div>`;
+  }else{
+    const rsiDivMsg=sig.rsiDiv?.type!=='NONE'?`<div style="margin-top:8px;padding:7px 10px;background:var(--ambbg);border-left:2px solid var(--amb);border-radius:0 6px 6px 0;font-size:11px;color:var(--amb)">⚡ ${sig.rsiDiv.label}</div>`:'';
+    levelsHTML=`<div class="hdiv"></div><div class="b-wait-box"><div class="bwb-icon">⏳</div><div class="bwb-title">Wait for a clearer signal</div><div class="bwb-msg">The signals are mixed. We need at least 2 of 3 pillars to agree before recommending any trade. Check back in 10–15 minutes.</div>
+  ${rsiDivMsg}
+ </div>`;
+  }
+  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const tlCfg={
+    BUY:{red:'off',amb:'off',grn:'active',label:'BUY SIGNAL',sub:sig.volConfirmed?'Volume confirmed ✓':'Low volume — trade small',col:'var(--grn)'},
+    SELL:{red:'active',amb:'off',grn:'off',label:'SELL SIGNAL',sub:sig.volConfirmed?'Volume confirmed ✓':'Low volume — trade small',col:'var(--red)'},
+    WAIT:{red:'off',amb:'active',grn:'off',label:'WAIT — No trade',sub:'Mixed signals, not safe to enter',col:'var(--amb)'},
+  }[sig.action]||{red:'off',amb:'active',grn:'off',label:'Loading...',sub:'',col:'var(--amb)'};
+  ['red','amb','grn'].forEach(k=>{const el=document.getElementById('tl-'+k);if(el){el.className='tl-dot tl-'+k+' '+tlCfg[k];}});
+  const tlLabel=document.getElementById('tl-label');if(tlLabel){tlLabel.textContent=tlCfg.label;tlLabel.style.color=tlCfg.col;}
+  const tlSub=document.getElementById('tl-sub');if(tlSub)tlSub.textContent=`${tlCfg.sub} · ${sig.confidence||0}% confidence`;
+  document.getElementById('b-signalCard').innerHTML=`<div class="bsig-card bsc-${sig.action}"><div class="bsc-top"><div><div class="bsc-badge bb-${sig.action}">${sig.action==='BUY'?'▲ BUY':sig.action==='SELL'?'▼ SELL':'⏸ WAIT'}${sig.action!=='WAIT'?` · ${sig.confidence}% confident`:''}</div><div class="bsc-title">${titles[sig.action]}</div><div class="bsc-reason">${reasons[sig.action]}</div><div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap"><span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:${sig.volConfirmed?'var(--grnbg)':'var(--ambbg)'};color:${sig.volConfirmed?'var(--grn)':'var(--amb)'}">
+   📊 ${sig.volLabel||'Volume data loading'}
+ </span><span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--txd)">
+   ${sig.buys||0}↑ ${sig.sells||0}↓ indicators
+ </span></div></div><div style="text-align:right;flex-shrink:0"><div class="bsc-price" style="color:${activeC.color}">${fmt(price)}</div><div style="font-size:13px;font-family:var(--fm);color:var(--txd);margin-top:2px">${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-chg" style="color:${ch>=0?'var(--grn)':'var(--red)'}">${fmtD(ch)} (${pctStr})</div><div style="font-size:10px;font-family:var(--fm);color:var(--txd);margin-top:2px">USD ${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-src">Updated ${now} · ${sig.src||'—'} · Signal since ${lastSignalChange[activeC.id]?new Date(lastSignalChange[activeC.id]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'—'}</div></div></div>
+ ${levelsHTML}
+    </div>`;
+}
+
+function renderBegPillars(sig){
+  document.getElementById('b-pillars').innerHTML=[sig.pillar1,sig.pillar2,sig.pillar3].map(p=>{
+    const vk=p.verdict==='BUY'?'BULLISH':p.verdict==='SELL'?'BEARISH':'NEUTRAL';
+    const fLabel=p.verdict==='BUY'?'Pointing UP ▲':p.verdict==='SELL'?'Pointing DOWN ▼':'Mixed — unclear';
+    const barCls=p.verdict==='BUY'?'bfbg':p.verdict==='SELL'?'bfbr':'bfba';
+    return`<div class="bp"><div class="bp-hdr"><span class="bp-icon">${p.icon}</span><span class="bp-title">${p.label}</span></div><div class="bp-verdict bpv-${vk}">${fLabel}</div><div class="bp-body"><strong>${p.detail||'—'}</strong><div class="bfbar"><div class="bfbar-fill ${barCls}" style="width:${p.score}%"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;margin-top:3px;color:var(--txm);font-family:var(--fm)"><span>Bearish</span><span>${p.score}/100</span><span>Bullish</span></div></div></div>`;
+  }).join('');
+}
+
+function renderBegExplain(c,sig){
+  const el=document.getElementById('b-explain');
+  el.style.display='grid';
+  const geo = newsData?.geo_analysis || null;
+  let geoCard = '';
+  if(geo && geo.active_conflicts && geo.active_conflicts.length){
+    const vc=geo.geo_verdict==='BULLISH'?'var(--grn)':geo.geo_verdict==='BEARISH'?'var(--red)':'var(--amb)';
+    const rc=geo.risk_level==='HIGH'?'var(--red)':geo.risk_level==='MEDIUM'?'var(--amb)':'var(--txd)';
+    geoCard=`<div class="bexp" style="border-color:${vc}33;background:${geo.geo_verdict==='BULLISH'?'rgba(34,197,94,.04)':'rgba(239,68,68,.04)'}"><div class="bexp-label" style="color:${vc}">⚔ Geopolitical / War Impact — ${geo.geo_verdict||'NEUTRAL'} · <span style="color:${rc}">${geo.risk_level||''} RISK</span></div><div class="bexp-body"><div style="font-size:11px;color:var(--txd);line-height:1.7;margin-bottom:8px">${geo.impact_on_commodity||''}</div>
+  ${(geo.active_conflicts||[]).map(cf=>`<div class="geo-row"><span class="ic-red">⚡</span><span style="color:var(--tx)">${cf}</span></div>`).join('')}
+  ${geo.watch_for?`<div style="margin-top:8px;padding:7px 9px;background:rgba(245,158,11,.07);border-left:2px solid var(--amb);border-radius:0 5px 5px 0;font-size:11px;color:var(--amb)">👁 Watch: ${geo.watch_for}</div>`:''}
+ </div></div>`;
+  } else {
+    const staticGeo = c.geo || [];
+    geoCard=`<div class="bexp" style="border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.03)"><div class="bexp-label" class="c-red">⚔ Key Geopolitical & War Triggers for ${c.n}</div><div class="bexp-body">
+  ${staticGeo.map(g=>`<div class="geo-row"><span class="ic-red">⚡</span><span style="color:var(--tx)">${g}</span></div>`).join('')}
+  <div style="margin-top:8px;padding:6px 9px;background:var(--bg3);border-radius:5px;font-size:10px;color:var(--txm);font-family:var(--fm)">↻ Live geopolitical analysis loads after news fetch</div></div></div>`;
+  }
+  el.style.gridTemplateColumns='1fr 1fr';
+  el.innerHTML=`<div class="bexp"><div class="bexp-label">Why does ${c.n} price move?</div><div class="bexp-body">${c.why}</div></div><div class="bexp"><div class="bexp-label">Key market drivers</div><div class="bexp-body">${c.drivers.map(d=>`<div style="padding:4px 0;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:5px"><span style="color:var(--gold)">→</span><strong>${d}</strong></div>`).join('')}</div></div><div style="grid-column:1/-1">${geoCard}</div>`;
+}
+
+function renderBegNews(items){
+  if(!items.length){document.getElementById('b-newsWrap').innerHTML='<div class="ldg" style="padding:1rem"><p>No news found</p></div>';return;}
+  const niK=n=>(n.verdict==='BULLISH'?'B':n.verdict==='BEARISH'?'S':'N');
+  document.getElementById('b-newsWrap').innerHTML='<div class="bnews-list">'+items.map(n=>{const k=niK(n);return`<div class="ni ni-${k}"><div class="ni-hl">${n.headline||''}</div><div class="ni-why">${n.analysis||''}</div><div class="ni-foot"><span class="ni-badge nb-${k}">${n.verdict==='BULLISH'?'▲ UP':n.verdict==='BEARISH'?'▼ DOWN':'→ N'}</span><span class="ni-src">${n.source||''}</span><span class="ni-imp ni-${n.impact||'LOW'}">${n.impact||''}</span></div></div>`;}).join('')+'</div>';
+}
+
+function renderBegEvents(evs){
+  const row=document.getElementById('b-eventsRow'),list=document.getElementById('b-evList');
+  if(!evs||!evs.length){row.style.display='none';return;}
+  row.style.display='block';
+  list.innerHTML=evs.map(e=>`<div class="bev"><div class="bev-n">${e.event||''}</div><div class="bev-d">${e.date||''}</div><span class="bev-b bevb-${e.impact||'LOW'}">${e.impact||''}</span></div>`).join('');
+}
+
+function showBegTab(tab){
+  const tabs=['signals','analysis'];
+  tabs.forEach(t=>{
+    const el=document.getElementById('beg-tab-'+t);
+    const btn=document.getElementById('btab-'+t);
+    if(el)el.style.display=t===tab?'block':'none';
+    if(btn){btn.style.background=t===tab?'var(--bg4)':'transparent';btn.style.color=t===tab?'var(--tx)':'var(--txd)';}
+  });
+  if(tab==='analysis')updatePerfTab(signalHistory);
+}
+
+function renderBacktest(){
+  const el=document.getElementById('b-backtest');
+  if(!el)return;
+  if(!signalHistory.length){
+    el.innerHTML='<div style="font-size:11px;color:var(--txm);font-family:var(--fm);text-align:center;padding:16px">No signals yet. Keep the app open — signals are recorded automatically.</div>';
+    updatePerfTab([]);
+    return;
+  }
+  const rows=signalHistory.map(s=>{
+    const st = s.status || s.result || '';
+    const resCol=st.includes('T2')?'var(--grn)':st.includes('T1')?'#4ADE80':st.includes('SL')?'var(--red)':'var(--txd)';
+    const actCol=s.action==='BUY'?'var(--grn)':'var(--red)';
+    return`<div style="display:grid;grid-template-columns:1fr 80px 90px 90px 90px 80px;gap:4px;align-items:center;padding:6px 8px;border-radius:6px;background:var(--bg3);margin-bottom:4px;font-family:var(--fm);font-size:10px">
+      <div><strong style="color:var(--tx)">${s.com}</strong><span style="color:var(--txd)"> · ${s.date} ${s.time}</span></div>
+      <div style="color:${actCol};font-weight:700">${s.action}</div>
+      <div style="color:var(--tx)">₹${Math.round(s.entryPrice||s.price).toLocaleString('en-IN')}</div>
+      <div style="color:var(--red)">SL ₹${Math.round(s.sl).toLocaleString('en-IN')}</div>
+      <div style="color:var(--grn)">T1 ₹${Math.round(s.t1).toLocaleString('en-IN')}</div>
+      <div style="color:${resCol};font-weight:700">${st}</div>
+    </div>`;
+  }).join('');
+
+  const header='<div style="display:grid;grid-template-columns:1fr 80px 90px 90px 90px 80px;gap:4px;padding:4px 8px;font-size:9px;color:var(--txd);font-family:var(--fm);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px"><div>Commodity</div><div>Signal</div><div>Entry</div><div>Stop Loss</div><div>Target 1</div><div>Result</div></div>';
+  el.innerHTML=header+rows;
+  updatePerfTab(signalHistory);
+
+  // Update header stats
+  const closed=signalHistory.filter(s=> { const st = s.status || s.result; return st!=='OPEN' && st!=='RUNNING'; });
+  const wins=closed.filter(s=> { const st = s.status || s.result || ''; return st.includes('T'); });
+  const el2=document.getElementById('b-bt-stats');
+  if(el2) el2.textContent=`${signalHistory.length} signals · ${closed.length} closed · ${closed.length?Math.round(wins.length/closed.length*100):0}% target hit`;
+}
+
+function updatePerfTab(hist){
+  const closed=hist.filter(s=>{ const st = s.status || s.result; return st!=='OPEN' && st!=='RUNNING'; });
+  const wins=closed.filter(s=> { const st = s.status || s.result || ''; return st.includes('T'); }).length;
+  const losses=closed.filter(s=> { const st = s.status || s.result || ''; return st.includes('SL'); }).length;
+
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('bp-total',hist.length);
+  set('bp-win',  closed.length?Math.round(wins/closed.length*100)+'%':'—');
+  set('bp-loss', closed.length?Math.round(losses/closed.length*100)+'%':'—');
+
+  // Best commodity
+  const byCom={};
+  closed.forEach(s=>{
+    if(!byCom[s.com])byCom[s.com]={w:0,t:0};
+    byCom[s.com].t++;
+    const st = s.status || s.result || '';
+    if(st.includes('T'))byCom[s.com].w++;
+  });
+  let bestCom='—',bestRate=0;
+  Object.entries(byCom).forEach(([com,d])=>{const r=d.w/d.t;if(r>bestRate){bestRate=r;bestCom=com;}});
+  set('bp-best',bestCom==='—'?'—':bestCom);
+
+  // Per-commodity bars
+  const byComEl=document.getElementById('bp-by-com');
+  if(byComEl){
+    byComEl.innerHTML=Object.entries(byCom).map(([com,d])=>{
+      const rate=Math.round(d.w/d.t*100);
+      const col=rate>=60?'var(--grn)':rate>=45?'var(--amb)':'var(--red)';
+      return`<div style="display:flex;align-items:center;gap:10px;font-size:11px;font-family:var(--fm)">
+        <span style="width:65px;color:var(--txd)">${com}</span>
+        <div style="flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden">
+          <div style="height:100%;background:${col};border-radius:3px;width:${rate}%;transition:width .8s ease"></div>
+        </div>
+        <span style="color:${col};font-weight:600;width:36px;text-align:right">${rate}%</span>
+        <span style="color:var(--txm)">${d.w}/${d.t}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+function _boot(){renderJournal();renderComTabs();fullRefresh();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
+// SETTINGS MODAL
+function openSettings(){
+  document.getElementById('b-settings-modal').style.display='flex';
+  document.getElementById('set-api-key').value = localStorage.getItem('mcx_anthropic_key') || '';
+}
+function closeSettings(){
+  document.getElementById('b-settings-modal').style.display='none';
+}
+function saveSettings(){
+  const val = document.getElementById('set-api-key').value.trim();
+  if (val) localStorage.setItem('mcx_anthropic_key', val);
+  else localStorage.removeItem('mcx_anthropic_key');
+  closeSettings();
+  if (activeC) fetchNewsFor(activeC);
+}
+
+// ══════════════════════════════════════════
+//  INDIA DASHBOARD
+// ══════════════════════════════════════════
+const INDIA_CACHE_KEY = 'mcx_india_dashboard_v1';
+const INDIA_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+async function loadIndiaDashboard(){
+  const el = document.getElementById('view-india');
+  if(!el) return;
+  // Show cached data instantly if fresh
+  try {
+    const cached = JSON.parse(localStorage.getItem(INDIA_CACHE_KEY)||'null');
+    if(cached && (Date.now()-cached.ts) < INDIA_CACHE_TTL){
+      renderIndiaDashboard(cached.data, cached.ts, false);
+      return;
+    }
+  } catch(_){}
+  // No fresh cache — fetch
+  renderIndiaLoading(el);
+  const key = localStorage.getItem('mcx_anthropic_key');
+  if(!key){
+    el.innerHTML=`<div style="max-width:640px;margin:3rem auto;padding:2rem;background:var(--ambbg);border:1px solid var(--amb);border-radius:12px;text-align:center;font-family:var(--fd)"><div style="font-size:28px;margin-bottom:12px">⚙️</div><h3 style="color:var(--amb);margin-bottom:8px">API Key Required</h3><p style="color:var(--txd);font-size:13px;line-height:1.6">The India Dashboard fetches live geopolitical and macro data using AI.<br>Click the <strong style="color:var(--gold)">⚙ Settings</strong> button in the top right to add your Anthropic API Key.</p></div>`;
+    return;
+  }
+  try {
+    const today = new Date().toDateString();
+    const data = await fetchIndiaDashboardAI(key, today);
+    const cache = { ts: Date.now(), data };
+    localStorage.setItem(INDIA_CACHE_KEY, JSON.stringify(cache));
+    renderIndiaDashboard(data, Date.now(), true);
+  } catch(e){
+    el.innerHTML=`<div style="max-width:640px;margin:3rem auto;padding:2rem;background:var(--redbg);border:1px solid var(--red);border-radius:12px;text-align:center;font-family:var(--fd)"><div style="font-size:28px;margin-bottom:12px">❌</div><h3 style="color:var(--red);margin-bottom:8px">Fetch Failed</h3><p style="color:var(--txd);font-size:12px">${e.message}</p><button onclick="localStorage.removeItem('${INDIA_CACHE_KEY}');loadIndiaDashboard()" style="margin-top:14px;padding:8px 18px;background:var(--blu);border:none;border-radius:6px;color:#fff;cursor:pointer;font-family:var(--fd)">Try Again</button></div>`;
+  }
+}
+
+function renderIndiaLoading(el){
+  el.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:14px;font-family:var(--fd)"><div class="ring"></div><p style="color:var(--txd);font-size:12px">AI searching web for latest India macro signals...<br><span style="color:var(--txm)">This takes ~15 seconds</span></p></div>`;
+}
+
+async function fetchIndiaDashboardAI(apiKey, today){
+  const r = await fetch('https://mcx-yahoo-proxy.vercel.app/api/claude', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':apiKey},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:2000,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      system:`You are a macro analyst for Indian stock markets. Today: ${today}. Search the web for news from the past 24 hours and return ONLY valid JSON (no markdown) in this exact schema:
+{
+  "generated_at": "<time string>",
+  "overall_verdict": "Wait" | "Watch closely" | "Recovery signals building",
+  "green_count": <number 0-12>,
+  "signals": [
+    {
+      "id": <1-12>,
+      "category": "GLOBAL" | "INDIA",
+      "label": "<short label>",
+      "icon": "<emoji>",
+      "level": "<current level/value>",
+      "change": "<what changed in 24h>",
+      "signal": "GREEN" | "RED" | "NEUTRAL",
+      "detail": "<1 sentence plain fact, cite source>"
+    }
+  ],
+  "key_events": [
+    { "date": "<e.g. Oct 5-7>", "event": "<name>", "impact": "HIGH" | "MEDIUM" | "LOW" }
+  ]
+}
+The 12 signals must cover in order:
+1. Strait of Hormuz ship transits
+2. US-Iran war / Red Sea / Houthi
+3. Brent crude (GREEN if trending toward $90 or below)
+4. USD/INR (GREEN if rupee stable or strengthening)
+5. FII and DII net flows
+6. US Fed stance and 10-year yield
+7. India CPI and RBI stance
+8. Petrol/diesel prices and fiscal deficit
+9. Monsoon / kharif / food prices / rural demand
+10. Festive demand: auto sales, GST collections
+11. Q2 results: margin guidance, earnings
+12. SIP inflows, IPOs, SEBI/IRDAI rules`,
+      messages:[{role:'user',content:`Search the web for latest news on all 12 India macro signals. Today is ${today}. Return JSON only.`}]
+    })
+  });
+  const d = await r.json();
+  if(d.error) throw new Error(d.error.message||'API error');
+  let raw=''; for(const b of (d.content||[])) if(b.type==='text') raw=b.text;
+  if(!raw) throw new Error('No response from AI');
+  raw = raw.replace(/```json|```/g,'').trim();
+  const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
+  if(s<0||e<0) throw new Error('No JSON in response');
+  return JSON.parse(raw.slice(s,e+1));
+}
+
+function renderIndiaDashboard(data, ts, fresh){
+  const el = document.getElementById('view-india');
+  if(!el||!data) return;
+  const age = Math.round((Date.now()-ts)/60000);
+  const ageStr = age<2?'Just now':`${age}m ago`;
+  const verdictColor = data.overall_verdict==='Recovery signals building'?'var(--grn)':data.overall_verdict==='Wait'?'var(--red)':'var(--amb)';
+  const greenCount = data.green_count ?? (data.signals||[]).filter(s=>s.signal==='GREEN').length;
+  const globalSigs = (data.signals||[]).filter(s=>s.category==='GLOBAL');
+  const indiaSigs  = (data.signals||[]).filter(s=>s.category==='INDIA');
+
+  function sigCard(s){
+    const col = s.signal==='GREEN'?'var(--grn)':s.signal==='RED'?'var(--red)':'var(--amb)';
+    const bg  = s.signal==='GREEN'?'var(--grnbg)':s.signal==='RED'?'var(--redbg)':'var(--ambbg)';
+    const dot = s.signal==='GREEN'?'🟢':s.signal==='RED'?'🔴':'🟡';
+    return `<div style="background:var(--bg2);border:1px solid var(--br);border-left:3px solid ${col};border-radius:8px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:5px">
+        <div style="font-size:12px;font-weight:700;color:var(--tx);font-family:var(--fd)">${s.icon} ${s.label}</div>
+        <div style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:${bg};color:${col};font-family:var(--fm);flex-shrink:0">${dot} ${s.signal}</div>
+      </div>
+      <div style="font-size:11px;color:var(--tx);font-family:var(--fm);margin-bottom:3px"><strong>${s.level||'—'}</strong></div>
+      <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-bottom:4px">${s.change||''}</div>
+      <div style="font-size:10px;color:var(--txm);font-family:var(--fm);line-height:1.5">${s.detail||''}</div>
+    </div>`;
+  }
+
+  el.innerHTML = `
+  <div style="max-width:760px;margin:0 auto;padding:1.2rem 1rem">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1.2rem">
+      <div>
+        <h2 style="font-size:20px;font-weight:800;color:var(--gold);font-family:var(--fd);margin-bottom:3px">🇮🇳 India Market Dashboard</h2>
+        <div style="font-size:10px;color:var(--txd);font-family:var(--fm)">Updated ${ageStr} · Based on past 24h news</div>
+      </div>
+      <button onclick="localStorage.removeItem('${INDIA_CACHE_KEY}');loadIndiaDashboard()" style="padding:5px 14px;font-size:10px;background:var(--bg3);border:1px solid var(--brl);border-radius:5px;color:var(--gold);cursor:pointer;font-family:var(--fm)">↻ Refresh</button>
+    </div>
+
+    <!-- Verdict Banner -->
+    <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:16px 18px;margin-bottom:1.2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:10px;color:var(--txd);font-family:var(--fm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">Overall Market Verdict</div>
+        <div style="font-size:18px;font-weight:800;color:${verdictColor};font-family:var(--fd)">${data.overall_verdict||'—'}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-bottom:3px">Signals Green</div>
+        <div style="font-size:28px;font-weight:700;font-family:var(--fm);color:var(--grn)">${greenCount}<span style="font-size:14px;color:var(--txd)">/12</span></div>
+      </div>
+    </div>
+
+    <!-- Two column grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.2rem">
+      <!-- Global -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--cya);text-transform:uppercase;letter-spacing:1px;font-family:var(--fm);margin-bottom:9px">🌐 Global Signals</div>
+        ${globalSigs.map(sigCard).join('')}
+      </div>
+      <!-- India -->
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;font-family:var(--fm);margin-bottom:9px">🇮🇳 India Signals</div>
+        ${indiaSigs.map(sigCard).join('')}
+      </div>
+    </div>
+
+    <!-- Key Events -->
+    ${(data.key_events||[]).length?`
+    <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px 16px;margin-bottom:1rem">
+      <div style="font-size:10px;font-weight:700;color:var(--amb);text-transform:uppercase;letter-spacing:.8px;font-family:var(--fm);margin-bottom:10px">📅 Key Events – Next 7 Days</div>
+      ${(data.key_events||[]).map(ev=>{
+        const ic = ev.impact==='HIGH'?'var(--red)':ev.impact==='MEDIUM'?'var(--amb)':'var(--txd)';
+        const bg = ev.impact==='HIGH'?'var(--redbg)':ev.impact==='MEDIUM'?'var(--ambbg)':'var(--bg5)';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--br)">
+          <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${bg};color:${ic};font-family:var(--fm);flex-shrink:0">${ev.impact}</span>
+          <span style="font-size:12px;color:var(--tx);flex:1;font-family:var(--fd)">${ev.event}</span>
+          <span style="font-size:10px;color:var(--txd);font-family:var(--fm)">${ev.date}</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <div style="font-size:10px;color:var(--txm);font-family:var(--fm);text-align:center;padding:8px 0">Plain facts only · No buy/sell recommendations · AI-generated from web search</div>
+  </div>`;
+}
+</script>
+
+<div id="b-settings-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:24px;width:90%;max-width:400px;font-family:var(--fd);">
+    <h3 style="font-size:18px;margin-bottom:15px;color:var(--tx)">Settings</h3>
+    <label style="display:block;font-size:11px;color:var(--txd);margin-bottom:5px;font-family:var(--fm)">Anthropic API Key (Claude)</label>
+    <input type="password" id="set-api-key" placeholder="sk-ant-..." style="width:100%;background:var(--bg3);border:1px solid var(--br);color:var(--tx);padding:10px;border-radius:6px;font-family:var(--fm);margin-bottom:15px">
+    <div style="font-size:11px;color:var(--txm);margin-bottom:20px;line-height:1.4">Required to fetch real-time geopolitical news and AI-driven market analysis. Saved locally in your browser.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="closeSettings()" style="padding:8px 16px;background:var(--bg5);border:none;border-radius:6px;color:var(--tx);cursor:pointer">Cancel</button>
+      <button onclick="saveSettings()" style="padding:8px 16px;background:var(--blu);border:none;border-radius:6px;color:#fff;font-weight:700;cursor:pointer">Save & Apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-pro" style="display:none"></div>
+<div id="view-india" class="view" style="display:none"></div>
+
+<style>
+@media(max-width:640px){
+  #view-india [style*="grid-template-columns:1fr 1fr"]{
+    grid-template-columns:1fr!important;
+  }
+}
+</style>
+</body>
+</html>
