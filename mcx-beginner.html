@@ -29,6 +29,9 @@
     <div class="mode-tab" id="tab-india" onclick="setMode('india')">
   <span class="mt-icon">🇮🇳</span> India Dashboard
     </div>
+    <div class="mode-tab" id="tab-stocks" onclick="setMode('stocks')">
+  <span class="mt-icon">🏢</span> Stock Screener
+    </div>
   </div>
   <div class="com-scroll" id="comTabs"></div>
   <div class="gbar-right">
@@ -1195,11 +1198,11 @@ function _boot(){renderJournal();renderComTabs();fullRefresh();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 function setMode(mode){
   currentMode=mode;
-  ['tab-beg','tab-pro','tab-log','tab-india'].forEach(id=>{
+  ['tab-beg','tab-pro','tab-log','tab-india','tab-stocks'].forEach(id=>{
     const m = id.replace('tab-','');
     document.getElementById(id)?.classList.toggle('active', m===mode);
   });
-  ['view-beg','view-pro','view-log','view-india'].forEach(id=>{
+  ['view-beg','view-pro','view-log','view-india','view-stocks'].forEach(id=>{
     const m = id.replace('view-','');
     const el = document.getElementById(id);
     if(el){ el.classList.toggle('active', m===mode); el.style.display = m===mode?'block':'none'; }
@@ -1207,6 +1210,7 @@ function setMode(mode){
   if(mode==='pro') window.location.href='mcx-pro.html';
   else if(mode==='log') window.location.href='mcx-logger.html';
   else if(mode==='india') loadIndiaDashboard();
+  else if(mode==='stocks') initStockAnalyzer();
   else if(mode==='beg'&&allSigs[activeC.id]) renderBeg();
 }
 function renderBeg(){
@@ -1572,6 +1576,196 @@ function renderHeatMap(){
   }).join('')}`;
 }
 
+// ═══════════════════════════════════════════
+//  AI STOCK SCREENER (8-POINT SYSTEM)
+// ═══════════════════════════════════════════
+
+let stkCounter = 0; // Toggle between column 1 and column 2
+
+function initStockAnalyzer() {
+  const inp = document.getElementById('stk-input');
+  if(inp) inp.focus();
+}
+
+async function analyzeStockAI() {
+  const ticker = document.getElementById('stk-input').value.trim();
+  if(!ticker) return alert('Enter a stock ticker');
+  const key = localStorage.getItem('mcx_anthropic_key');
+  if(!key) return alert('Anthropic API Key missing. Add it in Settings ⚙');
+
+  document.getElementById('stk-results').style.display = 'block';
+  document.getElementById('stk-loading').style.display = 'block';
+
+  try {
+    const r = await fetch('https://mcx-yahoo-proxy.vercel.app/api/claude',{
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':key},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514', max_tokens:2000,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        system:`You are a financial analyst extracting 8-point scorecard data and EV/EBITDA valuation data.
+Search the web (screener.in, yahoo finance, etc) for current data on Indian stock ticker: ${ticker} (usually appended with .NS).
+Calculate/find Enterprise Value (EV) and EBITDA for the last 4 completed financial years. EV = Market Cap + Total Debt - Cash.
+Return ONLY valid JSON (no markdown). Ensure numeric values are returned as numbers, not strings.
+{
+  "ticker": "${ticker.toUpperCase()}", "name": "<Company Name>", "industry": "<Industry>", "currentPrice": <number>,
+  "metrics": {
+    "currentRatio": <number>, "debtToEquity": <number>, "roce": <number in %>, "inventoryTurnover": <number>,
+    "pe": <number>, "industryPe": <number>, "reservesIncreasing": <boolean>, "fcfPositive": <boolean>, "pledgedSharesPct": <number>
+  },
+  "valuation": {
+    "sharesOutstandingCr": <number in crores>, "debtCr": <number in crores>,
+    "history": [
+      {"year": <latest_yr>, "ev": <number>, "ebitda": <number>},
+      {"year": <yr-1>, "ev": <number>, "ebitda": <number>},
+      {"year": <yr-2>, "ev": <number>, "ebitda": <number>},
+      {"year": <yr-3>, "ev": <number>, "ebitda": <number>}
+    ]
+  }
+}`,
+        messages:[{role:'user',content:`Fetch fundamental data for ${ticker}`}]
+      })
+    });
+    
+    if(!r.ok) throw new Error('API Error');
+    const d = await r.json();
+    if(!d.content || !d.content[0].text) throw new Error('Invalid response from AI');
+    
+    const jsonStr = d.content[0].text.replace(/```json/g,'').replace(/```/g,'').trim();
+    const data = JSON.parse(jsonStr);
+    
+    renderStockCard(data);
+    
+  } catch (err) {
+    console.error(err);
+    alert('Failed to analyze stock. Check console for details.');
+  } finally {
+    document.getElementById('stk-loading').style.display = 'none';
+    document.getElementById('stk-input').value = '';
+  }
+}
+
+function renderStockCard(d) {
+  // Scoring
+  const m = d.metrics || {};
+  const pts = {
+    cr: (m.currentRatio||0) >= 1.5 ? 2 : ((m.currentRatio||0) >= 1 ? 1 : 0),
+    de: (m.debtToEquity||0) < 1 ? 2 : ((m.debtToEquity||0) < 2 ? 1 : 0),
+    roce: (m.roce||0) > 15 ? 2 : ((m.roce||0) > 10 ? 1 : 0),
+    inv: (m.inventoryTurnover||0) > 0 ? 2 : 0,
+    pe: (m.pe||0) < (m.industryPe||0) ? 2 : ((m.pe||0) < (m.industryPe||0) * 1.5 ? 1 : 0),
+    res: m.reservesIncreasing ? 2 : 0,
+    fcf: m.fcfPositive ? 2 : 0,
+    pledge: (m.pledgedSharesPct||0) <= 0 ? 2 : 0
+  };
+  const totalScore = Object.values(pts).reduce((a,b)=>a+b,0);
+  const maxScore = 16;
+  const scorePct = Math.round((totalScore/maxScore)*100);
+  const buyVerdict = scorePct > 60 ? '🟢 GO AHEAD' : (scorePct > 40 ? '🟡 WATCH' : '🔴 AVOID');
+
+  // EV/EBITDA Valuation
+  const val = d.valuation || {};
+  const h = val.history || [];
+  let expectedEbitda = 0, targetPrice = 0, entryPrice = 0, fEv = 0, currEvEbitda = 0, avgGrowth = 0;
+  let growths = [];
+  
+  if (h && h.length >= 2) {
+    h.sort((a,b) => b.year - a.year); // Descending (latest first)
+    for (let i=0; i<h.length-1; i++) {
+      if (h[i+1].ebitda > 0) {
+        growths.push( ((h[i].ebitda - h[i+1].ebitda) / h[i+1].ebitda) * 100 );
+      }
+    }
+    avgGrowth = growths.length ? growths.reduce((a,b)=>a+b,0)/growths.length : 0;
+    
+    const latestEbitda = h[0].ebitda || 0;
+    const latestEv = h[0].ev || 0;
+    if (latestEbitda > 0) currEvEbitda = latestEv / latestEbitda;
+    
+    expectedEbitda = latestEbitda * (1 + (avgGrowth/100));
+    fEv = expectedEbitda * currEvEbitda;
+    
+    const debtCr = val.debtCr || 0;
+    const sharesCr = val.sharesOutstandingCr || 0;
+    const fCap = fEv - debtCr;
+    targetPrice = sharesCr > 0 ? (fCap / sharesCr) : 0;
+    entryPrice = targetPrice * 0.75;
+  }
+
+  const html = `
+    <div style="background:var(--bg3); border:1px solid var(--br); border-radius:12px; padding:16px; position:relative;">
+      <button onclick="this.parentElement.remove()" style="position:absolute; top:10px; right:10px; background:var(--bg5); color:var(--tx); border:none; border-radius:4px; padding:4px 8px; cursor:pointer;">✖</button>
+      
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div>
+          <div style="font-size:20px; font-weight:900; color:var(--tx); font-family:var(--fd)">${d.ticker||'Unknown'}</div>
+          <div style="font-size:12px; color:var(--txd); font-family:var(--fm)">${d.name||''} · ${d.industry||''}</div>
+        </div>
+        <div style="text-align:right; margin-right: 30px;">
+          <div style="font-size:18px; font-weight:700; color:var(--tx); font-family:var(--fm)">₹${d.currentPrice||0}</div>
+          <div style="font-size:10px; color:var(--txm)">LTP</div>
+        </div>
+      </div>
+
+      <!-- 8 POINT SCORECARD -->
+      <div style="background:var(--bg2); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-family:var(--fd);">
+          <span style="font-size:12px; font-weight:bold;">8-Point Scorecard</span>
+          <span style="font-size:12px; font-weight:bold; color:${scorePct>60?'var(--grn)':scorePct>40?'var(--amb)':'var(--red)'}">${totalScore}/16 (${scorePct}%) · ${buyVerdict}</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px; font-family:var(--fm); color:var(--txd);">
+          <div style="display:flex; justify-content:space-between;"><span>Liquidity</span> <span style="color:${pts.cr>0?'var(--grn)':'var(--tx)'}">${m.currentRatio||0}x (${pts.cr})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Solvency</span> <span style="color:${pts.de>0?'var(--grn)':'var(--tx)'}">${m.debtToEquity||0}x (${pts.de})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>ROCE</span> <span style="color:${pts.roce>0?'var(--grn)':'var(--tx)'}">${m.roce||0}% (${pts.roce})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Inv. T/O</span> <span style="color:${pts.inv>0?'var(--grn)':'var(--tx)'}">${m.inventoryTurnover||0}x (${pts.inv})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>PE vs Ind</span> <span style="color:${pts.pe>0?'var(--grn)':'var(--tx)'}">${m.pe||0} / ${m.industryPe||0} (${pts.pe})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Reserves Inc.</span> <span style="color:${pts.res>0?'var(--grn)':'var(--tx)'}">${m.reservesIncreasing?'Yes':'No'} (${pts.res})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>FCF</span> <span style="color:${pts.fcf>0?'var(--grn)':'var(--tx)'}">${m.fcfPositive?'+ve':'-ve'} (${pts.fcf})</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Pledged Shrs</span> <span style="color:${pts.pledge>0?'var(--grn)':'var(--tx)'}">${m.pledgedSharesPct||0}% (${pts.pledge})</span></div>
+        </div>
+      </div>
+
+      <!-- VALUATION -->
+      <div style="background:var(--bg2); border-radius:8px; padding:12px;">
+        <div style="font-size:12px; font-weight:bold; font-family:var(--fd); margin-bottom:10px;">EV/EBITDA Valuation</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px; font-family:var(--fm); color:var(--txd); margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between;"><span>Avg Growth</span> <span style="color:var(--tx)">${avgGrowth.toFixed(1)}%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Curr EV/EBITDA</span> <span style="color:var(--tx)">${currEvEbitda.toFixed(2)}x</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Exp EBITDA</span> <span style="color:var(--tx)">${Math.round(expectedEbitda).toLocaleString('en-IN')} Cr</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Fwd EV</span> <span style="color:var(--tx)">${Math.round(fEv).toLocaleString('en-IN')} Cr</span></div>
+        </div>
+        
+        <div style="display:flex; gap:10px; align-items:center; border-top:1px solid var(--br); padding-top:12px;">
+          <div style="flex:1; text-align:center; padding:8px; background:var(--bg3); border-radius:6px;">
+            <div style="font-size:10px; color:var(--txm); margin-bottom:4px;">Target Price</div>
+            <div style="font-size:16px; font-weight:700; color:var(--tx); font-family:var(--fd)">₹${Math.round(targetPrice)}</div>
+          </div>
+          <div style="flex:1; text-align:center; padding:8px; background:var(--bg3); border-radius:6px; border:1px solid ${(targetPrice > 0 && d.currentPrice < entryPrice) ? 'var(--grn)' : 'transparent'}">
+            <div style="font-size:10px; color:var(--txm); margin-bottom:4px;">Entry Price (75%)</div>
+            <div style="font-size:16px; font-weight:700; color:${(targetPrice > 0 && d.currentPrice < entryPrice) ? 'var(--grn)' : 'var(--tx)'}; font-family:var(--fd)">₹${Math.round(entryPrice)}</div>
+          </div>
+        </div>
+        ${(targetPrice > 0 && d.currentPrice < entryPrice) ? '<div style="margin-top:8px; text-align:center; font-size:10px; color:var(--grn); font-weight:bold;">✨ Currently trading in Buy Zone!</div>' : ''}
+      </div>
+
+    </div>
+  `;
+
+  const targetId = stkCounter % 2 === 0 ? 'stk-col-1' : 'stk-col-2';
+  
+  // If replacing placeholder
+  if (stkCounter === 0) {
+    document.getElementById('stk-col-1').innerHTML = html;
+  } else if (stkCounter === 1) {
+    document.getElementById('stk-col-2').innerHTML = html;
+  } else {
+    // If more than 2, just keep adding alternatingly
+    const col = document.getElementById(targetId);
+    col.insertAdjacentHTML('afterbegin', html);
+  }
+  
+  stkCounter++;
+}
+
 function _boot(){renderJournal();renderComTabs();fullRefresh();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 // SETTINGS MODAL
@@ -1782,6 +1976,40 @@ function renderIndiaDashboard(data, ts, fresh){
 <div id="view-pro" style="display:none"></div>
 <div id="view-india" class="view" style="display:none"></div>
 
+<!-- ══ STOCK SCREENER / 8-POINT SYSTEM ══ -->
+<div id="view-stocks" class="view" style="display:none; max-width:1200px; margin:0 auto; padding:20px;">
+  
+  <div style="background:var(--bg2); padding:20px; border-radius:12px; border:1px solid var(--br); margin-bottom:20px; display:flex; gap:12px; align-items:center;">
+    <span style="font-size:24px">🏢</span>
+    <div>
+      <h2 style="margin:0; font-family:var(--fd); color:var(--tx)">AI Stock Screener (8-Point System)</h2>
+      <p style="margin:4px 0 0 0; font-size:12px; color:var(--txd)">Compare stocks using the Fundamental 8-Point Scorecard and EV/EBITDA valuation.</p>
+    </div>
+    
+    <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+      <input type="text" id="stk-input" placeholder="e.g. RELIANCE.NS, TCS.NS" style="background:var(--bg3); border:1px solid var(--br); color:var(--tx); padding:8px 12px; border-radius:6px; font-family:var(--fm); width:220px; text-transform:uppercase;">
+      <button onclick="analyzeStockAI()" style="background:var(--blu); color:#fff; border:none; padding:9px 18px; border-radius:6px; font-family:var(--fd); font-weight:bold; cursor:pointer;">Auto-Fill with AI ✨</button>
+    </div>
+  </div>
+
+  <div id="stk-loading" style="display:none; text-align:center; padding:40px; background:var(--bg2); border-radius:12px; border:1px solid var(--br);">
+    <div class="ring" style="width:30px; height:30px; border-color:var(--blu); border-top-color:transparent; margin:0 auto 15px"></div>
+    <div style="color:var(--txd); font-family:var(--fm);">Claude AI is scanning financial reports and calculating EV/EBITDA...</div>
+  </div>
+
+  <div id="stk-results" style="display:none;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+      <!-- Company 1 Card (we will dynamically populate it) -->
+      <div id="stk-col-1"></div>
+      <div id="stk-col-2">
+        <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg2); border:1px dashed var(--brl); border-radius:12px; color:var(--txm); cursor:pointer;" onclick="document.getElementById('stk-input').focus()">
+          <span style="font-size:24px; margin-bottom:10px">⚖️</span>
+          <span style="font-family:var(--fd)">Search another stock to compare</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <style>
 @media(max-width:640px){
   #view-india [style*="grid-template-columns:1fr 1fr"]{
