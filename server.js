@@ -313,8 +313,12 @@ async function getCachedClaudeSentiment(commodity, apiKey) {
   // Return immediately if in cache (latency < 5ms)
   if (cached) return { ...cached, cached: true };
 
-  // If no API key provided, return neutral fallback
-  if (!apiKey) {
+  // Fallback to config key if not in request
+  const activeKey = apiKey || (function(){
+    try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')).anthropic?.apiKey; } catch(e){ return null; }
+  })();
+
+  if (!activeKey) {
     return {
       commodity,
       newsScore: 50,
@@ -328,12 +332,12 @@ async function getCachedClaudeSentiment(commodity, apiKey) {
   const aiPayload = await fetchJson('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'x-api-key': apiKey,
+      'x-api-key': activeKey,
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json'
     }
   }, {
-    model: 'claude-3-7-sonnet-20250219',
+    model: 'claude-sonnet-4-6',
     max_tokens: 600,
     system: `You are a commodity analyst. Today: ${new Date().toDateString()}.
 Return ONLY valid JSON:
@@ -391,6 +395,18 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/' || pathname === '/api/health') {
       res.writeHead(200);
       return res.end(JSON.stringify({ status: 'ok', serverTime: new Date().toISOString() }));
+    }
+
+    // Endpoint: Local secrets fetch
+    if (pathname === '/api/config/anthropic-key') {
+      try {
+        const sec = JSON.parse(fs.readFileSync(path.join(__dirname, '.secrets.json'), 'utf8'));
+        res.writeHead(200);
+        return res.end(JSON.stringify({ key: sec.anthropicApiKey || '' }));
+      } catch(e) {
+        res.writeHead(200);
+        return res.end(JSON.stringify({ key: '' }));
+      }
     }
 
     // Endpoint 1: Sub-second Quotes + Order Blocks

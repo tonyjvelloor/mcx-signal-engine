@@ -956,7 +956,7 @@ async function callClaude(c){
   const r=await fetch('https://mcx-yahoo-proxy.vercel.app/api/claude',{
     method:'POST',headers:{'Content-Type':'application/json','x-api-key':key},
     body:JSON.stringify({
- model:'claude-sonnet-4-20250514',max_tokens:1200,
+ model:'claude-sonnet-4-6',max_tokens:1200,
  tools:[{type:'web_search_20250305',name:'web_search'}],
  system:`You are a commodity analyst for MCX India. Today: ${new Date().toDateString()}. USD/INR=₹${usdInr.toFixed(2)}.
 
@@ -1609,7 +1609,7 @@ async function analyzeStockAI() {
     const r = await fetch('https://mcx-yahoo-proxy.vercel.app/api/claude',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':key},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514', max_tokens:2000,
+        model:'claude-sonnet-4-6', max_tokens:2000,
         tools:[{type:'web_search_20250305',name:'web_search'}],
         system:`You are a financial analyst extracting 8-point scorecard data and EV/EBITDA valuation data.
 Search the web (screener.in, yahoo finance, etc) for current data on Indian stock ticker: ${ticker} (usually appended with .NS).
@@ -1808,7 +1808,22 @@ function handleKiteConnect() {
   window.location.href = 'https://kite.zerodha.com/connect/login?v=3&api_key=yec641x53e88b3gu';
 }
 
-function _boot(){renderJournal();renderComTabs();fullRefresh();checkKiteStatus();}
+async function loadConfigSecrets() {
+  if (!localStorage.getItem('mcx_anthropic_key')) {
+    try {
+      const res = await fetch('/api/config/anthropic-key');
+      const d = await res.json();
+      if (d && d.key) {
+        localStorage.setItem('mcx_anthropic_key', d.key);
+      }
+    } catch(e) {}
+  }
+}
+
+function _boot(){
+  loadConfigSecrets();
+  renderJournal();renderComTabs();fullRefresh();checkKiteStatus();
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 // SETTINGS MODAL
 function openSettings(){
@@ -1870,7 +1885,7 @@ async function fetchIndiaDashboardAI(apiKey, today){
     method:'POST',
     headers:{'Content-Type':'application/json','x-api-key':apiKey},
     body: JSON.stringify({
-      model:'claude-sonnet-4-20250514',
+      model:'claude-sonnet-4-6',
       max_tokens:2000,
       tools:[{type:'web_search_20250305',name:'web_search'}],
       system:`You are a macro analyst for Indian stock markets. Today: ${today}. Search the web for news from the past 24 hours and return ONLY valid JSON (no markdown) in this exact schema:
