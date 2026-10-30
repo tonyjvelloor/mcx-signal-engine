@@ -43,6 +43,7 @@
     <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
     <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
     <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
+    <button class="rfbtn" id="kiteBtn" onclick="handleKiteConnect()" style="font-size:11px; font-weight:700; color:var(--tx); border:1px solid var(--br);"><span id="kiteDot" class="dot doff"></span> <span id="kiteTxt">Connect Kite</span></button>
     <button class="rfbtn" id="rfbtn" onclick="fullRefresh()"><span id="rfIcon">↻</span> Refresh</button>
     <button class="rfbtn" onclick="openSettings()"><span style="font-size:12px">⚙</span></button>
   </div>
@@ -1770,7 +1771,40 @@ function renderStockCard(d) {
   stkCounter++;
 }
 
-function _boot(){renderJournal();renderComTabs();fullRefresh();}
+// ═══════════════════════════════════════════
+// ZERODHA KITE CONNECT CLIENT INTEGRATION
+// ═══════════════════════════════════════════
+async function checkKiteStatus() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const reqToken = urlParams.get('request_token');
+  if (reqToken) {
+    try {
+      await fetch(`http://localhost:3001/api/kite/callback?request_token=${reqToken}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch(e) {}
+  }
+
+  try {
+    const res = await fetch('http://localhost:3001/api/kite/status');
+    const d = await res.json();
+    const dot = document.getElementById('kiteDot');
+    const txt = document.getElementById('kiteTxt');
+    if (d && d.connected) {
+      if (dot) dot.className = 'dot don';
+      if (txt) {
+        const cash = d.margins?.equity?.available?.cash ? ` (₹${Math.round(d.margins.equity.available.cash).toLocaleString('en-IN')})` : '';
+        txt.innerText = `Kite: ${d.user}${cash}`;
+        txt.style.color = 'var(--grn)';
+      }
+    }
+  } catch(e) {}
+}
+
+function handleKiteConnect() {
+  window.location.href = 'https://kite.zerodha.com/connect/login?v=3&api_key=yec641x53e88b3gu';
+}
+
+function _boot(){renderJournal();renderComTabs();fullRefresh();checkKiteStatus();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 // SETTINGS MODAL
 function openSettings(){

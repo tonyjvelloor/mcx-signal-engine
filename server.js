@@ -7,6 +7,7 @@
 const http = require('http');
 const https = require('https');
 const url = require('url');
+const kite = require('./kite');
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
 const memoryCache = new Map();
@@ -418,6 +419,88 @@ const server = http.createServer(async (req, res) => {
       const data = await getCachedClaudeSentiment(symbol, apiKey);
       res.writeHead(200);
       return res.end(JSON.stringify(data));
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // ZERODHA KITE CONNECT ENDPOINTS
+    // ─────────────────────────────────────────────────────────
+
+    // 1. Kite Login URL
+    if (pathname === '/api/kite/login') {
+      const loginUrl = kite.getLoginUrl();
+      if (query.redirect === 'true') {
+        res.writeHead(302, { 'Location': loginUrl });
+        return res.end();
+      }
+      res.writeHead(200);
+      return res.end(JSON.stringify({ loginUrl }));
+    }
+
+    // 2. Kite Auth Callback (redirected by Zerodha)
+    if (pathname === '/api/kite/callback') {
+      const requestToken = query.request_token;
+      if (!requestToken) {
+        res.writeHead(400);
+        return res.end(JSON.stringify({ error: 'Missing request_token' }));
+      }
+      try {
+        const session = await kite.generateSession(requestToken);
+        // Redirect back to dashboard with success status
+        res.writeHead(302, { 'Location': 'http://127.0.0.1:8000/mcx-beginner.html?kite_connected=true' });
+        return res.end();
+      } catch (authErr) {
+        res.writeHead(500);
+        return res.end(JSON.stringify({ error: authErr.message }));
+      }
+    }
+
+    // 3. Kite Status & Margins
+    if (pathname === '/api/kite/status') {
+      const session = kite.loadSession();
+      if (!session) {
+        res.writeHead(200);
+        return res.end(JSON.stringify({ connected: false, message: 'No active session today' }));
+      }
+      try {
+        const margins = await kite.getMargins();
+        res.writeHead(200);
+        return res.end(JSON.stringify({
+          connected: true,
+          user: session.user_name || session.user_id,
+          email: session.email,
+          margins: margins.data
+        }));
+      } catch (e) {
+        res.writeHead(200);
+        return res.end(JSON.stringify({ connected: false, error: e.message }));
+      }
+    }
+
+    // 4. Kite Live Quotes
+    // Example: /api/kite/quote?instruments=NSE:NIFTY%2050,MCX:GOLDPETAL24NOVFUT
+    if (pathname === '/api/kite/quote') {
+      const instruments = query.instruments || 'NSE:NIFTY 50';
+      const quoteData = await kite.getLiveQuotes(instruments.split(','));
+      res.writeHead(200);
+      return res.end(JSON.stringify(quoteData));
+    }
+
+    // 5. Kite 1-Click Order Execution
+    if (pathname === '/api/kite/order' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', async () => {
+        try {
+          const order = JSON.parse(body);
+          const result = await kite.placeOrder(order);
+          res.writeHead(200);
+          res.end(JSON.stringify(result));
+        } catch (orderErr) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: orderErr.message }));
+        }
+      });
+      return;
     }
 
     // 404 Route

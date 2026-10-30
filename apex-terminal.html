@@ -437,6 +437,7 @@ canvas {
     <a href="mcx-logger.html" style="text-decoration:none; color:var(--text-muted); font-size:11px; font-weight:700; padding:4px 10px; background:var(--bg-subtle); border-radius:4px; border:1px solid var(--border);">📋 Trade Log</a>
   </div>
   <div class="nav-stats">
+    <div class="stat-pill" style="cursor:pointer;" onclick="handleKiteLogin()"><span id="kite-pulse" class="live-pulse" style="background:#64748b; box-shadow:none;"></span> KITE: <strong id="kite-status-txt">CONNECT</strong></div>
     <div class="stat-pill"><span class="live-pulse"></span> SYSTEM: <strong>ONLINE</strong></div>
     <div class="stat-pill">USD/INR: <strong id="val-usdinr">₹84.15</strong></div>
     <div class="stat-pill">XAU/USD: <strong id="val-xau" style="color:var(--gold);">$2,748.50</strong></div>
@@ -816,12 +817,30 @@ function simulateOrder(side) {
   alert(`⚡ Order Executed: ${side} 1 Unit of ${activeItem.name} at ₹${activeItem.price.toLocaleString('en-IN')}\n\nStop Loss locked at ₹${activeItem.ob[0]}\nTarget set at opposing Fair Value Gap.`);
 }
 
+function handleKiteLogin() {
+  window.location.href = 'https://kite.zerodha.com/connect/login?v=3&api_key=yec641x53e88b3gu';
+}
+
+async function checkKiteSession() {
+  try {
+    const res = await fetch('http://localhost:3001/api/kite/status');
+    const d = await res.json();
+    if (d && d.connected) {
+      document.getElementById('kite-pulse').style.background = 'var(--green)';
+      document.getElementById('kite-pulse').style.boxShadow = '0 0 8px var(--green)';
+      document.getElementById('kite-status-txt').innerText = d.user || 'LIVE';
+      document.getElementById('kite-status-txt').style.color = 'var(--green)';
+    }
+  } catch(e) {}
+}
+
 window.addEventListener('resize', drawChart);
 
 // INITIALIZE
 renderWatchlist();
 updateRightPanel();
 generateCandlesAndDraw();
+checkKiteSession();
 </script>
 </body>
 </html>
