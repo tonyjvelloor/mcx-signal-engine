@@ -32,6 +32,9 @@
     <div class="mode-tab" id="tab-stocks" onclick="setMode('stocks')">
   <span class="mt-icon">🏢</span> Stock Screener
     </div>
+    <div class="mode-tab" id="tab-orderflow" onclick="setMode('orderflow')">
+  <span class="mt-icon">🎯</span> OrderFlow SMC
+    </div>
   </div>
   <div class="com-scroll" id="comTabs"></div>
   <div class="gbar-right">
@@ -1198,7 +1201,7 @@ function _boot(){renderJournal();renderComTabs();fullRefresh();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 function setMode(mode){
   currentMode=mode;
-  ['tab-beg','tab-pro','tab-log','tab-india','tab-stocks'].forEach(id=>{
+  ['tab-beg','tab-pro','tab-log','tab-india','tab-stocks','tab-orderflow'].forEach(id=>{
     const m = id.replace('tab-','');
     document.getElementById(id)?.classList.toggle('active', m===mode);
   });
@@ -1209,6 +1212,7 @@ function setMode(mode){
   });
   if(mode==='pro') window.location.href='mcx-pro.html';
   else if(mode==='log') window.location.href='mcx-logger.html';
+  else if(mode==='orderflow') window.location.href='apex-terminal.html';
   else if(mode==='india') loadIndiaDashboard();
   else if(mode==='stocks') initStockAnalyzer();
   else if(mode==='beg'&&allSigs[activeC.id]) renderBeg();

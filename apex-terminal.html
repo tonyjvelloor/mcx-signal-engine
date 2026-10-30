@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apex OrderFlow Terminal | Next-Gen SMC & Macro Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-main: #090c10;
+  --bg-card: #0f141c;
+  --bg-card-hover: #151b26;
+  --bg-subtle: #18202c;
+  --border: #222d3d;
+  --border-focus: #3b82f6;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --green: #10b981;
+  --green-glow: rgba(16, 185, 129, 0.15);
+  --red: #ef4444;
+  --red-glow: rgba(239, 68, 68, 0.15);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59, 130, 246, 0.15);
+  --gold: #f59e0b;
+  --cyan: #06b6d4;
+  --purple: #8b5cf6;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* TOP NAVBAR */
+header {
+  height: 54px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.5px;
+}
+.brand-badge {
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+.nav-stats {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+.stat-pill strong { color: var(--text-main); }
+.live-pulse {
+  width: 7px;
+  height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 1.8s infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* APP LAYOUT */
+.app-container {
+  display: grid;
+  grid-template-columns: 310px 1fr 340px;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* LEFT PANEL: WATCHLIST & SCANNER */
+.left-panel {
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.filter-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-main);
+}
+.ftab {
+  flex: 1;
+  padding: 5px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  transition: all 0.15s;
+}
+.ftab.active {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.scanner-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+.scan-card {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.scan-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-focus);
+}
+.scan-card.active {
+  background: var(--bg-card-hover);
+  border-color: var(--blue);
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+.scan-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.scan-sym {
+  font-weight: 800;
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+.scan-px {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+}
+.scan-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.badge-zone {
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.2px;
+}
+.badge-zone.demand { background: var(--green-glow); color: var(--green); border: 1px solid var(--green); }
+.badge-zone.supply { background: var(--red-glow); color: var(--red); border: 1px solid var(--red); }
+.badge-zone.neutral { background: var(--bg-subtle); color: var(--text-dim); }
+
+/* CENTER PANEL: INTERACTIVE SMC CHART */
+.center-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-main);
+  overflow: hidden;
+}
+.chart-controls {
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+}
+.active-ticker-info {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.active-ticker-name {
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+.active-ticker-price {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+}
+.active-ticker-chg {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.tf-selector {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-main);
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.tf-btn {
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.tf-btn.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: #090c10;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-legend {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  background: rgba(15, 20, 28, 0.85);
+  backdrop-filter: blur(4px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-muted); }
+.legend-box { width: 10px; height: 10px; border-radius: 2px; }
+
+/* RIGHT PANEL: CONFLUENCE, VETO & EXECUTION */
+.right-panel {
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 14px;
+  gap: 14px;
+}
+.metric-box {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.metric-box-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* CONFLUENCE SCORE DIAL */
+.confluence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.score-badge {
+  font-size: 20px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+}
+.conviction-bar {
+  height: 6px;
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.conviction-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+/* 4-PILLAR CHECKLIST */
+.pillar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 11px;
+}
+.pillar-row:last-child { border-bottom: none; }
+.pillar-status { font-family: var(--font-mono); font-weight: 700; }
+
+/* AI NEWS VETO CARD */
+.veto-card {
+  border-left: 3px solid var(--green);
+  background: var(--bg-card);
+  padding: 10px;
+  border-radius: 0 6px 6px 0;
+  font-size: 11px;
+  margin-top: 8px;
+}
+.veto-card.active-veto {
+  border-left-color: var(--red);
+  background: var(--red-glow);
+}
+
+/* RISK CALCULATOR FOR ₹50,000 */
+.calc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.calc-stat {
+  background: var(--bg-card);
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.calc-label { font-size: 9px; color: var(--text-dim); margin-bottom: 2px; }
+.calc-val { font-size: 13px; font-weight: 800; color: var(--text-main); }
+
+/* BOTTOM DOCK */
+.trade-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+.btn-action {
+  padding: 12px;
+  border-radius: 6px;
+  border: none;
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: transform 0.1s, opacity 0.15s;
+}
+.btn-action:hover { opacity: 0.9; }
+.btn-action:active { transform: scale(0.98); }
+.btn-buy { background: var(--green); color: #fff; }
+.btn-sell { background: var(--red); color: #fff; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header>
+  <div class="brand">
+    <span>APEX</span>
+    <span class="brand-badge">SMC 2.0 TERMINAL</span>
+    <span style="font-size:11px; font-weight:600; color:var(--text-muted);">Institutional OrderFlow & AI Engine</span>
+  </div>
+  <div style="display:flex; gap:6px; margin-left: 20px;">
+    <a href="mcx-beginner.html" style="text-decoration:none; color:var(--text-muted); font-size:11px; font-weight:700; padding:4px 10px; background:var(--bg-subtle); border-radius:4px; border:1px solid var(--border);">🟢 MCX Beginner</a>
+    <a href="mcx-pro.html" style="text-decoration:none; color:var(--text-muted); font-size:11px; font-weight:700; padding:4px 10px; background:var(--bg-subtle); border-radius:4px; border:1px solid var(--border);">⚡ Pro</a>
+    <a href="mcx-logger.html" style="text-decoration:none; color:var(--text-muted); font-size:11px; font-weight:700; padding:4px 10px; background:var(--bg-subtle); border-radius:4px; border:1px solid var(--border);">📋 Trade Log</a>
+  </div>
+  <div class="nav-stats">
+    <div class="stat-pill"><span class="live-pulse"></span> SYSTEM: <strong>ONLINE</strong></div>
+    <div class="stat-pill">USD/INR: <strong id="val-usdinr">₹84.15</strong></div>
+    <div class="stat-pill">XAU/USD: <strong id="val-xau" style="color:var(--gold);">$2,748.50</strong></div>
+    <div class="stat-pill">BRENT: <strong id="val-brent" style="color:var(--cyan);">$74.20</strong></div>
+  </div>
+</header>
+
+<!-- APP BODY -->
+<div class="app-container">
+  
+  <!-- LEFT: SCANNER & WATCHLIST -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span class="panel-title">Institutional Radar</span>
+      <span style="font-size:10px; font-family:var(--font-mono); color:var(--green);" id="zone-hits">3 IN ZONE</span>
+    </div>
+    <div class="filter-tabs">
+      <button class="ftab active" onclick="setWatchlistFilter('all')">ALL</button>
+      <button class="ftab" onclick="setWatchlistFilter('indices')">INDICES</button>
+      <button class="ftab" onclick="setWatchlistFilter('stocks')">F&O</button>
+      <button class="ftab" onclick="setWatchlistFilter('mcx')">MCX</button>
+    </div>
+    <div class="scanner-list" id="watchlist-container">
+      <!-- Generated via JS -->
+    </div>
+  </div>
+
+  <!-- CENTER: SMC CHART VIEW -->
+  <div class="center-panel">
+    <div class="chart-controls">
+      <div class="active-ticker-info">
+        <span class="active-ticker-name" id="disp-sym">GOLD M</span>
+        <span class="active-ticker-price" id="disp-px">₹78,450</span>
+        <span class="active-ticker-chg" id="disp-chg" style="color:var(--green)">+0.84%</span>
+      </div>
+      <div class="tf-selector">
+        <button class="tf-btn" onclick="setTimeframe('5m')">5m</button>
+        <button class="tf-btn active" onclick="setTimeframe('15m')">15m</button>
+        <button class="tf-btn" onclick="setTimeframe('1H')">1H</button>
+        <button class="tf-btn" onclick="setTimeframe('4H')">4H</button>
+        <button class="tf-btn" onclick="setTimeframe('1D')">1D</button>
+      </div>
+    </div>
+
+    <div class="canvas-container">
+      <canvas id="chart-canvas"></canvas>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-box" style="background:rgba(16,185,129,0.3); border:1px solid var(--green)"></div> Bullish OB (Demand)</div>
+        <div class="legend-item"><div class="legend-box" style="background:rgba(239,68,68,0.3); border:1px solid var(--red)"></div> Bearish OB (Supply)</div>
+        <div class="legend-item"><div class="legend-box" style="background:rgba(6,182,212,0.25); border:1px dashed var(--cyan)"></div> Fair Value Gap (FVG)</div>
+        <div class="legend-item"><div class="legend-box" style="background:rgba(245,158,11,0.5)"></div> Equilibrium (50%)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: CONFLUENCE & RISK CALCULATOR -->
+  <div class="right-panel">
+    
+    <!-- CONFLUENCE SCORE -->
+    <div class="metric-box">
+      <div class="metric-box-title">
+        <span>Institutional Confluence</span>
+        <span id="txt-verdict" style="color:var(--green)">PRIME BUY</span>
+      </div>
+      <div class="confluence-header">
+        <span class="score-badge" id="txt-score" style="color:var(--green)">88/100</span>
+        <span style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted);" id="txt-bias">STRONG DISPLACEMENT</span>
+      </div>
+      <div class="conviction-bar">
+        <div class="conviction-fill" id="bar-score" style="width: 88%; background: var(--green);"></div>
+      </div>
+
+      <div class="pillar-row">
+        <span>Order Block Status</span>
+        <span class="pillar-status" style="color:var(--green)" id="val-ob-stat">Tapping Demand OB</span>
+      </div>
+      <div class="pillar-row">
+        <span>Market Structure (MSS)</span>
+        <span class="pillar-status" style="color:var(--green)" id="val-mss-stat">Bullish BOS Confirmed</span>
+      </div>
+      <div class="pillar-row">
+        <span>Equilibrium State</span>
+        <span class="pillar-status" style="color:var(--cyan)" id="val-eq-stat">Deep Discount (32%)</span>
+      </div>
+      <div class="pillar-row">
+        <span>Volume Delta Flow</span>
+        <span class="pillar-status" style="color:var(--green)" id="val-vol-stat">+2.8x Expansion</span>
+      </div>
+    </div>
+
+    <!-- AI MACRO / NEWS VETO ENGINE -->
+    <div class="metric-box">
+      <div class="metric-box-title">
+        <span>AI Macro & Geopolitical Guard</span>
+        <span style="color:var(--green); font-size:10px;" id="veto-badge">NO VETO ACTIVE</span>
+      </div>
+      <div class="veto-card" id="veto-container">
+        <div style="font-weight:700; color:var(--text-main); margin-bottom:2px;" id="veto-headline">Geopolitical Safe Harbor Active</div>
+        <div style="color:var(--text-muted); font-size:10px; line-height:1.4;" id="veto-desc">Claude Sonnet scanned news in past 2 hours. Middle-East tensions elevated but stable. Crude supply intact. Institutional flow aligns with technical demand.</div>
+      </div>
+    </div>
+
+    <!-- RISK & POSITION SIZER FOR ₹50,000 CAPITAL -->
+    <div class="metric-box">
+      <div class="metric-box-title">
+        <span>₹50,000 Capital Sizer (1.5% Risk)</span>
+        <span style="font-size:10px; color:var(--cyan)">SNIPER R:R</span>
+      </div>
+      <div class="calc-grid">
+        <div class="calc-stat">
+          <div class="calc-label">STOP LOSS (Behind OB)</div>
+          <div class="calc-val" id="disp-sl" style="color:var(--red)">₹78,120</div>
+        </div>
+        <div class="calc-stat">
+          <div class="calc-label">TARGET 1 (FVG Magnet)</div>
+          <div class="calc-val" id="disp-tp1" style="color:var(--green)">₹79,150</div>
+        </div>
+        <div class="calc-stat">
+          <div class="calc-label">MAX LOSS (1.5%)</div>
+          <div class="calc-val" style="color:var(--text-main)">₹750</div>
+        </div>
+        <div class="calc-stat">
+          <div class="calc-label">RISK-TO-REWARD</div>
+          <div class="calc-val" id="disp-rr" style="color:var(--gold)">1 : 2.8</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAST ORDER EXECUTION -->
+    <div class="trade-actions">
+      <button class="btn-action btn-buy" onclick="simulateOrder('BUY')">Execute Buy</button>
+      <button class="btn-action btn-sell" onclick="simulateOrder('SELL')">Execute Sell</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// MARKET DATA & INSTITUTIONAL ASSETS
+// ─────────────────────────────────────────────────────────────
+const INSTRUMENTS = [
+  { id: 'NIFTY', name: 'NIFTY 50', type: 'indices', price: 24395.20, chg: '+0.52%', zone: 'demand', ob: [24320, 24360], status: 'Retesting Demand OB', score: 86, veto: false },
+  { id: 'BANKNIFTY', name: 'BANK NIFTY', type: 'indices', price: 51840.00, chg: '-0.24%', zone: 'neutral', ob: [51600, 51720], status: 'Approaching FVG', score: 58, veto: false },
+  { id: 'RELIANCE', name: 'RELIANCE.NS', type: 'stocks', price: 1284.50, chg: '+1.42%', zone: 'demand', ob: [1265, 1275], status: 'Fresh Demand Block', score: 91, veto: false },
+  { id: 'HDFCBANK', name: 'HDFC BANK', type: 'stocks', price: 1742.10, chg: '+0.15%', zone: 'neutral', ob: [1720, 1730], status: 'Mid-Equilibrium', score: 62, veto: false },
+  { id: 'TATAMOTORS', name: 'TATA MOTORS', type: 'stocks', price: 885.30, chg: '-1.10%', zone: 'supply', ob: [900, 915], status: 'Supply Block Rejection', score: 32, veto: true },
+  { id: 'GOLDM', name: 'GOLD GUINEA/MINI', type: 'mcx', price: 78450, chg: '+0.84%', zone: 'demand', ob: [78120, 78280], status: 'Bullish Displacement', score: 88, veto: false },
+  { id: 'CRUDEOIL', name: 'CRUDE OIL', type: 'mcx', price: 6240, chg: '-1.85%', zone: 'supply', ob: [6380, 6440], status: 'Bearish Order Block', score: 28, veto: false },
+  { id: 'SILVERM', name: 'SILVER MINI', type: 'mcx', price: 94820, chg: '+1.12%', zone: 'demand', ob: [93900, 94250], status: 'Institutional Accumulation', score: 84, veto: false }
+];
+
+let activeItem = INSTRUMENTS[5]; // GOLDM default
+let activeFilter = 'all';
+let activeTF = '15m';
+
+// ─────────────────────────────────────────────────────────────
+// RENDER WATCHLIST
+// ─────────────────────────────────────────────────────────────
+function renderWatchlist() {
+  const container = document.getElementById('watchlist-container');
+  const filtered = activeFilter === 'all' ? INSTRUMENTS : INSTRUMENTS.filter(i => i.type === activeFilter);
+  
+  let zoneCount = 0;
+  container.innerHTML = filtered.map(item => {
+    const isAct = item.id === activeItem.id;
+    if (item.zone !== 'neutral') zoneCount++;
+    const isUp = item.chg.startsWith('+');
+    return `
+      <div class="scan-card ${isAct ? 'active' : ''}" onclick="selectInstrument('${item.id}')">
+        <div class="scan-top">
+          <span class="scan-sym">${item.name}</span>
+          <span class="scan-px">${typeof item.price === 'number' && item.price > 1000 ? '₹' + item.price.toLocaleString('en-IN') : '₹' + item.price}</span>
+        </div>
+        <div class="scan-meta">
+          <span style="color:${isUp ? 'var(--green)' : 'var(--red)'}">${item.chg}</span>
+          <span class="badge-zone ${item.zone}">${item.zone.toUpperCase()} ZONE</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('zone-hits').innerText = `${zoneCount} IN ZONE`;
+}
+
+function setWatchlistFilter(filter) {
+  activeFilter = filter;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderWatchlist();
+}
+
+function selectInstrument(id) {
+  activeItem = INSTRUMENTS.find(i => i.id === id);
+  renderWatchlist();
+  updateRightPanel();
+  generateCandlesAndDraw();
+}
+
+function setTimeframe(tf) {
+  activeTF = tf;
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  generateCandlesAndDraw();
+}
+
+// ─────────────────────────────────────────────────────────────
+// UPDATE RIGHT PANEL METRICS
+// ─────────────────────────────────────────────────────────────
+function updateRightPanel() {
+  document.getElementById('disp-sym').innerText = activeItem.name;
+  document.getElementById('disp-px').innerText = '₹' + activeItem.price.toLocaleString('en-IN');
+  const chgEl = document.getElementById('disp-chg');
+  chgEl.innerText = activeItem.chg;
+  chgEl.style.color = activeItem.chg.startsWith('+') ? 'var(--green)' : 'var(--red)';
+
+  // Confluence
+  const scoreEl = document.getElementById('txt-score');
+  scoreEl.innerText = `${activeItem.score}/100`;
+  const barEl = document.getElementById('bar-score');
+  barEl.style.width = `${activeItem.score}%`;
+
+  const verdictEl = document.getElementById('txt-verdict');
+  if (activeItem.score >= 80) {
+    verdictEl.innerText = 'PRIME BUY';
+    verdictEl.style.color = 'var(--green)';
+    scoreEl.style.color = 'var(--green)';
+    barEl.style.background = 'var(--green)';
+  } else if (activeItem.score <= 35) {
+    verdictEl.innerText = 'STRONG SHORT';
+    verdictEl.style.color = 'var(--red)';
+    scoreEl.style.color = 'var(--red)';
+    barEl.style.background = 'var(--red)';
+  } else {
+    verdictEl.innerText = 'NEUTRAL / WAIT';
+    verdictEl.style.color = 'var(--gold)';
+    scoreEl.style.color = 'var(--gold)';
+    barEl.style.background = 'var(--gold)';
+  }
+
+  // Veto
+  const vetoCard = document.getElementById('veto-container');
+  const vetoBadge = document.getElementById('veto-badge');
+  const vetoHead = document.getElementById('veto-headline');
+  const vetoDesc = document.getElementById('veto-desc');
+
+  if (activeItem.veto) {
+    vetoCard.classList.add('active-veto');
+    vetoBadge.innerText = '⛔ VETO ACTIVE';
+    vetoBadge.style.color = 'var(--red)';
+    vetoHead.innerText = 'News Veto: Technicals Overridden';
+    vetoDesc.innerText = 'Bearish macro headwind detected by Claude. Trade invalidation in effect despite chart setup.';
+  } else {
+    vetoCard.classList.remove('active-veto');
+    vetoBadge.innerText = 'NO VETO ACTIVE';
+    vetoBadge.style.color = 'var(--green)';
+    vetoHead.innerText = 'Geopolitical Safe Harbor Active';
+    vetoDesc.innerText = 'Claude Sonnet scanned news. Macro sentiment aligns with institutional order block flow.';
+  }
+
+  // Risk Calculator
+  const sl = activeItem.ob[0];
+  const tp1 = Math.round(activeItem.price + (activeItem.price - sl) * 2.8);
+  document.getElementById('disp-sl').innerText = '₹' + sl.toLocaleString('en-IN');
+  document.getElementById('disp-tp1').innerText = '₹' + tp1.toLocaleString('en-IN');
+}
+
+// ─────────────────────────────────────────────────────────────
+// SMC INTERACTIVE CANVAS ENGINE
+// ─────────────────────────────────────────────────────────────
+let candles = [];
+
+function generateMockCandles(basePrice, count = 45) {
+  let list = [];
+  let curr = basePrice * 0.985;
+  for (let i = 0; i < count; i++) {
+    const delta = (Math.random() - 0.47) * (basePrice * 0.007);
+    const open = curr;
+    const close = curr + delta;
+    const high = Math.max(open, close) + Math.random() * (basePrice * 0.003);
+    const low = Math.min(open, close) - Math.random() * (basePrice * 0.003);
+    list.push({ open, close, high, low, time: i });
+    curr = close;
+  }
+  // Ensure last close matches activeItem price
+  list[list.length - 1].close = activeItem.price;
+  return list;
+}
+
+function drawChart() {
+  const canvas = document.getElementById('chart-canvas');
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth * window.devicePixelRatio;
+  canvas.height = container.clientHeight * window.devicePixelRatio;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background Grid
+  ctx.strokeStyle = '#151b26';
+  ctx.lineWidth = 1;
+  for (let y = 40; y < h; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  for (let x = 60; x < w; x += 80) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+
+  if (!candles.length) return;
+
+  const minP = Math.min(...candles.map(c => c.low)) * 0.998;
+  const maxP = Math.max(...candles.map(c => c.high)) * 1.002;
+  const rangeP = maxP - minP;
+
+  const getY = (p) => h - 30 - ((p - minP) / rangeP) * (h - 60);
+
+  // 1. Draw Equilibrium (50%) Line
+  const eqPrice = (minP + maxP) / 2;
+  const eqY = getY(eqPrice);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(0, eqY); ctx.lineTo(w - 70, eqY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = '10px JetBrains Mono';
+  ctx.fillText('EQ 50%: ₹' + Math.round(eqPrice), w - 65, eqY + 3);
+
+  // 2. Draw Institutional Order Blocks (OB)
+  const obLow = activeItem.ob[0];
+  const obHigh = activeItem.ob[1];
+  const obY1 = getY(obHigh);
+  const obY2 = getY(obLow);
+
+  ctx.fillStyle = activeItem.zone === 'supply' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+  ctx.strokeStyle = activeItem.zone === 'supply' ? '#ef4444' : '#10b981';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(w * 0.35, obY1, w * 0.55, obY2 - obY1);
+  ctx.strokeRect(w * 0.35, obY1, w * 0.55, obY2 - obY1);
+
+  ctx.fillStyle = activeItem.zone === 'supply' ? '#ef4444' : '#10b981';
+  ctx.fillText(activeItem.zone === 'supply' ? 'BEARISH SUPPLY OB' : 'BULLISH DEMAND OB', w * 0.37, obY1 + 14);
+
+  // 3. Draw Candlesticks
+  const candleW = Math.max(4, (w - 100) / candles.length - 3);
+  candles.forEach((c, idx) => {
+    const x = 20 + idx * ((w - 100) / candles.length);
+    const yOpen = getY(c.open);
+    const yClose = getY(c.close);
+    const yHigh = getY(c.high);
+    const yLow = getY(c.low);
+
+    const isUp = c.close >= c.open;
+    ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
+    ctx.fillStyle = isUp ? '#10b981' : '#ef4444';
+
+    // Wick
+    ctx.beginPath();
+    ctx.moveTo(x + candleW / 2, yHigh);
+    ctx.lineTo(x + candleW / 2, yLow);
+    ctx.stroke();
+
+    // Body
+    ctx.fillRect(x, Math.min(yOpen, yClose), candleW, Math.max(2, Math.abs(yClose - yOpen)));
+  });
+}
+
+function generateCandlesAndDraw() {
+  candles = generateMockCandles(activeItem.price, 40);
+  drawChart();
+}
+
+function simulateOrder(side) {
+  alert(`⚡ Order Executed: ${side} 1 Unit of ${activeItem.name} at ₹${activeItem.price.toLocaleString('en-IN')}\n\nStop Loss locked at ₹${activeItem.ob[0]}\nTarget set at opposing Fair Value Gap.`);
+}
+
+window.addEventListener('resize', drawChart);
+
+// INITIALIZE
+renderWatchlist();
+updateRightPanel();
+generateCandlesAndDraw();
+</script>
+</body>
+</html>
