@@ -26,7 +26,8 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const ALLOWED_STATIC_FILES = {
-  '/': 'mcx-beginner.html',
+  '/': 'index.html',
+  '/index.html': 'index.html',
   '/mcx-beginner.html': 'mcx-beginner.html',
   '/apex-terminal.html': 'apex-terminal.html',
   '/mcx-pro.html': 'mcx-pro.html',
@@ -871,6 +872,55 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
+
+      if (req.method === 'PUT') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const tradeId = parseInt(data.tradeId, 10);
+            const exitPrice = parseFloat(data.exitPrice) || 0;
+            const exitReason = data.exitReason || 'MANUAL_CLOSE';
+
+            if (!tradeId || !exitPrice) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'tradeId and exitPrice are required' }));
+            }
+
+            if (db) {
+              const trade = db.prepare('SELECT * FROM paper_trades WHERE id = ?').get(tradeId);
+              if (!trade) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Trade not found' }));
+              }
+              const grossPnl = trade.side === 'BUY'
+                ? (exitPrice - trade.entry_price) * trade.qty
+                : (trade.entry_price - exitPrice) * trade.qty;
+              const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
+              const status = exitReason === 'SL_HIT' ? 'SL HIT' : (exitReason === 'T1_HIT' ? 'T1 HIT' : (netPnl >= 0 ? 'WIN' : 'LOSS'));
+
+              db.prepare(`
+                UPDATE paper_trades
+                SET exit_price = ?, exit_time = ?, net_pnl = ?, status = ?, exit_reason = ?
+                WHERE id = ?
+              `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({
+                success: true,
+                tradeId,
+                netPnl: netPnl.toFixed(2),
+                status
+              }));
+            }
+          } catch(e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+        return;
+      }
     }
 
     // 1f. Recorded Signals Store
@@ -901,6 +951,55 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(201, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ success: true }));
           } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+        return;
+      }
+
+      if (req.method === 'PUT') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const tradeId = parseInt(data.tradeId, 10);
+            const exitPrice = parseFloat(data.exitPrice) || 0;
+            const exitReason = data.exitReason || 'MANUAL_CLOSE';
+
+            if (!tradeId || !exitPrice) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'tradeId and exitPrice are required' }));
+            }
+
+            if (db) {
+              const trade = db.prepare('SELECT * FROM paper_trades WHERE id = ?').get(tradeId);
+              if (!trade) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Trade not found' }));
+              }
+              const grossPnl = trade.side === 'BUY'
+                ? (exitPrice - trade.entry_price) * trade.qty
+                : (trade.entry_price - exitPrice) * trade.qty;
+              const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
+              const status = exitReason === 'SL_HIT' ? 'SL HIT' : (exitReason === 'T1_HIT' ? 'T1 HIT' : (netPnl >= 0 ? 'WIN' : 'LOSS'));
+
+              db.prepare(`
+                UPDATE paper_trades
+                SET exit_price = ?, exit_time = ?, net_pnl = ?, status = ?, exit_reason = ?
+                WHERE id = ?
+              `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({
+                success: true,
+                tradeId,
+                netPnl: netPnl.toFixed(2),
+                status
+              }));
+            }
+          } catch(e) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: e.message }));
           }
