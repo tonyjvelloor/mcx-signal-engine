@@ -318,6 +318,8 @@ let priceCache = {};
 let liveData   = {};
 let allInds    = {};
 let allSigs    = {};
+let lastSignalChange = {};
+let lastAction = {};
 let newsData   = null;
 let journal    = [];
 let isBusy     = false;
@@ -384,6 +386,7 @@ function recordSignal(sig, comId) {
     tradeId: generateTradeId(comId),
     comId,
     comName: com?.n || comId,
+    com: com?.n || comId,
     action: sig.action,
     confidence: sig.confidence,
     entryPrice: sig.price,
@@ -1337,8 +1340,9 @@ function renderBacktest(){
     const st = s.status || s.result || '';
     const resCol=st.includes('T2')?'var(--grn)':st.includes('T1')?'#4ADE80':st.includes('SL')?'var(--red)':'var(--txd)';
     const actCol=s.action==='BUY'?'var(--grn)':'var(--red)';
+    const cName=s.comName || s.com || (COMMS.find(c=>c.id===s.comId)?.n) || 'MCX';
     return`<div style="display:grid;grid-template-columns:1fr 80px 90px 90px 90px 80px;gap:4px;align-items:center;padding:6px 8px;border-radius:6px;background:var(--bg3);margin-bottom:4px;font-family:var(--fm);font-size:10px">
-      <div><strong style="color:var(--tx)">${s.com}</strong><span style="color:var(--txd)"> · ${s.date} ${s.time}</span></div>
+      <div><strong style="color:var(--tx)">${cName}</strong><span style="color:var(--txd)"> · ${s.date||''} ${s.time||''}</span></div>
       <div style="color:${actCol};font-weight:700">${s.action}</div>
       <div style="color:var(--tx)">₹${Math.round(s.entryPrice||s.price).toLocaleString('en-IN')}</div>
       <div style="color:var(--red)">SL ₹${Math.round(s.sl).toLocaleString('en-IN')}</div>
