@@ -17,14 +17,23 @@
 <div class="gbar">
   <div class="gbar-logo">MCX</div>
   <div class="mode-tabs">
-    <div class="mode-tab active" id="tab-beg" onclick="setMode('beg')">
-  <span class="mt-icon">🟢</span> Beginner
+    <div class="mode-tab" id="tab-beg" onclick="setMode('beg')">
+      <span class="mt-icon">🟢</span> Beginner
     </div>
     <div class="mode-tab active" id="tab-pro" onclick="setMode('pro')">
-  <span class="mt-icon">⚡</span> Pro
+      <span class="mt-icon">⚡</span> Pro
     </div>
     <div class="mode-tab" id="tab-log" onclick="setMode('log')">
-  <span class="mt-icon">📋</span> Trade Log
+      <span class="mt-icon">📋</span> Trade Log
+    </div>
+    <div class="mode-tab" id="tab-india" onclick="setMode('india')">
+      <span class="mt-icon">🇮🇳</span> India Dashboard
+    </div>
+    <div class="mode-tab" id="tab-stocks" onclick="setMode('stocks')">
+      <span class="mt-icon">🏢</span> Stock Screener
+    </div>
+    <div class="mode-tab" id="tab-orderflow" onclick="setMode('orderflow')">
+      <span class="mt-icon">🎯</span> OrderFlow SMC
     </div>
   </div>
   <div class="com-scroll" id="comTabs"></div>
@@ -34,6 +43,7 @@
     <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
     <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
     <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
+    <button class="rfbtn" id="kiteBtn" onclick="handleKiteConnect()" style="font-size:11px; font-weight:700; color:var(--tx); border:1px solid var(--br);"><span id="kiteDot" class="dot doff"></span> <span id="kiteTxt">Connect Kite</span></button>
     <button class="rfbtn" id="rfbtn" onclick="fullRefresh()"><span id="rfIcon">↻</span> Refresh</button>
   </div>
 </div>
@@ -1033,14 +1043,37 @@ function copyText(t){navigator.clipboard&&navigator.clipboard.writeText(t);}
 
 
 function maybeSendTgAlert(){} // Telegram removed
-function _boot(){renderJournal();renderComTabs();fullRefresh();}
+
+async function checkKiteStatus() {
+  try {
+    const res = await fetch('/api/kite/status');
+    const d = await res.json();
+    const dot = document.getElementById('kiteDot');
+    const txt = document.getElementById('kiteTxt');
+    if (d && d.connected) {
+      if (dot) dot.className = 'dot don';
+      if (txt) {
+        const cash = d.margins?.equity?.available?.cash ? ` (₹${Math.round(d.margins.equity.available.cash).toLocaleString('en-IN')})` : '';
+        txt.innerText = `Kite: ${d.user}${cash}`;
+        txt.style.color = 'var(--grn)';
+      }
+    }
+  } catch(e) {}
+}
+
+function handleKiteConnect() {
+  window.location.href = 'https://kite.zerodha.com/connect/login?v=3&api_key=yec641x53e88b3gu';
+}
+
+function _boot(){renderJournal();renderComTabs();fullRefresh();checkKiteStatus();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
+
 function setMode(mode){
-  currentMode=mode;
-  ['tab-beg','tab-pro','tab-log'].forEach(id=>document.getElementById(id)?.classList.toggle('active',id.includes(mode)));
-  ['view-beg','view-pro','view-log'].forEach(id=>document.getElementById(id)?.classList.toggle('active',id.includes(mode)));
   if(mode==='beg') window.location.href='mcx-beginner.html';
   else if(mode==='log') window.location.href='mcx-logger.html';
+  else if(mode==='orderflow') window.location.href='apex-terminal.html';
+  else if(mode==='india') window.location.href='mcx-beginner.html?mode=india';
+  else if(mode==='stocks') window.location.href='mcx-beginner.html?mode=stocks';
   else if(mode==='pro'&&allSigs[activeC.id]){renderPro();renderProChart();}
 }
 function renderPro(){

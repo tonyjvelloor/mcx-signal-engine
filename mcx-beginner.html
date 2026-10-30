@@ -1842,6 +1842,9 @@ async function loadConfigSecrets() {
 function _boot(){
   loadConfigSecrets();
   renderJournal();renderComTabs();fullRefresh();checkKiteStatus();
+  const params = new URLSearchParams(window.location.search);
+  const m = params.get('mode');
+  if (m) setMode(m);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_boot);else _boot();
 // SETTINGS MODAL

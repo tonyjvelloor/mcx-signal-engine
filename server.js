@@ -26,12 +26,13 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const ALLOWED_STATIC_FILES = {
-  '/': 'index.html',
-  '/index.html': 'index.html',
+  '/': 'mcx-beginner.html',
   '/mcx-beginner.html': 'mcx-beginner.html',
-  '/apex-terminal.html': 'apex-terminal.html',
   '/mcx-pro.html': 'mcx-pro.html',
-  '/mcx-logger.html': 'mcx-logger.html'
+  '/apex-terminal.html': 'apex-terminal.html',
+  '/mcx-logger.html': 'mcx-logger.html',
+  '/terminal.html': 'index.html',
+  '/index.html': 'index.html'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
