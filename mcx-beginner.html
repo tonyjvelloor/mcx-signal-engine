@@ -1886,7 +1886,7 @@ async function fetchIndiaDashboardAI(apiKey, today){
     headers:{'Content-Type':'application/json','x-api-key':apiKey},
     body: JSON.stringify({
       model:'claude-sonnet-4-6',
-      max_tokens:2000,
+      max_tokens:4000,
       tools:[{type:'web_search_20250305',name:'web_search'}],
       system:`You are a macro analyst for Indian stock markets. Today: ${today}. Search the web for news from the past 24 hours and return ONLY valid JSON (no markdown) in this exact schema:
 {
@@ -1932,7 +1932,17 @@ The 12 signals must cover in order:
   raw = raw.replace(/```json|```/g,'').trim();
   const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
   if(s<0||e<0) throw new Error('No JSON in response');
-  return JSON.parse(raw.slice(s,e+1));
+  const jsonSlice = raw.slice(s,e+1);
+  try {
+    return JSON.parse(jsonSlice);
+  } catch(err) {
+    let cleaned = jsonSlice.replace(/,\s*([}\]])/g, '$1');
+    let oBraces = (cleaned.match(/{/g)||[]).length, cBraces = (cleaned.match(/}/g)||[]).length;
+    let oBrackets = (cleaned.match(/\[/g)||[]).length, cBrackets = (cleaned.match(/]/g)||[]).length;
+    while(cBrackets < oBrackets) { cleaned += ']'; cBrackets++; }
+    while(cBraces < oBraces) { cleaned += '}'; cBraces++; }
+    return JSON.parse(cleaned);
+  }
 }
 
 function renderIndiaDashboard(data, ts, fresh){
