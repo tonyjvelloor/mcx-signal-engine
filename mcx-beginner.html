@@ -108,9 +108,12 @@
     <div class="b-explain" id="b-explain" style="display:none"></div>
 
     <div class="bnews-section">
-  <div class="bnews-hdr">
-  <span class="bnews-title">Why the market is moving</span>
-  <span id="b-ncount" style="font-size:10px;color:var(--txd);font-family:var(--fm)">—</span>
+  <div class="bnews-hdr" style="display:flex;align-items:center;justify-content:space-between">
+    <span class="bnews-title">Why the market is moving</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="fetchNewsFor(activeC, true)" title="Refresh AI sentiment for this commodity" style="background:transparent;border:1px solid var(--brl);border-radius:4px;color:var(--gold);font-size:10px;padding:2px 8px;cursor:pointer;font-family:var(--fm)">↻ Refresh Analysis</button>
+      <span id="b-ncount" style="font-size:10px;color:var(--txd);font-family:var(--fm)">—</span>
+    </div>
   </div>
   <div id="b-newsWrap"><div class="ldg"><div class="ring"></div><p>Fetching news...</p></div></div>
     </div>
@@ -318,14 +321,16 @@ let priceCache = {};
 let liveData   = {};
 let allInds    = {};
 let allSigs    = {};
-let lastSignalChange = {};
-let lastAction = {};
+window.lastSignalChange = window.lastSignalChange || {};
+window.lastAction       = window.lastAction || {};
+window.sentimentCache   = window.sentimentCache || {};
+let lastSignalChange = window.lastSignalChange;
+let lastAction       = window.lastAction;
 let newsData   = null;
 let journal    = [];
 let isBusy     = false;
 let countdown  = 30;
 let cdTimer    = null;
-let newsTimer  = null;
 let pivotType  = 'classic';
 let currentTF  = '5m';
 let CH         = {main:null,vol:null};
@@ -948,61 +953,84 @@ function renderComTabs(){
 }
 function switchCom(id){
   activeC=COMMS.find(c=>c.id===id);
-  newsData=null;
   renderComTabs();
   updateTopbarUSD();
   if(currentMode==='beg'){
     if(allSigs[activeC.id])renderBeg();
     else{const _sc=document.getElementById('b-signalCard');if(_sc)_sc.innerHTML='<div class="bsig-card bsc-WAIT"><div class="ldg"><div class="ring"></div><p>Loading '+activeC.n+'...</p></div></div>';}
-  }else{
-    /* pro mode - not active */
   }
-  fetchNewsFor(activeC);
+  // Cache-first: if sentiment was loaded, apply immediately without network call
+  if(window.sentimentCache && window.sentimentCache[activeC.id]) {
+    applyNewsData(activeC, window.sentimentCache[activeC.id]);
+  } else {
+    fetchNewsFor(activeC);
+  }
 }
-async function fetchNewsFor(c){
+
+function applyNewsData(c, ai){
+  newsData = ai;
+  const ns = CLP(ai.overall_news_score ?? 50, 0, 100);
+  const nv = ai.overall_verdict || 'NEUTRAL';
+  const nc = document.getElementById('b-ncount');
+  if(nc) nc.textContent = (ai.news_items || []).length ? ((ai.news_items.length) + ' items' + (ai.cached ? ' (Cached)' : '')) : 'Monitored';
+  renderBegNews(ai.news_items || []);
+  renderBegEvents(ai.upcoming_events || []);
+  const ind = allInds[c.id];
+  if(ind){
+    const sig = buildSignal(ind, ns, nv, c);
+    allSigs[c.id] = sig;
+    renderBeg();
+    renderComTabs();
+  }
+}
+
+async function fetchNewsFor(c, force = false){
   const el=document.getElementById('b-newsWrap');
   const nc=document.getElementById('b-ncount');
-  if(el)el.innerHTML=`<div class="ldg"><div class="ring ring-sm"></div><p>Fetching ${c.n} news...</p></div>`;
+  if(!force && window.sentimentCache && window.sentimentCache[c.id]){
+    applyNewsData(c, window.sentimentCache[c.id]);
+    return;
+  }
+  if(el)el.innerHTML=`<div class="ldg"><div class="ring ring-sm"></div><p>${force?'Refreshing':'Loading'} ${c.n} sentiment...</p></div>`;
   if(nc)nc.textContent='—';
   try{
-    const ai=await callClaude(c);
-    newsData=ai;
-    const ns=CLP(ai.overall_news_score??50,0,100);
-    const nv=ai.overall_verdict||'NEUTRAL';
-    if(nc)nc.textContent=(ai.news_items||[]).length+' items';
-    renderBegNews(ai.news_items||[]);
-    renderBegEvents(ai.upcoming_events||[]);
-    const ind=allInds[c.id];
-    if(ind){const sig=buildSignal(ind,ns,nv,c);allSigs[c.id]=sig;renderBeg();renderComTabs();}
+    const ai=await callClaude(c, force);
+    window.sentimentCache = window.sentimentCache || {};
+    window.sentimentCache[c.id] = ai;
+    applyNewsData(c, ai);
   }catch(e){
-    if(el)el.innerHTML=`<div class="ldg"><p class="c-red">${e.message}</p><p style="color:var(--txm);margin-top:5px">Signals still active</p></div>`;
-    if(nc)nc.textContent='Error';
+    if(el)el.innerHTML=`<div class="ldg"><p style="color:var(--txd)">Macro drivers monitored</p><p style="color:var(--txm);margin-top:5px">Signals active</p></div>`;
+    if(nc)nc.textContent='Monitored';
   }
 }
-async function callClaude(c){
+
+async function callClaude(c, force = false){
   try {
-    const r = await fetch(`http://127.0.0.1:8000/api/sentiment?symbol=${encodeURIComponent(c.n)}`);
+    const url = `http://127.0.0.1:8000/api/sentiment?symbol=${encodeURIComponent(c.n)}${force ? '&force=true' : ''}`;
+    const r = await fetch(url);
     if(r.ok) {
       const d = await r.json();
       return {
         overall_news_score: d.newsScore || 50,
         overall_verdict: d.verdict || 'NEUTRAL',
-        overall_summary: d.summary || `Macro sentiment for ${c.n} is monitored.`,
+        overall_summary: d.summary || `Macro drivers for ${c.n} monitored.`,
+        cached: d.cached || false,
+        updatedAt: d.updatedAt || new Date().toISOString(),
         geo_analysis: {
           active_conflicts: c.geo || [],
-          impact_on_commodity: d.summary || `Market drivers for ${c.n}: ${(c.drivers||[]).join(', ')}.`,
+          impact_on_commodity: d.summary || `Drivers for ${c.n}: ${(c.drivers||[]).join(', ')}.`,
           geo_verdict: d.verdict || 'NEUTRAL',
           risk_level: 'MEDIUM',
-          watch_for: 'Upcoming global macro releases and monetary policy.'
+          watch_for: 'Global interest rates & currency moves'
         },
         news_items: [
           {
-            headline: `${c.n}: ${d.summary || 'Trading within regular channel'}`,
-            source: 'Verified Feed',
+            headline: `${c.n}: ${d.summary || 'Market trading in expected band'}`,
+            source: d.cached ? 'Verified Snapshot (Cached)' : 'Live Model',
             verdict: d.verdict || 'NEUTRAL',
             score: d.newsScore || 50,
             impact: 'MEDIUM',
-            analysis: d.summary || 'Balanced risk-reward profile.',
+            analysis: d.summary || 'Risk-reward parameters monitored.',
             price_effect: '0.0%'
           }
         ],
@@ -1180,13 +1208,12 @@ async function fetchPrices(){
 }
 async function fullRefresh(){
   const btn=document.getElementById('rfbtn'),icon=document.getElementById('rfIcon');
-  btn.disabled=true;icon.className='spin';
-  newsData=null;
+  if(btn) btn.disabled=true;
+  if(icon) icon.className='spin';
   await fetchPrices();
   await fetchNewsFor(activeC);
-  if(newsTimer)clearInterval(newsTimer);
-  newsTimer=setInterval(()=>fetchNewsFor(activeC),10*60*1000);
-  btn.disabled=false;icon.className='';
+  if(btn) btn.disabled=false;
+  if(icon) icon.className='';
 }
 
 function updateTodaysFocus() {

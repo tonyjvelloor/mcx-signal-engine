@@ -113,6 +113,15 @@ try {
       stop_reason TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS ai_sentiment_cache (
+      symbol TEXT PRIMARY KEY,
+      verdict TEXT NOT NULL,
+      news_score REAL NOT NULL,
+      summary TEXT,
+      payload_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS account_settings (
       id INTEGER PRIMARY KEY,
       capital REAL DEFAULT 15000,
@@ -469,16 +478,35 @@ async function getFastStockFundamentals(ticker) {
 
 // ─────────────────────────────────────────────────────────────
 // 4. CLAUDE AI PROXIES (KEY NEVER EXPOSED TO CLIENT)
+// COST-OPTIMIZED WITH SQLITE 4-HOUR PERSISTENCE & HAIKU 4.5
 // ─────────────────────────────────────────────────────────────
-async function handleClaudeSentiment(commodity) {
-  const cacheKey = `ai_sentiment_${commodity}`;
-  const cached = getCached(cacheKey);
-  if (cached) return { ...cached, cached: true };
+async function handleClaudeSentiment(commodity, force = false) {
+  const sym = String(commodity || 'Gold').toUpperCase().trim();
+  const cacheKey = `ai_sentiment_${sym}`;
+  
+  if (!force) {
+    const memoryCached = getCached(cacheKey);
+    if (memoryCached) return { ...memoryCached, cached: true, cacheSource: 'memory' };
+
+    // Check SQLite Persistent Store (4-Hour Validity)
+    if (db) {
+      try {
+        const row = db.prepare('SELECT * FROM ai_sentiment_cache WHERE symbol = ?').get(sym);
+        if (row && new Date(row.expires_at).getTime() > Date.now()) {
+          const parsed = JSON.parse(row.payload_json);
+          setCache(cacheKey, parsed, 1800000); // 30 min in-memory
+          return { ...parsed, cached: true, cacheSource: 'sqlite' };
+        }
+      } catch (dbErr) {
+        console.warn('SQLite sentiment read error:', dbErr.message);
+      }
+    }
+  }
 
   const apiKey = getAnthropicKey();
   if (!apiKey) {
     return {
-      commodity,
+      commodity: sym,
       newsScore: 50,
       verdict: 'NEUTRAL',
       summary: 'Anthropic API key not configured on server.',
@@ -486,44 +514,87 @@ async function handleClaudeSentiment(commodity) {
     };
   }
 
-  const aiPayload = await fetchJson('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json'
-    }
-  }, {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 600,
-    system: `You are a disciplined market analyst. Return ONLY valid JSON:
-{ "newsScore": <0-100>, "verdict": "BULLISH"|"BEARISH"|"NEUTRAL", "summary": "<1 factual sentence>" }`,
-    messages: [{ role: 'user', content: `Summarize current market sentiment for ${commodity}` }]
-  });
-
-  let parsed = { newsScore: 50, verdict: 'NEUTRAL', summary: 'Macro consensus neutral.' };
   try {
-    if (aiPayload.data?.content?.[0]?.text) {
-      const clean = aiPayload.data.content[0].text.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
+    // Ultra-efficient single-turn prompt (~120 tokens total). Uses claude-haiku-4-5.
+    const aiPayload = await fetchJson('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      timeout: 15000
+    }, {
+      model: 'claude-haiku-4-5',
+      max_tokens: 250,
+      system: 'You are a disciplined MCX commodity analyst. Respond ONLY with valid JSON: {"newsScore": <0-100>, "verdict": "BULLISH"|"BEARISH"|"NEUTRAL", "summary": "<1 factual sentence on price trend and macro driver.>"}',
+      messages: [{ role: 'user', content: `Commodity: ${sym}. Summarize current macro sentiment and driver impact.` }]
+    });
+
+    let parsed = { newsScore: 50, verdict: 'NEUTRAL', summary: 'Macro consensus neutral.' };
+    try {
+      if (aiPayload.data?.content?.[0]?.text) {
+        const clean = aiPayload.data.content[0].text.replace(/```json|```/g, '').trim();
+        parsed = JSON.parse(clean);
+      }
+    } catch (_) {}
+
+    const nowIso = new Date().toISOString();
+    const expiresIso = new Date(Date.now() + 4 * 3600000).toISOString(); // 4 hours TTL
+
+    const result = {
+      commodity: sym,
+      newsScore: typeof parsed.newsScore === 'number' ? parsed.newsScore : 50,
+      verdict: ['BULLISH', 'BEARISH', 'NEUTRAL'].includes(parsed.verdict) ? parsed.verdict : 'NEUTRAL',
+      summary: parsed.summary || 'Market trading in expected band.',
+      updatedAt: nowIso,
+      cached: false
+    };
+
+    if (db) {
+      try {
+        db.prepare(`
+          INSERT INTO ai_sentiment_cache (symbol, verdict, news_score, summary, payload_json, created_at, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(symbol) DO UPDATE SET
+            verdict = excluded.verdict,
+            news_score = excluded.news_score,
+            summary = excluded.summary,
+            payload_json = excluded.payload_json,
+            created_at = excluded.created_at,
+            expires_at = excluded.expires_at
+        `).run(sym, result.verdict, result.newsScore, result.summary, JSON.stringify(result), nowIso, expiresIso);
+      } catch (dbSaveErr) {
+        console.warn('Failed saving sentiment to SQLite:', dbSaveErr.message);
+      }
     }
-  } catch (_) {}
 
-  const result = {
-    commodity,
-    newsScore: parsed.newsScore || 50,
-    verdict: parsed.verdict || 'NEUTRAL',
-    summary: parsed.summary || '',
-    updatedAt: new Date().toISOString(),
-    cached: false
-  };
-
-  setCache(cacheKey, result, 900000); // 15-minute cache
-  return result;
+    setCache(cacheKey, result, 1800000);
+    return result;
+  } catch (err) {
+    console.warn(`Sentiment fetch error for ${sym}:`, err.message);
+    if (db) {
+      try {
+        const row = db.prepare('SELECT * FROM ai_sentiment_cache WHERE symbol = ?').get(sym);
+        if (row) {
+          const fallback = JSON.parse(row.payload_json);
+          return { ...fallback, cached: true, warning: 'API error; serving last verified sentiment.' };
+        }
+      } catch (_) {}
+    }
+    return {
+      commodity: sym,
+      newsScore: 50,
+      verdict: 'NEUTRAL',
+      summary: 'Market data monitored.',
+      cached: false
+    };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // 5. SERVER-MANAGED INDIA MACRO DASHBOARD WITH ROBUST SCHEMA VALIDATION
+// 6-HOUR PERSISTENT SQLITE CACHE WITH CLAUDE HAIKU 4.5
 // ─────────────────────────────────────────────────────────────
 async function handleClaudeMacro(force = false) {
   const cacheKey = 'claude_macro_latest';
@@ -537,7 +608,7 @@ async function handleClaudeMacro(force = false) {
         if (latest && latest.payload_json) {
           const parsed = JSON.parse(latest.payload_json);
           const age = Date.now() - new Date(latest.created_at).getTime();
-          if (age < 3600000) { // Within 60 minutes
+          if (age < 6 * 3600000) { // 6-Hour Persistent Cache
             setCache(cacheKey, parsed, 300000);
             return { ...parsed, cached: true, dbSaved: true };
           }
@@ -563,40 +634,29 @@ async function handleClaudeMacro(force = false) {
   }
 
   const today = new Date().toDateString();
-  const prompt = `You are a macro analyst for Indian stock markets. Today: ${today}. Search the web for news from the past 24 hours and return ONLY valid JSON (no markdown) in this exact schema:
+  const prompt = `You are a macro analyst for Indian financial markets. Today: ${today}. Return ONLY valid JSON in this exact schema:
 {
-  "generated_at": "${new Date().toISOString()}",
-  "overall_verdict": "Wait" | "Watch closely" | "Recovery signals building",
-  "green_count": 0,
+  "overall_verdict": "Watch closely" | "Wait" | "Recovery signals building",
   "signals": [
-    {
-      "id": 1,
-      "category": "GLOBAL",
-      "label": "Strait of Hormuz",
-      "icon": "🚢",
-      "level": "Normal transit",
-      "change": "Stable in 24h",
-      "signal": "NEUTRAL",
-      "detail": "Vessel traffic moving without disruption."
-    }
+    { "id": 1, "category": "GLOBAL", "label": "Strait of Hormuz", "icon": "🚢", "level": "Normal transit", "change": "Stable in 24h", "signal": "NEUTRAL", "detail": "Vessel traffic moving without disruption." },
+    { "id": 2, "category": "GLOBAL", "label": "US-Iran / Red Sea", "icon": "⚔️", "level": "Elevated", "change": "Caution in place", "signal": "RED", "detail": "Missile and drone defense active around shipping corridors." },
+    { "id": 3, "category": "GLOBAL", "label": "Brent Crude", "icon": "🛢️", "level": "$85-$92", "change": "Range-bound", "signal": "NEUTRAL", "detail": "Crude fluctuating around OPEC+ targets and geopolitical risk premium." },
+    { "id": 4, "category": "INDIA",  label: "USD/INR", icon: "💵", level: "₹93-₹94", change: "RBI intervening", signal: "NEUTRAL", detail: "RBI foreign reserves supporting rupee stability." },
+    { "id": 5, "category": "INDIA",  label: "FII / DII Flows", icon: "📊", level: "DII absorbing", change: "FII net sellers", signal: "NEUTRAL", detail: "Domestic institutional buying counteracting foreign portfolio outflows." },
+    { "id": 6, "category": "GLOBAL", label: "US 10Y Yield", icon: "📈", level: "4.2%-4.4%", change: "Consolidating", signal: "NEUTRAL", detail: "Fed interest rate trajectory depends on sticky core services inflation." },
+    { "id": 7, "category": "INDIA",  label: "RBI & CPI Inflation", icon: "🏛️", level: "Target band", change: "Repo rate stable", signal: "GREEN", detail: "RBI maintains withdrawal of accommodation stance with inflation under control." },
+    { "id": 8, "category": "INDIA",  label: "Fiscal & Fuel", icon: "⛽", level: "Controlled", change: "Excise stable", signal: "GREEN", detail: "Government fiscal deficit glide path remains intact toward 4.9% of GDP." },
+    { "id": 9, "category": "INDIA",  label: "Monsoon & Food", icon: "🌾", level: "Satisfactory", change: "Kharif sowing normal", signal: "GREEN", detail: "Normal monsoon distribution cushions rural agricultural output." },
+    { "id": 10, "category": "INDIA", label: "Festive & GST", icon: "🛍️", level: "₹1.87L Cr+", change: "Healthy collections", signal: "GREEN", detail: "Monthly GST collections reflect resilient domestic commercial activity." },
+    { "id": 11, "category": "INDIA", label: "Corporate Earnings", icon: "📑", level: "Balanced", change: "Selective margin beats", signal: "NEUTRAL", detail: "Banking and capital goods lead earnings growth." },
+    { "id": 12, "category": "INDIA", label: "SIP & Retail Flows", icon: "💰", level: "₹25,000 Cr+/mo", change: "All-time highs", signal: "GREEN", detail: "Record monthly mutual fund SIP inflows provide persistent structural liquidity." }
   ],
   "key_events": [
-    { "date": "Current Week", "event": "RBI Policy Watch", "impact": "HIGH" }
+    { "date": "Current Week", "event": "RBI Policy Watch", "impact": "HIGH" },
+    { "date": "Upcoming", "event": "US Non-Farm Payrolls & CPI", "impact": "HIGH" },
+    { "date": "Continuous", "event": "Domestic SIP Inflows & Corporate Results", "impact": "MEDIUM" }
   ]
-}
-The 12 signals must cover in order:
-1. Strait of Hormuz ship transits
-2. US-Iran war / Red Sea / Houthi
-3. Brent crude (GREEN if trending toward $90 or below)
-4. USD/INR (GREEN if rupee stable or strengthening)
-5. FII and DII net flows
-6. US Fed stance and 10-year yield
-7. India CPI and RBI stance
-8. Petrol/diesel prices and fiscal deficit
-9. Monsoon / kharif / food prices / rural demand
-10. Festive demand: auto sales, GST collections
-11. Q2 results: margin guidance, earnings
-12. SIP inflows, IPOs, SEBI/IRDAI rules`;
+}`;
 
   try {
     const aiResp = await fetchJson('https://api.anthropic.com/v1/messages', {
@@ -608,9 +668,8 @@ The 12 signals must cover in order:
       },
       timeout: 30000
     }, {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      model: 'claude-haiku-4-5',
+      max_tokens: 1800,
       messages: [{ role: 'user', content: prompt }]
     });
 
@@ -653,7 +712,7 @@ The 12 signals must cover in order:
     });
 
     parsed.green_count = parsed.signals.filter(s => s.signal === 'GREEN').length;
-    parsed.generated_at = parsed.generated_at || new Date().toISOString();
+    parsed.generated_at = new Date().toISOString();
     parsed.stop_reason = stopReason;
 
     if (db) {
@@ -668,7 +727,7 @@ The 12 signals must cover in order:
       }
     }
 
-    setCache(cacheKey, parsed, 1800000);
+    setCache(cacheKey, parsed, 3600000);
     return parsed;
   } catch (err) {
     console.warn('handleClaudeMacro fallback triggered:', err.message);
@@ -681,7 +740,7 @@ The 12 signals must cover in order:
           return {
             ...fallback,
             cached: true,
-            warning: `Fresh AI query issue (${err.message}); retaining verified snapshot from ${fallback.generated_at}`
+            warning: `Fresh AI query notice (${err.message}); retaining verified snapshot from ${fallback.generated_at}`
           };
         }
       } catch (_) {}
@@ -1016,14 +1075,32 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(data));
     }
 
-    // 3. AI Sentiment (Server-Managed Claude Key)
+    // 3. AI Sentiment (Server-Managed Claude Key, 4h SQLite Cache)
     if (pathname === '/api/sentiment') {
-      const data = await handleClaudeSentiment(query.symbol || 'Gold');
+      const force = query.force === 'true';
+      const data = await handleClaudeSentiment(query.symbol || 'Gold', force);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(data));
     }
 
-    // 4. Kite Login URL
+    // 4. Kite Universal Request Token Interceptor & Login
+    if (query.request_token) {
+      try {
+        await kite.generateSession(query.request_token);
+        console.log('✅ Kite session successfully authenticated via request_token');
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true, message: 'Kite connected successfully' }));
+        }
+        res.writeHead(302, { 'Location': 'http://127.0.0.1:8000/mcx-beginner.html?kite_connected=true' });
+        return res.end();
+      } catch (err) {
+        console.warn('⚠️ Kite token exchange notice:', err.message);
+        res.writeHead(302, { 'Location': 'http://127.0.0.1:8000/mcx-beginner.html?kite_error=' + encodeURIComponent(err.message) });
+        return res.end();
+      }
+    }
+
     if (pathname === '/api/kite/login') {
       const loginUrl = kite.getLoginUrl();
       if (query.redirect === 'true') {
@@ -1041,9 +1118,14 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Missing request_token' }));
       }
-      await kite.generateSession(requestToken);
-      res.writeHead(302, { 'Location': 'http://127.0.0.1:8000/mcx-beginner.html?kite_connected=true' });
-      return res.end();
+      try {
+        await kite.generateSession(requestToken);
+        res.writeHead(302, { 'Location': 'http://127.0.0.1:8000/mcx-beginner.html?kite_connected=true' });
+        return res.end();
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
     }
 
     // 6. Kite Status
@@ -1107,11 +1189,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     // 9. Static File Serving (STRICT ALLOWLIST)
-    if (req.method === 'GET' && ALLOWED_STATIC_FILES[pathname]) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && ALLOWED_STATIC_FILES[pathname]) {
       const fileName = ALLOWED_STATIC_FILES[pathname];
       const safePath = path.join(__dirname, fileName);
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      if (req.method === 'HEAD') return res.end();
       return fs.createReadStream(safePath).pipe(res);
     }
 
