@@ -103,7 +103,7 @@
   <div class="ppanel pro-scroll">
   <div class="pph"><span class="pph-t">Journal</span></div>
   <div class="pj-stats" id="p-jStats">
-  <div class="pjst"><div class="pjst-l">Capital</div><div class="pjst-v" id="p-jCap" style="color:var(--gold)">₹5K</div></div>
+  <div class="pjst"><div class="pjst-l">Capital</div><div class="pjst-v" id="p-jCap" style="color:var(--gold)">₹15K</div></div>
   <div class="pjst"><div class="pjst-l">P&L</div><div class="pjst-v" id="p-jPnl" style="color:var(--txd)">₹0</div></div>
   <div class="pjst"><div class="pjst-l">Trades</div><div class="pjst-v" id="p-jTrades">0</div></div>
   <div class="pjst"><div class="pjst-l">Win%</div><div class="pjst-v" id="p-jWR" style="color:var(--txd)">—</div></div>
@@ -433,27 +433,45 @@ async function fetchCommodity(c){
   const yf = await fetchYF(c.ticker, '5m', '5d');
   if(yf){
     const meta = yf.meta || {}, q = yf.indicators?.quote?.[0] || {};
-    const cls = (q.close || []).filter(x => x != null && isFinite(x));
-    const his = (q.high  || []).filter(x => x != null && isFinite(x));
-    const los = (q.low   || []).filter(x => x != null && isFinite(x));
-    const vls = (q.volume|| []).filter(x => x != null && isFinite(x));
+    const rawCls = q.close || [];
+    const rawHis = q.high  || [];
+    const rawLos = q.low   || [];
+    const rawOps = q.open  || [];
+    const rawVls = q.volume|| [];
+    const timestamps = yf.timestamp || [];
 
-    if(cls.length >= 10){
-      const intl = meta.regularMarketPrice || (cls.length ? cls[cls.length-1] : 0) || c.base;
+    // Atomic Row-Based Normalization (synchronous across all dimensions)
+    const validRows = [];
+    const minLen = Math.min(rawCls.length, rawHis.length, rawLos.length);
+    for (let i = 0; i < minLen; i++) {
+      const cl = rawCls[i], hi = rawHis[i], lo = rawLos[i];
+      const op = rawOps[i] != null && isFinite(rawOps[i]) ? rawOps[i] : cl;
+      const vl = rawVls[i] != null && isFinite(rawVls[i]) ? rawVls[i] : 0;
+      const ts = timestamps[i] || (Date.now() - (minLen - i) * 300000);
+      if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
+        if (hi >= lo && hi >= Math.max(op, cl) * 0.9999 && lo <= Math.min(op, cl) * 1.0001) {
+          validRows.push({ time: ts, open: op, high: hi, low: lo, close: cl, volume: vl });
+        }
+      }
+    }
+
+    if(validRows.length >= 10){
+      const intl = meta.regularMarketPrice || validRows[validRows.length-1].close || c.base;
       const prev = meta.chartPreviousClose || meta.previousClose || intl;
-      const hi = meta.regularMarketDayHigh || (his.length ? Math.max(...his) : intl*1.005);
-      const lo = meta.regularMarketDayLow  || (los.length ? Math.min(...los) : intl*0.995);
+      const hi = meta.regularMarketDayHigh || Math.max(...validRows.map(r => r.high));
+      const lo = meta.regularMarketDayLow  || Math.min(...validRows.map(r => r.low));
       liveData[c.id] = {
-        closes: cls.map(p => c.conv(p, usdInr)),
-        highs:  his.map(p => c.conv(p, usdInr)),
-        lows:   los.map(p => c.conv(p, usdInr)),
-        vols:   vls,
+        closes: validRows.map(r => c.conv(r.close, usdInr)),
+        highs:  validRows.map(r => c.conv(r.high, usdInr)),
+        lows:   validRows.map(r => c.conv(r.low, usdInr)),
+        vols:   validRows.map(r => r.volume),
+        timestamps: validRows.map(r => r.time),
         price:  c.conv(intl, usdInr),
         prevClose: c.conv(prev, usdInr),
         high:   c.conv(hi, usdInr),
         low:    c.conv(lo, usdInr),
         intlPrice: intl,
-        src: 'Live (Yahoo/MCX)',
+        src: 'Live Proxy (Converted MCX)',
         hasRealHistory: true
       };
       return;
@@ -514,24 +532,44 @@ function calcATR(cls,his,los,n=14){
   if(!trs.length)return 0;
   return trs.slice(-n).reduce((a,b)=>a+b,0)/Math.min(n,trs.length);
 }
-function calcStoch(cls,his,los,n=14){
-  const sc=cls.slice(-n),sh=his.slice(-n),sl=los.slice(-n);
-  if(!sc.length)return{k:50,d:50};
-  const hi=Math.max(...sh),lo=Math.min(...sl);
-  const k=hi===lo?50:(sc[sc.length-1]-lo)/(hi-lo)*100;
-  return{k:CLP(k,0,100),d:CLP(sma([k,k,k],3),0,100)};
+function calcStoch(cls,his,los,n=14,dPeriod=3){
+  const l=Math.min(cls.length,his.length,los.length);
+  if(l<n)return{k:50,d:50};
+  const kValues=[];
+  for(let offset=dPeriod-1;offset>=0;offset--){
+    const endIdx=l-offset;
+    const startIdx=Math.max(0,endIdx-n);
+    const sh=his.slice(startIdx,endIdx),sl=los.slice(startIdx,endIdx);
+    const hi=Math.max(...sh),lo=Math.min(...sl);
+    const rawK=hi===lo?50:(cls[endIdx-1]-lo)/(hi-lo)*100;
+    kValues.push(CLP(rawK,0,100));
+  }
+  const latestK=kValues[kValues.length-1];
+  const avgD=kValues.reduce((s,v)=>s+v,0)/kValues.length;
+  return{k:Math.round(latestK*10)/10,d:Math.round(avgD*10)/10};
 }
 function calcADX(cls,his,los,n=14){
   const l=Math.min(cls.length,his.length,los.length);
-  if(l<n+1)return{adx:25,plus:25,minus:25};
+  if(l<n+2)return{adx:25,plus:25,minus:25};
+  const trArr=[],plusDM=[],minusDM=[];
+  for(let i=1;i<l;i++){
+    const h=his[i],lo=los[i],prevC=cls[i-1];
+    trArr.push(Math.max(h-lo,Math.abs(h-prevC),Math.abs(lo-prevC)));
+    const upMove=h-his[i-1];
+    const downMove=los[i-1]-lo;
+    plusDM.push(upMove>downMove&&upMove>0?upMove:0);
+    minusDM.push(downMove>upMove&&downMove>0?downMove:0);
+  }
+  const evalLen=Math.min(n,trArr.length);
+  const startIdx=trArr.length-evalLen;
   let smTR=0,smP=0,smM=0;
-  for(let i=1;i<=Math.min(n,l-1);i++){
-    const tr=Math.max(his[i]-los[i],Math.abs(his[i]-cls[i-1]),Math.abs(los[i]-cls[i-1]));
-    smTR+=tr;smP+=Math.max(his[i]-his[i-1],0);smM+=Math.max(los[i-1]-los[i],0);
+  for(let i=startIdx;i<trArr.length;i++){
+    smTR+=trArr[i];smP+=plusDM[i];smM+=minusDM[i];
   }
   const pDI=smTR?smP/smTR*100:0,mDI=smTR?smM/smTR*100:0;
-  const dx=pDI+mDI?Math.abs(pDI-mDI)/(pDI+mDI)*100:0;
-  return{adx:CLP(dx,0,100),plus:CLP(pDI,0,100),minus:CLP(mDI,0,100)};
+  const sumDI=pDI+mDI;
+  const dx=sumDI?Math.abs(pDI-mDI)/sumDI*100:0;
+  return{adx:CLP(Math.round(dx*10)/10,0,100),plus:CLP(Math.round(pDI*10)/10,0,100),minus:CLP(Math.round(mDI*10)/10,0,100)};
 }
 function calcCCI(cls,his,los,n=20){
   const sl=cls.slice(-n),sh=his.slice(-n),slo=los.slice(-n);
@@ -576,9 +614,11 @@ function detectPatterns(cls,his,los){
   const bL=Math.abs(cls[L]-op[L]),rL=his[L]-los[L],bull=cls[L]>op[L],bear=cls[L]<op[L];
   const bP=Math.abs(cls[P]-op[P]);
   if(rL>0&&bL/rL<0.1)pats.push({name:'Doji',icon:'〤',sig:'WAIT',desc:'Market indecision — neither bulls nor bears winning'});
-  if(bull&&bL>0&&(los[L]-Math.min(cls[L],op[L]))>2*bL&&(his[L]-Math.max(cls[L],op[L]))<bL)
+  const lowerWick=Math.min(cls[L],op[L])-los[L];
+  const upperWick=his[L]-Math.max(cls[L],op[L]);
+  if(bL>0&&lowerWick>=2*bL&&upperWick<=bL)
     pats.push({name:'Hammer',icon:'🔨',sig:'BUY',desc:'Buyers stepped in strongly at lows'});
-  if(bear&&bL>0&&(Math.max(cls[L],op[L])-his[L])<bL&&(Math.min(cls[L],op[L])-los[L])>2*bL)
+  if(bL>0&&upperWick>=2*bL&&lowerWick<=bL)
     pats.push({name:'Shooting Star',icon:'⭐',sig:'SELL',desc:'Sellers rejected the high — bearish reversal'});
   if(bull&&cls[P]<op[P]&&op[L]<cls[P]&&cls[L]>op[P])
     pats.push({name:'Bullish Engulfing',icon:'🟢',sig:'BUY',desc:'Bulls completely engulfed bears — strong reversal'});
@@ -944,15 +984,15 @@ function clearJournal(){
 }
 function renderJournal(){
   const closed=journal.filter(t=>t.pnl!=null);
-  let cap=5000;closed.slice().reverse().forEach(t=>{cap+=t.pnl;});
+  let cap=15000;closed.slice().reverse().forEach(t=>{cap+=t.pnl;});
   const wins=closed.filter(t=>t.pnl>0).length;
   const wr=closed.length?Math.round(wins/closed.length*100):0;
   const tot=closed.reduce((s,t)=>s+t.pnl,0);
-  const bCap=document.getElementById('b-cap');if(bCap){bCap.textContent='₹'+Math.round(cap).toLocaleString('en-IN');bCap.style.color=cap>=5000?'var(--grn)':'var(--red)';}
+  const bCap=document.getElementById('b-cap');if(bCap){bCap.textContent='₹'+Math.round(cap).toLocaleString('en-IN');bCap.style.color=cap>=15000?'var(--grn)':'var(--red)';}
   const bPnl=document.getElementById('b-pnl');if(bPnl){bPnl.textContent=(tot>=0?'+₹':'-₹')+Math.abs(Math.round(tot)).toLocaleString('en-IN');bPnl.style.color=tot>=0?'var(--grn)':'var(--red)';}
   const bTr=document.getElementById('b-trades');if(bTr)bTr.textContent=closed.length;
   const bWR=document.getElementById('b-wr');if(bWR){bWR.textContent=closed.length?wr+'%':'—';bWR.style.color=wr>=55?'var(--grn)':wr>=45?'var(--amb)':'var(--red)';}
-  const pCap=document.getElementById('p-jCap');if(pCap){pCap.textContent='₹'+Math.round(cap/1000*10)/10+'K';pCap.style.color=cap>=5000?'var(--grn)':'var(--red)';}
+  const pCap=document.getElementById('p-jCap');if(pCap){pCap.textContent='₹'+Math.round(cap/1000*10)/10+'K';pCap.style.color=cap>=15000?'var(--grn)':'var(--red)';}
   const pPnl=document.getElementById('p-jPnl');if(pPnl){pPnl.textContent=(tot>=0?'+₹':'-₹')+Math.abs(Math.round(tot)).toLocaleString('en-IN');pPnl.style.color=tot>=0?'var(--grn)':'var(--red)';}
   const pTr=document.getElementById('p-jTrades');if(pTr)pTr.textContent=closed.length;
   const pWR=document.getElementById('p-jWR');if(pWR){pWR.textContent=closed.length?wr+'%':'—';pWR.style.color=wr>=60?'var(--grn)':wr>=50?'var(--amb)':'var(--red)';}
@@ -1190,7 +1230,7 @@ function renderProMTF(){
   if(!ld||!ld.closes.length){document.getElementById('p-mtfGrid').innerHTML='';return;}
   const cls=ld.closes;
   document.getElementById('p-mtfGrid').innerHTML=[
-    {tf:'5m',n:3,d:'Scalp'},{tf:'15m',n:8,d:'Intra'},{tf:'1H',n:15,d:'Swing'},{tf:'4H',n:25,d:'Pos'},{tf:'1D',n:40,d:'Trend'}
+    {tf:'3-Bar',n:3,d:'Immediate'},{tf:'8-Bar',n:8,d:'Short'},{tf:'15-Bar',n:15,d:'Medium'},{tf:'25-Bar',n:25,d:'Intermed'},{tf:'40-Bar',n:40,d:'Extended'}
   ].map(({tf,n,d})=>{
     const sl=cls.slice(-Math.min(n,cls.length));
     const r=calcRSI(sl),e9=ema(sl,Math.min(9,sl.length)),e21=ema(sl,Math.min(21,sl.length));
@@ -1373,15 +1413,51 @@ async function setTF(tf){
       const res = d?.chart?.result?.[0];
       if (res) {
         const q = res.indicators?.quote?.[0] || {};
-        const cls = (q.close || []).filter(x => x != null && isFinite(x));
-        const his = (q.high  || []).filter(x => x != null && isFinite(x));
-        const los = (q.low   || []).filter(x => x != null && isFinite(x));
-        const vls = (q.volume|| []).filter(x => x != null && isFinite(x));
-        if (cls.length >= 5) {
-          liveData[activeC.id].closes = cls.map(p => activeC.conv(p, usdInr));
-          liveData[activeC.id].highs  = his.map(p => activeC.conv(p, usdInr));
-          liveData[activeC.id].lows   = los.map(p => activeC.conv(p, usdInr));
-          liveData[activeC.id].vols   = vls;
+        const rawCls = q.close || [];
+        const rawHis = q.high  || [];
+        const rawLos = q.low   || [];
+        const rawOps = q.open  || [];
+        const rawVls = q.volume|| [];
+        const timestamps = res.timestamp || [];
+
+        const rows = [];
+        const minLen = Math.min(rawCls.length, rawHis.length, rawLos.length);
+        for (let i = 0; i < minLen; i++) {
+          const cl = rawCls[i], hi = rawHis[i], lo = rawLos[i];
+          const op = rawOps[i] != null && isFinite(rawOps[i]) ? rawOps[i] : cl;
+          const vl = rawVls[i] != null && isFinite(rawVls[i]) ? rawVls[i] : 0;
+          const ts = timestamps[i] || 0;
+          if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
+            if (hi >= lo && hi >= Math.max(op, cl) * 0.9999 && lo <= Math.min(op, cl) * 1.0001) {
+              rows.push({ time: ts, open: op, high: hi, low: lo, close: cl, volume: vl });
+            }
+          }
+        }
+
+        // True 4H Resampling (group 4 hourly bars into 1 4H bar)
+        let finalRows = rows;
+        if (tf === '4h' && rows.length >= 4) {
+          finalRows = [];
+          for (let i = 0; i < rows.length; i += 4) {
+            const chunk = rows.slice(i, i + 4);
+            if (chunk.length > 0) {
+              finalRows.push({
+                time: chunk[0].time,
+                open: chunk[0].open,
+                high: Math.max(...chunk.map(b => b.high)),
+                low: Math.min(...chunk.map(b => b.low)),
+                close: chunk[chunk.length - 1].close,
+                volume: chunk.reduce((sum, b) => sum + b.volume, 0)
+              });
+            }
+          }
+        }
+
+        if (finalRows.length >= 5) {
+          liveData[activeC.id].closes = finalRows.map(r => activeC.conv(r.close, usdInr));
+          liveData[activeC.id].highs  = finalRows.map(r => activeC.conv(r.high, usdInr));
+          liveData[activeC.id].lows   = finalRows.map(r => activeC.conv(r.low, usdInr));
+          liveData[activeC.id].vols   = finalRows.map(r => r.volume);
           liveData[activeC.id].hasRealHistory = true;
         }
       }

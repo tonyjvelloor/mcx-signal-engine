@@ -79,20 +79,38 @@ function getLimiterForEndpoint(endpoint) {
 // ─────────────────────────────────────────────────────────────
 function loadConfig() {
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
-    const cfg = JSON.parse(raw);
-    const kite = cfg.kite || {};
-    const apiKey = process.env.KITE_API_KEY || kite.apiKey;
-    const apiSecret = process.env.KITE_API_SECRET || kite.apiSecret;
+    let apiKey = process.env.KITE_API_KEY;
+    let apiSecret = process.env.KITE_API_SECRET;
+    let redirectUrl = 'http://127.0.0.1:8000/mcx-beginner.html';
+
+    const secPath = path.join(__dirname, '.secrets.json');
+    if (fs.existsSync(secPath)) {
+      try {
+        const sec = JSON.parse(fs.readFileSync(secPath, 'utf8'));
+        apiKey = apiKey || sec.kiteApiKey;
+        apiSecret = apiSecret || sec.kiteApiSecret;
+      } catch (_) {}
+    }
+
+    if (fs.existsSync(CONFIG_PATH)) {
+      try {
+        const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
+        const cfg = JSON.parse(raw);
+        const kite = cfg.kite || {};
+        apiKey = apiKey || (kite.apiKey !== 'YOUR_KITE_API_KEY' ? kite.apiKey : null);
+        apiSecret = apiSecret || (kite.apiSecret !== 'YOUR_KITE_API_SECRET' ? kite.apiSecret : null);
+        redirectUrl = kite.redirectUrl || redirectUrl;
+      } catch (_) {}
+    }
 
     if (!apiKey || !apiSecret) {
-      throw new Error('Kite API Key or Secret missing. Set them in config.json or environment variables.');
+      throw new Error('Kite API Key or Secret missing. Set them in .secrets.json or environment variables.');
     }
 
     return {
       apiKey,
       apiSecret,
-      redirectUrl: kite.redirectUrl || 'http://127.0.0.1:8000/mcx-beginner.html'
+      redirectUrl
     };
   } catch (e) {
     throw new Error(`Failed to load Kite configuration: ${e.message}`);

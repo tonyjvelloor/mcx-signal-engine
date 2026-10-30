@@ -1,10 +1,10 @@
 {
   "kite": {
-    "apiKey": "yec641x53e88b3gu",
-    "apiSecret": "eqlk91edm8j4dayfey2htzvmsle0zebe",
+    "apiKey": "YOUR_KITE_API_KEY",
+    "apiSecret": "YOUR_KITE_API_SECRET",
     "redirectUrl": "http://127.0.0.1:8000/mcx-beginner.html"
   },
   "anthropic": {
-    "model": "claude-sonnet-4-6"
+    "model": "claude-haiku-4-5"
   }
 }

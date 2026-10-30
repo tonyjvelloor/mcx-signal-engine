@@ -751,29 +751,13 @@ async function handleClaudeMacro(force = false) {
 
 function getFallbackMacro(notice) {
   return {
-    generated_at: new Date().toISOString(),
-    overall_verdict: "Watch closely",
-    green_count: 5,
+    status: 'UNAVAILABLE',
+    generated_at: null,
+    overall_verdict: 'Research Unavailable',
+    green_count: 0,
     warning: notice,
-    signals: [
-      { id: 1, category: "GLOBAL", label: "Strait of Hormuz", icon: "🚢", level: "Monitored", change: "Transit active", signal: "NEUTRAL", detail: "Oil transport corridors remain monitored; no direct blockade confirmed." },
-      { id: 2, category: "GLOBAL", label: "US-Iran / Red Sea", icon: "⚔️", level: "Elevated", change: "Caution in place", signal: "RED", detail: "Ongoing missile and drone defense engagements around shipping lanes." },
-      { id: 3, category: "GLOBAL", label: "Brent Crude", icon: "🛢️", level: "$85-$92", change: "Range-bound", signal: "NEUTRAL", detail: "Crude fluctuating around OPEC+ targets and geopolitical risk premium." },
-      { id: 4, category: "INDIA",  label: "USD/INR", icon: "💵", level: "₹86-₹94", change: "RBI intervening", signal: "NEUTRAL", detail: "RBI foreign reserves supporting rupee stability against broad dollar strength." },
-      { id: 5, category: "INDIA",  label: "FII / DII Flows", icon: "📊", level: "DII absorbing", change: "FII net sellers", signal: "NEUTRAL", detail: "Domestic institutional buying counteracting foreign portfolio outflows." },
-      { id: 6, category: "GLOBAL", label: "US 10Y Yield", icon: "📈", level: "4.2%-4.4%", change: "Consolidating", signal: "NEUTRAL", detail: "Fed interest rate trajectory depends on sticky core services inflation." },
-      { id: 7, category: "INDIA",  label: "RBI & CPI Inflation", icon: "🏛️", level: "Target band", change: "Repo rate stable", signal: "GREEN", detail: "RBI maintains withdrawal of accommodation stance with inflation under control." },
-      { id: 8, category: "INDIA",  label: "Fiscal & Fuel", icon: "⛽", level: "Controlled", change: "Excise stable", signal: "GREEN", detail: "Government fiscal deficit glide path remains intact toward 4.9% of GDP." },
-      { id: 9, category: "INDIA",  label: "Monsoon & Food", icon: "🌾", level: "Satisfactory", change: "Kharif sowing normal", signal: "GREEN", detail: "Normal monsoon distribution cushions rural agricultural output." },
-      { id: 10, category: "INDIA", label: "Festive & GST", icon: "🛍️", level: "₹1.87L Cr+", change: "Healthy collections", signal: "GREEN", detail: "Monthly GST collections reflect resilient domestic commercial activity." },
-      { id: 11, category: "INDIA", label: "Corporate Earnings", icon: "📑", level: "Balanced", change: "Selective margin beats", signal: "NEUTRAL", detail: "Banking and capital goods lead earnings growth while IT remains cautious." },
-      { id: 12, category: "INDIA", label: "SIP & Retail Flows", icon: "💰", level: "₹25,000 Cr+/mo", change: "All-time highs", signal: "GREEN", detail: "Record monthly mutual fund SIP inflows provide persistent structural liquidity." }
-    ],
-    key_events: [
-      { date: "Current Week", event: "RBI Monetary Policy Review", impact: "HIGH" },
-      { date: "Upcoming", event: "US Non-Farm Payrolls & CPI", impact: "HIGH" },
-      { date: "Continuous", event: "Domestic SIP Inflows & Corporate Results", impact: "MEDIUM" }
-    ]
+    signals: [],
+    key_events: []
   };
 }
 
@@ -782,9 +766,18 @@ function getFallbackMacro(notice) {
 // ─────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
+
+  // Strict Hostile Origin Rejection for Mutations
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'FORBIDDEN_ORIGIN: Cross-origin mutations rejected.' }));
+    }
+  }
+
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   }
 
@@ -877,54 +870,86 @@ const server = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
           try {
-            const data = JSON.parse(body);
-            const symbol = data.symbol || 'GOLDM';
-            const side = (data.side || 'BUY').toUpperCase();
-            const qty = parseFloat(data.qty) || 1;
-            const entryPrice = parseFloat(data.entryPrice || data.price) || 0;
-            const stopLoss = parseFloat(data.stopLoss || data.sl) || 0;
-            const target = parseFloat(data.target || data.tp) || 0;
+            if (!db) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'DATABASE_UNAVAILABLE: Paper trade cannot be safely recorded.' }));
+            }
 
-            if (!entryPrice || !stopLoss) {
+            const data = JSON.parse(body);
+            const symbol = String(data.symbol || 'GOLDM').toUpperCase().trim();
+            const side = String(data.side || 'BUY').toUpperCase().trim();
+            if (!['BUY', 'SELL'].includes(side)) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ error: 'Entry price and Stop Loss are mandatory.' }));
+              return res.end(JSON.stringify({ error: 'Order side must be BUY or SELL.' }));
+            }
+
+            const rawQty = Number(data.qty);
+            if (!Number.isInteger(rawQty) || rawQty <= 0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'Quantity must be a positive integer.' }));
+            }
+
+            const entryPrice = Number(data.entryPrice || data.price);
+            const stopLoss = Number(data.stopLoss || data.sl);
+            const target = Number(data.target || data.tp) || 0;
+
+            if (!Number.isFinite(entryPrice) || entryPrice <= 0 || !Number.isFinite(stopLoss) || stopLoss <= 0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'Valid positive entry price and Stop Loss are mandatory.' }));
+            }
+
+            // Stop Loss Geometry Check
+            if (side === 'BUY' && stopLoss >= entryPrice) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Long stop loss (₹${stopLoss}) must be strictly below entry price (₹${entryPrice}).` }));
+            }
+            if (side === 'SELL' && stopLoss <= entryPrice) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Short stop loss (₹${stopLoss}) must be strictly above entry price (₹${entryPrice}).` }));
+            }
+
+            // Target Geometry Check (if provided)
+            if (target > 0) {
+              if (side === 'BUY' && target <= entryPrice) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Long target (₹${target}) must be strictly above entry price (₹${entryPrice}).` }));
+              }
+              if (side === 'SELL' && target >= entryPrice) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Short target (₹${target}) must be strictly below entry price (₹${entryPrice}).` }));
+              }
             }
 
             const brokerage = 40.0; // Zerodha flat ₹20 buy + ₹20 sell
             const sttGst = 5.0;     // Taxes & STT
             const stopDistance = Math.abs(entryPrice - stopLoss);
-            const plannedLoss = (stopDistance * qty) + brokerage + sttGst;
+            const plannedLoss = (stopDistance * rawQty) + brokerage + sttGst;
 
             if (plannedLoss > 50.0) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({
-                error: `RISK EXCEEDED: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹45 Zerodha brokerage & taxes) exceeds strict ₹50 cap on ₹15,000 account.`
+                error: `RISK_VIOLATION: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹45 Zerodha brokerage & taxes) exceeds strict ₹50 cap on ₹15,000 account.`
               }));
             }
 
-            if (db) {
-              const stmt = db.prepare(`
-                INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
-              `);
-              const resDb = stmt.run(symbol, side, qty, entryPrice, new Date().toISOString(), stopLoss, target, brokerage, sttGst);
-              res.writeHead(201, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({
-                success: true,
-                tradeId: resDb.lastInsertRowid,
-                symbol,
-                side,
-                qty,
-                entryPrice,
-                stopLoss,
-                target,
-                plannedLoss: plannedLoss.toFixed(2),
-                status: 'OPEN'
-              }));
-            } else {
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ success: true, simulated: true, plannedLoss: plannedLoss.toFixed(2) }));
-            }
+            const stmt = db.prepare(`
+              INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
+            `);
+            const resDb = stmt.run(symbol, side, rawQty, entryPrice, new Date().toISOString(), stopLoss, target, brokerage, sttGst);
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({
+              success: true,
+              tradeId: resDb.lastInsertRowid,
+              symbol,
+              side,
+              qty: rawQty,
+              entryPrice,
+              stopLoss,
+              target,
+              plannedLoss: plannedLoss.toFixed(2),
+              status: 'OPEN'
+            }));
           } catch (e) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: e.message }));
@@ -938,42 +963,53 @@ const server = http.createServer(async (req, res) => {
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
           try {
+            if (!db) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'DATABASE_UNAVAILABLE: Trade close cannot be safely acknowledged.' }));
+            }
+
             const data = JSON.parse(body);
             const tradeId = parseInt(data.tradeId, 10);
-            const exitPrice = parseFloat(data.exitPrice) || 0;
-            const exitReason = data.exitReason || 'MANUAL_CLOSE';
+            const exitPrice = Number(data.exitPrice);
+            const exitReason = String(data.exitReason || 'MANUAL_CLOSE').trim();
 
-            if (!tradeId || !exitPrice) {
+            if (!Number.isInteger(tradeId) || tradeId <= 0 || !Number.isFinite(exitPrice) || exitPrice <= 0) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ error: 'tradeId and exitPrice are required' }));
+              return res.end(JSON.stringify({ error: 'Valid positive tradeId and exitPrice are required.' }));
             }
 
-            if (db) {
-              const trade = db.prepare('SELECT * FROM paper_trades WHERE id = ?').get(tradeId);
-              if (!trade) {
-                res.writeHead(404, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ error: 'Trade not found' }));
-              }
-              const grossPnl = trade.side === 'BUY'
-                ? (exitPrice - trade.entry_price) * trade.qty
-                : (trade.entry_price - exitPrice) * trade.qty;
-              const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
-              const status = exitReason === 'SL_HIT' ? 'SL HIT' : (exitReason === 'T1_HIT' ? 'T1 HIT' : (netPnl >= 0 ? 'WIN' : 'LOSS'));
-
-              db.prepare(`
-                UPDATE paper_trades
-                SET exit_price = ?, exit_time = ?, net_pnl = ?, status = ?, exit_reason = ?
-                WHERE id = ?
-              `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({
-                success: true,
-                tradeId,
-                netPnl: netPnl.toFixed(2),
-                status
-              }));
+            const trade = db.prepare('SELECT * FROM paper_trades WHERE id = ?').get(tradeId);
+            if (!trade) {
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'Trade not found.' }));
             }
+
+            // Idempotency: Reject closing an already closed trade
+            if (trade.status !== 'OPEN' || trade.exit_price != null) {
+              res.writeHead(409, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: `IDEMPOTENCY_CONFLICT: Trade #${tradeId} is already closed and immutable.` }));
+            }
+
+            const grossPnl = trade.side === 'BUY'
+              ? (exitPrice - trade.entry_price) * trade.qty
+              : (trade.entry_price - exitPrice) * trade.qty;
+            const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
+            const status = netPnl > 0 ? 'WIN' : 'LOSS';
+
+            db.prepare(`
+              UPDATE paper_trades
+              SET exit_price = ?, exit_time = ?, net_pnl = ?, status = ?, exit_reason = ?
+              WHERE id = ?
+            `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({
+              success: true,
+              tradeId,
+              netPnl: netPnl.toFixed(2),
+              status,
+              exitReason
+            }));
           } catch(e) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: e.message }));
@@ -1164,15 +1200,36 @@ const server = http.createServer(async (req, res) => {
         try {
           const order = JSON.parse(body);
           
-          // Risk Check for ₹15,000 Capital
-          const maxAllowedRisk = 50; // ₹50 hard limit per trade
-          const stopDistance = Math.abs((order.price || 0) - (order.triggerPrice || order.sl || 0));
-          const estimatedLoss = stopDistance * (order.quantity || 1);
+          const qty = Number(order.quantity);
+          if (!Number.isInteger(qty) || qty <= 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Order quantity must be a positive integer.' }));
+          }
 
-          if (estimatedLoss > maxAllowedRisk && (order.price && order.sl)) {
+          const price = Number(order.price);
+          const stopLoss = Number(order.triggerPrice || order.stopLoss || order.sl);
+          if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(stopLoss) || stopLoss <= 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Order price and Stop Loss trigger are mandatory.' }));
+          }
+
+          const txType = String(order.transaction_type || order.side || 'BUY').toUpperCase();
+          if (txType === 'BUY' && stopLoss >= price) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Long stop loss (₹${stopLoss}) must be strictly below entry price (₹${price}).` }));
+          }
+          if (txType === 'SELL' && stopLoss <= price) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Short stop loss (₹${stopLoss}) must be strictly above entry price (₹${price}).` }));
+          }
+
+          const stopDistance = Math.abs(price - stopLoss);
+          const totalEstimatedLoss = (stopDistance * qty) + 45.0; // ₹45 Zerodha brokerage + taxes
+
+          if (totalEstimatedLoss > 50.0) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
-              error: `RISK_VIOLATION: Estimated trade loss (₹${estimatedLoss.toFixed(2)}) exceeds ₹${maxAllowedRisk} budget limit.`
+              error: `RISK_VIOLATION: Estimated trade loss (₹${totalEstimatedLoss.toFixed(2)} with charges) exceeds ₹50 budget limit.`
             }));
           }
 

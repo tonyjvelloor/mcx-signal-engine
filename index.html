@@ -961,6 +961,82 @@ async function fetchMarketDataForActive() {
 // ─────────────────────────────────────────────────────────────
 // EXECUTION PLAN & RISK GOVERNANCE
 // ─────────────────────────────────────────────────────────────
+function calculateATR(candles, period = 14) {
+  if (candles.length < 2) return 1.0;
+  const startIdx = Math.max(1, candles.length - period);
+  let trSum = 0, count = 0;
+  for (let i = startIdx; i < candles.length; i++) {
+    const tr = Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - candles[i - 1].close),
+      Math.abs(candles[i].low - candles[i - 1].close)
+    );
+    trSum += tr;
+    count++;
+  }
+  return count > 0 ? trSum / count : 1.0;
+}
+
+function calculateRSI(candles, period = 14) {
+  if (candles.length < period + 1) return 50.0;
+  let gains = 0, losses = 0;
+  for (let i = candles.length - period; i < candles.length; i++) {
+    const diff = candles[i].close - candles[i - 1].close;
+    if (diff >= 0) gains += diff;
+    else losses += Math.abs(diff);
+  }
+  const rs = (gains / period) / ((losses / period) || 0.001);
+  return 100 - (100 / (1 + rs));
+}
+
+function calculateMACD(candles) {
+  if (candles.length < 26) return { line: 0, label: 'Neutral (Insufficient bars)' };
+  const closes = candles.map(c => c.close);
+  function calcEMA(arr, n) {
+    const k = 2 / (n + 1);
+    let res = arr[0];
+    for (let i = 1; i < arr.length; i++) res = arr[i] * k + res * (1 - k);
+    return res;
+  }
+  const e12 = calcEMA(closes, 12);
+  const e26 = calcEMA(closes, 26);
+  const line = e12 - e26;
+  return {
+    line: line.toFixed(2),
+    label: line >= 0 ? `+${line.toFixed(2)} (Bullish)` : `${line.toFixed(2)} (Bearish)`
+  };
+}
+
+function calculateSupertrend(candles, period = 10, mult = 3.0) {
+  if (candles.length < period) return { dir: 'WAIT', label: 'Neutral' };
+  const atr = calculateATR(candles, period);
+  const last = candles[candles.length - 1];
+  const hl2 = (last.high + last.low) / 2;
+  const isBull = last.close > (hl2 - mult * atr * 0.5);
+  return {
+    dir: isBull ? 'BUY' : 'SELL',
+    label: isBull ? 'BUY (Trend Up)' : 'SELL (Trend Down)'
+  };
+}
+
+function calculateStructure(candles) {
+  if (candles.length < 15) return { type: 'RANGE', label: 'Consolidation' };
+  const recent = candles.slice(-20);
+  let swingHigh = -Infinity, swingLow = Infinity;
+  for (let i = 2; i < recent.length - 2; i++) {
+    if (recent[i].high > recent[i-1].high && recent[i].high > recent[i+1].high) {
+      swingHigh = Math.max(swingHigh, recent[i].high);
+    }
+    if (recent[i].low < recent[i-1].low && recent[i].low < recent[i+1].low) {
+      swingLow = Math.min(swingLow, recent[i].low);
+    }
+  }
+  const lastClose = candles[candles.length - 1].close;
+  if (swingHigh !== -Infinity && lastClose > swingHigh) return { type: 'BULLISH', label: 'Bullish BOS' };
+  if (swingLow !== Infinity && lastClose < swingLow) return { type: 'BEARISH', label: 'Bearish BOS' };
+  return { type: 'RANGE', label: 'Consolidation' };
+}
+
 function updatePlanAndExecution(candles, state) {
   const banner = document.getElementById('exec-state-banner');
   const icon = document.getElementById('sb-icon');
@@ -981,18 +1057,49 @@ function updatePlanAndExecution(candles, state) {
   }
 
   const lastPrice = candles[candles.length - 1].close;
-  // Calculate ATR for intelligent Stop Loss
   const atr = calculateATR(candles);
-  const slDistance = Math.min(activeInst.slDist, 5.0); // Strict limit for ₹50 max risk
-  const stopLoss = Math.round(lastPrice - slDistance);
-  const target1 = Math.round(lastPrice + slDistance * 2);
-  const target2 = Math.round(lastPrice + slDistance * 3);
+  const rsi = calculateRSI(candles);
+  const macd = calculateMACD(candles);
+  const st = calculateSupertrend(candles);
+  const struct = calculateStructure(candles);
 
-  // Position Sizing: (|Entry - SL| * Qty) + ₹45 <= ₹50
+  // Update Indicator Bar with genuine computed values
+  document.getElementById('ind-rsi').innerText = rsi.toFixed(1);
+  document.getElementById('ind-atr').innerText = `₹${atr.toFixed(2)}`;
+  document.getElementById('ind-macd').innerText = macd.label;
+  document.getElementById('ind-st').innerText = st.label;
+  document.getElementById('ind-struct').innerText = struct.label;
+
+  // Derive setup direction from multi-factor confluence
+  let action = 'WAIT';
+  if (st.dir === 'BUY' && Number(macd.line) >= 0 && struct.type !== 'BEARISH') {
+    action = 'BUY';
+  } else if (st.dir === 'SELL' && Number(macd.line) <= 0 && struct.type !== 'BULLISH') {
+    action = 'SELL';
+  }
+
+  // Structural Stop Loss Distance (Never artificially shrunk)
+  const slDistance = Math.max(atr * 1.5, activeInst.slDist || 5.0);
+  const stopLoss = action === 'BUY' ? Math.round(lastPrice - slDistance) : Math.round(lastPrice + slDistance);
+  const target1 = action === 'BUY' ? Math.round(lastPrice + slDistance * 1.5) : Math.round(lastPrice - slDistance * 1.5);
+  const target2 = action === 'BUY' ? Math.round(lastPrice + slDistance * 2.5) : Math.round(lastPrice - slDistance * 2.5);
+
   const qty = 1;
   const priceLoss = slDistance * qty;
   const zerodhaFees = 45.0; // ₹40 brokerage + ₹5 STT/GST
   const totalPlannedLoss = priceLoss + zerodhaFees;
+
+  window.currentPlan = {
+    symbol: activeInst.name,
+    action,
+    entryPrice: lastPrice,
+    stopLoss,
+    target1,
+    target2,
+    slDistance,
+    qty,
+    totalPlannedLoss
+  };
 
   document.getElementById('plan-price').innerText = `₹${Math.round(lastPrice).toLocaleString('en-IN')}`;
   document.getElementById('plan-entry').innerText = `₹${Math.round(lastPrice).toLocaleString('en-IN')}`;
@@ -1004,55 +1111,28 @@ function updatePlanAndExecution(candles, state) {
   document.getElementById('risk-priceloss').innerText = `₹${priceLoss.toFixed(2)}`;
   document.getElementById('risk-total').innerText = `₹${totalPlannedLoss.toFixed(2)}`;
 
-  if (totalPlannedLoss <= 50.0) {
-    banner.className = 'state-banner sb-READY';
-    icon.innerText = '🟢';
-    title.innerText = 'READY TO TRADE';
-    desc.innerText = `Setup verified. Planned risk ₹${totalPlannedLoss.toFixed(2)} is within the ₹50 account budget.`;
-    btn.disabled = false;
-    btn.innerText = `⚡ Record Paper Trade (Risk: ₹${totalPlannedLoss.toFixed(2)})`;
-  } else {
+  if (action === 'WAIT') {
+    banner.className = 'state-banner sb-BLOCKED';
+    icon.innerText = '⏸';
+    title.innerText = 'WAIT — MIXED SIGNALS';
+    desc.innerText = 'Technical factors disagree (Trend, MACD, or Structure). Waiting for clear directional alignment.';
+    btn.disabled = true;
+    btn.innerText = 'Waiting for Setup';
+  } else if (totalPlannedLoss > 50.0) {
     banner.className = 'state-banner sb-BLOCKED';
     icon.innerText = '⚠️';
     title.innerText = 'RISK CAP EXCEEDED';
-    desc.innerText = `Total loss ₹${totalPlannedLoss.toFixed(2)} exceeds ₹50 risk cap on ₹15,000 account.`;
+    desc.innerText = `NO TRADE: Min lot of 1 has planned loss of ₹${totalPlannedLoss.toFixed(2)} (₹${priceLoss.toFixed(2)} risk + ₹45 fees), which exceeds your ₹50 budget on ₹15,000 capital.`;
     btn.disabled = true;
     btn.innerText = 'Blocked: Risk > ₹50';
+  } else {
+    banner.className = 'state-banner sb-READY';
+    icon.innerText = '🟢';
+    title.innerText = `READY TO TRADE (${action})`;
+    desc.innerText = `Setup verified (${action}). Planned risk ₹${totalPlannedLoss.toFixed(2)} is within the ₹50 account budget.`;
+    btn.disabled = false;
+    btn.innerText = `⚡ Record Paper Trade (${action} · Risk: ₹${totalPlannedLoss.toFixed(2)})`;
   }
-
-  // Update Indicator Bar
-  const rsi = calculateRSI(candles);
-  document.getElementById('ind-rsi').innerText = rsi.toFixed(1);
-  document.getElementById('ind-atr').innerText = `₹${atr.toFixed(2)}`;
-  document.getElementById('ind-macd').innerText = '+1.42 (Bullish)';
-  document.getElementById('ind-st').innerText = 'BUY (Trend Up)';
-  document.getElementById('ind-struct').innerText = 'Bullish BOS';
-}
-
-function calculateATR(candles, period = 14) {
-  if (candles.length < 2) return 1.0;
-  let trSum = 0;
-  for (let i = 1; i < Math.min(period + 1, candles.length); i++) {
-    const tr = Math.max(
-      candles[i].high - candles[i].low,
-      Math.abs(candles[i].high - candles[i - 1].close),
-      Math.abs(candles[i].low - candles[i - 1].close)
-    );
-    trSum += tr;
-  }
-  return trSum / Math.min(period, candles.length - 1);
-}
-
-function calculateRSI(candles, period = 14) {
-  if (candles.length < period + 1) return 50.0;
-  let gains = 0, losses = 0;
-  for (let i = candles.length - period; i < candles.length; i++) {
-    const diff = candles[i].close - candles[i - 1].close;
-    if (diff >= 0) gains += diff;
-    else losses += Math.abs(diff);
-  }
-  const rs = (gains / period) / ((losses / period) || 0.001);
-  return 100 - (100 / (1 + rs));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1178,6 +1258,16 @@ function toggleOverlay(name) {
 // ─────────────────────────────────────────────────────────────
 async function submitPaperTrade() {
   const btn = document.getElementById('btn-exec');
+  const plan = window.currentPlan;
+  if (!plan || plan.action === 'WAIT' || plan.action === 'NO_TRADE') {
+    alert(`Cannot record paper trade: No actionable trade plan for ${activeInst.name}. (${plan?.action || 'WAIT'})`);
+    return;
+  }
+  if (plan.totalPlannedLoss > 50.0) {
+    alert(`Cannot record paper trade: Planned loss of ₹${plan.totalPlannedLoss.toFixed(2)} exceeds ₹50 risk cap.`);
+    return;
+  }
+
   btn.disabled = true;
   btn.innerText = 'Submitting...';
 
@@ -1186,12 +1276,12 @@ async function submitPaperTrade() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        symbol: activeInst.name,
-        side: 'BUY',
-        qty: 1,
-        entryPrice: liveData[activeInst.id]?.price || activeInst.base,
-        stopLoss: (liveData[activeInst.id]?.price || activeInst.base) - 5,
-        target: (liveData[activeInst.id]?.price || activeInst.base) + 10
+        symbol: plan.symbol,
+        side: plan.action,
+        qty: plan.qty || 1,
+        entryPrice: plan.entryPrice,
+        stopLoss: plan.stopLoss,
+        target: plan.target1
       })
     });
     const d = await res.json();
@@ -1199,14 +1289,14 @@ async function submitPaperTrade() {
     if (d.error) {
       alert(`⚠️ TRADE REJECTED BY RISK ENGINE:\n\n${d.error}`);
     } else {
-      alert(`✅ PAPER TRADE RECORDED (#${d.tradeId}):\n\n${activeInst.name} BUY 1 Unit\nEntry: ₹${d.entryPrice.toLocaleString('en-IN')}\nSL: ₹${d.stopLoss.toLocaleString('en-IN')}\nPlanned Loss: ₹${d.plannedLoss} (within ₹50 budget)`);
+      alert(`✅ PAPER TRADE RECORDED (#${d.tradeId}):\n\n${plan.symbol} ${plan.action} ${d.qty || 1} Unit\nEntry: ₹${Number(d.entryPrice).toLocaleString('en-IN')}\nSL: ₹${Number(d.stopLoss).toLocaleString('en-IN')}\nTarget: ₹${Number(d.target).toLocaleString('en-IN')}\nPlanned Loss: ₹${Number(d.plannedLoss).toFixed(2)} (within ₹50 budget)`);
       fetchJournalData();
     }
   } catch (e) {
     alert(`Trade Submission Error: ${e.message}`);
   } finally {
     btn.disabled = false;
-    btn.innerText = '⚡ Record Paper Trade';
+    btn.innerText = `⚡ Record Paper Trade (${plan.action} · Risk: ₹${plan.totalPlannedLoss.toFixed(2)})`;
   }
 }
 
@@ -1287,10 +1377,10 @@ async function fetchJournalData() {
 
     document.getElementById('j-stat-trades').innerText = trades.length;
     const closed = trades.filter(t => t.exit_price != null);
-    const wins = closed.filter(t => t.status === 'T1 HIT' || t.status === 'WIN' || (t.net_pnl && t.net_pnl > 0));
+    const wins = closed.filter(t => t.net_pnl != null && t.net_pnl > 0);
     const wr = closed.length ? Math.round((wins.length / closed.length) * 100) : 0;
     const netPnl = closed.reduce((acc, t) => acc + (t.net_pnl || 0), 0);
-    const totalFees = trades.length * 45.0; // ₹45 per trade
+    const totalFees = trades.reduce((acc, t) => acc + ((t.brokerage || 40.0) + (t.stt_gst || 5.0)), 0);
 
     document.getElementById('j-stat-wr').innerText = closed.length ? `${wr}%` : '—';
     document.getElementById('j-stat-pnl').innerText = `${netPnl >= 0 ? '+' : ''}₹${netPnl.toFixed(2)}`;
@@ -1304,7 +1394,9 @@ async function fetchJournalData() {
 
     tbody.innerHTML = trades.map(t => {
       const isClosed = t.exit_price != null;
-      const statusCol = t.status === 'OPEN' ? 'var(--gold)' : (t.status.includes('T') ? 'var(--green)' : 'var(--red)');
+      const isWin = t.net_pnl != null && t.net_pnl > 0;
+      const statusCol = t.status === 'OPEN' ? 'var(--gold)' : (isWin ? 'var(--green)' : 'var(--red)');
+      const statusLabel = t.status === 'OPEN' ? 'OPEN' : (isWin ? 'WIN' : 'LOSS');
       return `
         <tr>
           <td>#${t.id}</td>
@@ -1316,9 +1408,9 @@ async function fetchJournalData() {
           <td>₹${Math.round(t.stop_loss).toLocaleString('en-IN')}</td>
           <td>₹${Math.round(t.target).toLocaleString('en-IN')}</td>
           <td>${isClosed ? '₹' + Math.round(t.exit_price).toLocaleString('en-IN') : '—'}</td>
-          <td>₹${(t.brokerage + t.stt_gst).toFixed(2)}</td>
+          <td>₹${((t.brokerage || 40.0) + (t.stt_gst || 5.0)).toFixed(2)}</td>
           <td style="color:${t.net_pnl>=0?'var(--green)':'var(--red)'}">${t.net_pnl != null ? (t.net_pnl>=0?'+':'') + '₹' + t.net_pnl.toFixed(2) : '—'}</td>
-          <td><strong style="color:${statusCol}">${t.status}</strong></td>
+          <td><strong style="color:${statusCol}">${statusLabel}</strong>${t.exit_reason ? `<div style="font-size:9px;color:var(--text-muted);">${t.exit_reason}</div>` : ''}</td>
           <td>
             ${!isClosed ? `<button class="ctrl-btn" onclick="closePaperPosition(${t.id}, ${t.entry_price})">Close</button>` : '—'}
           </td>
