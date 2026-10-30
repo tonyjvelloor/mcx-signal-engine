@@ -79,7 +79,7 @@
   <div class="ppanel">
   <div class="pph"><span class="pph-t">Risk / Position Sizing</span><span class="pph-b" style="background:var(--purbg);color:var(--pur)">Kelly</span></div>
   <div class="risk-form">
-  <div class="rf-row"><span class="rf-label">Capital ₹</span><input class="rf-input" id="p-rfCap" type="number" value="5000"></div>
+  <div class="rf-row"><span class="rf-label">Capital ₹</span><input class="rf-input" id="p-rfCap" type="number" value="15000"></div>
   <div class="rf-row"><span class="rf-label">Risk %</span><input class="rf-input" id="p-rfRisk" type="number" value="2" step=".5"></div>
   <div class="rf-row"><span class="rf-label">Win Rate %</span><input class="rf-input" id="p-rfWR" type="number" value="55"></div>
   <button class="rf-btn" onclick="calcRisk()">Calculate</button>
@@ -191,9 +191,9 @@
  {id:'crude', n:'CRUDE', icon:'🛢️', unit:'₹/bbl', usd:'$/bbl', ticker:'CL=F', conv:(p,r)=>p*r, sl_atr:2, t1_atr:3,t2_atr:5, base:8999, color:'#8D6E63'},
  {id:'natgas', n:'NATGAS', icon:'🔥', unit:'₹/MMBtu', usd:'$/MMBtu', ticker:'NG=F', conv:(p,r)=>p*r, sl_atr:2, t1_atr:3,t2_atr:5.5,base:315, color:'#FF8A65'},
  {id:'copper', n:'COPPER', icon:'🟤', unit:'₹/kg', usd:'$/lb', ticker:'HG=F', conv:(p,r)=>p*r*2.20462, sl_atr:2.5,t1_atr:3.5,t2_atr:6,base:1139, color:'#A1887F'},
- {id:'zinc', n:'ZINC', icon:'⚙️', unit:'₹/kg', usd:'$/t', ticker:'ZNC=F',conv:(p,r)=>p*r/1000},
- {id:'alum', n:'ALUM', icon:'🔩', unit:'₹/kg', usd:'$/t', ticker:'ALI=F',conv:(p,r)=>p*r/1000},
- {id:'cotton', n:'COTTON', icon:'☁️', unit:'₹/bale', usd:'¢/lb', ticker:'CT=F', conv:(p,r)=>p*r*0.4536*480/100},
+ {id:'zinc', n:'ZINC', icon:'⚙️', unit:'₹/kg', usd:'$/t', ticker:'ZNC=F',conv:(p,r)=>p*r/1000, sl_atr:2, t1_atr:3, t2_atr:5, base:307, color:'#80DEEA'},
+ {id:'alum', n:'ALUM', icon:'🔩', unit:'₹/kg', usd:'$/t', ticker:'ALI=F',conv:(p,r)=>p*r/1000, sl_atr:2.5, t1_atr:4, t2_atr:7, base:336, color:'#90CAF9'},
+ {id:'cotton', n:'COTTON', icon:'☁️', unit:'₹/bale', usd:'¢/lb', ticker:'CT=F', conv:(p,r)=>p*r*0.4536*480/100, sl_atr:2, t1_atr:3, t2_atr:5, base:60500, color:'#E0E0E0'},
 ];
 const SIG_T={},SIG_A={};
 
@@ -407,56 +407,67 @@ async function fetchMetals(){
   }catch(_){}
 }
 async function fetchYF(ticker, interval, range) {
-  const PROXY = 'https://mcx-yahoo-proxy.vercel.app/api/yahoo';
   try {
-    const r = await fetchT(`${PROXY}?ticker=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}`, 8000);
+    const r = await fetchT(`http://127.0.0.1:8000/api/yahoo?ticker=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}`, 8000);
     if (!r.ok) return null;
     const d = await r.json();
     return d?.chart?.result?.[0] || null;
   } catch(_) { return null; }
 }
-function genCandles(base,n,vol){const a=[base];for(let i=1;i<n;i++)a.push(Math.max(base*.85,a[i-1]+R(-vol,vol)));return a;}
+
 async function fetchCommodity(c){
-  if(!c.ticker){buildEstimated(c);return;}
-  if(!c.conv){buildEstimated(c);return;}
-  if(c.id==='gold'&&priceCache.gold){buildFromSpot(c,priceCache.gold);return;}
-  if(c.id==='silver'&&priceCache.silver){buildFromSpot(c,priceCache.silver);return;}
-  const yf=await fetchYF(c.ticker,'5m','5d');
-  if(yf){
-    const meta=yf.meta,q=yf.indicators?.quote?.[0]||{};
-    const cls=(q.close||[]).filter(x=>x&&isFinite(x));
-    const his=(q.high ||[]).filter(x=>x&&isFinite(x));
-    const los=(q.low  ||[]).filter(x=>x&&isFinite(x));
-    const vls=(q.volume||[]).filter(x=>x&&isFinite(x));
-    const intl=meta.regularMarketPrice||(cls.length?cls[cls.length-1]:0)||c.base;
-    const prev=meta.chartPreviousClose||meta.previousClose||intl;
-    const hi=meta.regularMarketDayHigh||(his.length?Math.max(...his):intl*1.005);
-    const lo=meta.regularMarketDayLow ||(los.length?Math.min(...los):intl*0.995);
-    liveData[c.id]={
- closes:cls.map(p=>c.conv(p,usdInr)),highs:his.map(p=>c.conv(p,usdInr)),
- lows:los.map(p=>c.conv(p,usdInr)),vols:vls,
- price:c.conv(intl,usdInr),prevClose:c.conv(prev,usdInr),
- high:c.conv(hi,usdInr),low:c.conv(lo,usdInr),
- intlPrice:intl,src:'Yahoo',
-    };
+  if(!c.ticker || !c.conv){
+    buildEstimated(c);
     return;
+  }
+  const yf = await fetchYF(c.ticker, '5m', '5d');
+  if(yf){
+    const meta = yf.meta || {}, q = yf.indicators?.quote?.[0] || {};
+    const cls = (q.close || []).filter(x => x != null && isFinite(x));
+    const his = (q.high  || []).filter(x => x != null && isFinite(x));
+    const los = (q.low   || []).filter(x => x != null && isFinite(x));
+    const vls = (q.volume|| []).filter(x => x != null && isFinite(x));
+
+    if(cls.length >= 10){
+      const intl = meta.regularMarketPrice || (cls.length ? cls[cls.length-1] : 0) || c.base;
+      const prev = meta.chartPreviousClose || meta.previousClose || intl;
+      const hi = meta.regularMarketDayHigh || (his.length ? Math.max(...his) : intl*1.005);
+      const lo = meta.regularMarketDayLow  || (los.length ? Math.min(...los) : intl*0.995);
+      liveData[c.id] = {
+        closes: cls.map(p => c.conv(p, usdInr)),
+        highs:  his.map(p => c.conv(p, usdInr)),
+        lows:   los.map(p => c.conv(p, usdInr)),
+        vols:   vls,
+        price:  c.conv(intl, usdInr),
+        prevClose: c.conv(prev, usdInr),
+        high:   c.conv(hi, usdInr),
+        low:    c.conv(lo, usdInr),
+        intlPrice: intl,
+        src: 'Live (Yahoo/MCX)',
+        hasRealHistory: true
+      };
+      return;
+    }
   }
   buildEstimated(c);
 }
-function buildFromSpot(c,intlPx){
-  const px=c.conv(intlPx,usdInr);
-  const prev=liveData[c.id]?.price||px*(1+R(-0.005,0.005));
-  const fk=genCandles(px,60,px*0.0012);
-  liveData[c.id]={closes:fk,highs:fk.map(p=>p*(1+R(0,0.001))),lows:fk.map(p=>p*(1-R(0,0.001))),
-    vols:fk.map(()=>Math.round(R(100,900))),price:px,prevClose:prev,high:px*1.004,low:px*0.996,intlPrice:intlPx,src:'metals.live'};
-}
+
 function buildEstimated(c){
-  const last=liveData[c.id]?.price||c.base;
-  const px=last*(1+R(-0.002,0.002));
-  const fk=genCandles(px,60,px*0.0012);
-  const estUSD = px / (usdInr||93.89);
-  liveData[c.id]={closes:fk,highs:fk.map(p=>p*(1+R(0,0.001))),lows:fk.map(p=>p*(1-R(0,0.001))),
-    vols:fk.map(()=>Math.round(R(100,700))),price:px,prevClose:px*(1+R(-0.003,0.003)),high:px*1.003,low:px*0.997,intlPrice:estUSD,src:'Est'};
+  const last = liveData[c.id]?.price || (c.conv ? c.conv(c.base, usdInr) : c.base);
+  liveData[c.id] = {
+    closes: [],
+    highs: [],
+    lows: [],
+    vols: [],
+    price: last,
+    prevClose: last,
+    high: last,
+    low: last,
+    intlPrice: c.base,
+    src: 'No Live Feed',
+    hasRealHistory: false,
+    error: 'Live market candle history unavailable'
+  };
 }
 function ema(arr,n){
   if(!arr.length)return 0;
@@ -614,7 +625,7 @@ function detectRSIDivergence(cls,his,los){
   return{type:'NONE',label:'No RSI divergence'};
 }
 function computeIndicators(c){
-  const ld=liveData[c.id];if(!ld||!ld.closes.length)return null;
+  const ld=liveData[c.id];if(!ld||!ld.hasRealHistory||!ld.closes||ld.closes.length<10)return null;
   const cls=ld.closes,his=ld.highs,los=ld.lows,vls=ld.vols||[];
   const price=ld.price;
   const rsi=calcRSI(cls);
@@ -666,7 +677,25 @@ function computeIndicators(c){
     _vols:vls};
 }
 function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
-  if(!ind) return null;
+  if(!ind) {
+    return {
+      action: 'WAIT',
+      eligibility: 'BLOCKED',
+      reason: 'Trade Blocked: Live candle history unavailable',
+      confidence: 0,
+      price: liveData[com?.id]?.price || com?.base || 0,
+      atr: 0,
+      sl: 0,
+      t1: 0,
+      t2: 0,
+      newsScore,
+      newsVerdict,
+      techScore: 0,
+      volLabel: 'No real volume',
+      volConfirmed: false,
+      p1: 'WAIT', p2: 'WAIT', p3: 'WAIT', p4: 'WAIT'
+    };
+  }
   const s = ind.sigs;
   const weighted = {
     ema_cross: s.ema_cross==='BUY'?3:s.ema_cross==='SELL'?-3:0,  // strongest trend signal
@@ -1156,7 +1185,7 @@ function renderProChart(){
  plugins:{legend:{display:false},tooltip:{backgroundColor:'#14141C',borderColor:activeC.color+'44',borderWidth:1,titleColor:activeC.color,bodyColor:'#D8D6E8',titleFont:{family:'IBM Plex Mono',size:9},bodyFont:{family:'IBM Plex Mono',size:9},callbacks:{label:ctx=>ctx.raw!=null?fmt(ctx.raw):''}}},
  scales:{x:{ticks:{color:'#32314A',font:{size:8,family:'IBM Plex Mono'},maxTicksLimit:8},grid:{color:'rgba(255,255,255,.02)'}},y:{ticks:{color:'#32314A',font:{size:8,family:'IBM Plex Mono'},maxTicksLimit:6,callback:v=>fmt(v)},grid:{color:'rgba(255,255,255,.025)'}}}}
   });
-  const vs=ld.vols||cls.map(()=>R(100,700));
+  const vs = (ld.vols && ld.vols.length) ? ld.vols : cls.map(() => 0);
   const vc=cls.map((p,i)=>i>0&&p>=cls[i-1]?activeC.color+'88':'#EF444488');
   CH.vol=new Chart(document.getElementById('p-volChart'),{
     type:'bar',data:{labels:labs,datasets:[{data:vs.slice(-cls.length),backgroundColor:vc,borderWidth:0,borderRadius:1}]},
@@ -1225,7 +1254,7 @@ function updateSession(){
 }
 
 function calcRisk(){
-  const cap=parseFloat(document.getElementById('p-rfCap').value)||5000;
+  const cap=parseFloat(document.getElementById('p-rfCap').value)||15000;
   const riskPct=parseFloat(document.getElementById('p-rfRisk').value)||2;
   const wr=parseFloat(document.getElementById('p-rfWR').value)||55;
   const sig=allSigs[activeC.id];
@@ -1255,10 +1284,43 @@ function setPvt(type){
   if(sig){const ld=liveData[activeC.id];if(ld){sig.pivots=calcPivots(ld.high||sig.price,ld.low||sig.price,sig.prevClose||sig.price,type);renderProPivots(sig);}}
 }
 
-function setTF(tf){
-  currentTF=tf;
-  ['5m','15m','1h','4h','1d'].forEach(t=>{document.getElementById('tf-'+t)?.classList.remove('active');});
+async function setTF(tf){
+  currentTF = tf;
+  ['5m','15m','1h','4h','1d'].forEach(t => { document.getElementById('tf-'+t)?.classList.remove('active'); });
   document.getElementById('tf-'+tf)?.classList.add('active');
+
+  const tfMap = {
+    '5m':  { interval: '5m', range: '1d' },
+    '15m': { interval: '15m', range: '5d' },
+    '1h':  { interval: '60m', range: '1mo' },
+    '4h':  { interval: '60m', range: '3mo' },
+    '1d':  { interval: '1d', range: '1y' }
+  };
+  const cfg = tfMap[tf] || tfMap['5m'];
+
+  try {
+    const r = await fetch(`http://127.0.0.1:8000/api/yahoo?ticker=${encodeURIComponent(activeC.ticker)}&interval=${cfg.interval}&range=${cfg.range}`);
+    if (r.ok) {
+      const d = await r.json();
+      const res = d?.chart?.result?.[0];
+      if (res) {
+        const q = res.indicators?.quote?.[0] || {};
+        const cls = (q.close || []).filter(x => x != null && isFinite(x));
+        const his = (q.high  || []).filter(x => x != null && isFinite(x));
+        const los = (q.low   || []).filter(x => x != null && isFinite(x));
+        const vls = (q.volume|| []).filter(x => x != null && isFinite(x));
+        if (cls.length >= 5) {
+          liveData[activeC.id].closes = cls.map(p => activeC.conv(p, usdInr));
+          liveData[activeC.id].highs  = his.map(p => activeC.conv(p, usdInr));
+          liveData[activeC.id].lows   = los.map(p => activeC.conv(p, usdInr));
+          liveData[activeC.id].vols   = vls;
+          liveData[activeC.id].hasRealHistory = true;
+        }
+      }
+    }
+  } catch(e) {
+    console.warn('Failed to fetch TF candles:', e.message);
+  }
   renderProChart();
 }
 

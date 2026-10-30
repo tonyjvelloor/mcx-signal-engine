@@ -424,6 +424,11 @@ canvas {
 </head>
 <body>
 
+<div style="background:#451a03;border-bottom:1px solid #d97706;padding:6px 16px;text-align:center;font-size:11px;color:#fef3c7;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;display:flex;align-items:center;justify-content:center;gap:12px;z-index:9999;">
+  <span>⚠️ <strong>PROTOTYPE DEMONSTRATION MODE</strong> — Synthetic candles & mock model conviction scores. Live order routing disabled.</span>
+  <span style="background:#78350f;padding:2px 8px;border-radius:4px;border:1px solid #b45309;font-size:10px;">CAPITAL: ₹15,000 · RISK CAP: ₹50</span>
+</div>
+
 <!-- TOP BAR -->
 <header>
   <div class="brand">
@@ -813,8 +818,31 @@ function generateCandlesAndDraw() {
   drawChart();
 }
 
-function simulateOrder(side) {
-  alert(`⚡ Order Executed: ${side} 1 Unit of ${activeItem.name} at ₹${activeItem.price.toLocaleString('en-IN')}\n\nStop Loss locked at ₹${activeItem.ob[0]}\nTarget set at opposing Fair Value Gap.`);
+async function simulateOrder(side) {
+  try {
+    const sl = activeItem.ob[0];
+    const tp = Math.round(activeItem.price + (activeItem.price - sl) * 2.8);
+    const res = await fetch('/api/paper-trades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: activeItem.ticker,
+        side: side,
+        qty: 1,
+        entryPrice: activeItem.price,
+        stopLoss: sl,
+        target: tp
+      })
+    });
+    const d = await res.json();
+    if (d.error) {
+      alert(`⚠️ TRADE REJECTED BY RISK ENGINE:\n\n${d.error}`);
+    } else {
+      alert(`✅ PAPER TRADE RECORDED (ID #${d.tradeId}):\n\n${side} 1 Unit of ${activeItem.name} at ₹${activeItem.price.toLocaleString('en-IN')}\nStop Loss: ₹${sl.toLocaleString('en-IN')}\nPlanned Loss: ₹${d.plannedLoss} (within ₹50 cap)\nStatus: ${d.status}`);
+    }
+  } catch (e) {
+    alert(`⚡ Simulation Order (${side}): ₹${activeItem.price.toLocaleString('en-IN')}\nSL: ₹${activeItem.ob[0]}`);
+  }
 }
 
 function handleKiteLogin() {

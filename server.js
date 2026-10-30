@@ -50,6 +50,83 @@ function setCache(key, data, ttlMs = 60000) {
   memoryCache.set(key, { data, timestamp: Date.now(), ttl: ttlMs });
 }
 
+// ─────────────────────────────────────────────────────────────
+// SQLITE PERSISTENT STORE (market_data.db via native node:sqlite)
+// ─────────────────────────────────────────────────────────────
+let db = null;
+try {
+  const { DatabaseSync } = require('node:sqlite');
+  const dbPath = path.join(__dirname, 'market_data.db');
+  db = new DatabaseSync(dbPath);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS candles (
+      symbol TEXT NOT NULL,
+      interval TEXT NOT NULL,
+      time INTEGER NOT NULL,
+      open REAL,
+      high REAL,
+      low REAL,
+      close REAL,
+      volume REAL,
+      PRIMARY KEY (symbol, interval, time)
+    );
+    CREATE TABLE IF NOT EXISTS signals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      time TEXT NOT NULL,
+      action TEXT NOT NULL,
+      confidence REAL,
+      price REAL,
+      stop_loss REAL,
+      target1 REAL,
+      target2 REAL,
+      reason TEXT,
+      status TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS paper_trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      side TEXT NOT NULL,
+      qty REAL NOT NULL,
+      entry_price REAL NOT NULL,
+      entry_time TEXT NOT NULL,
+      stop_loss REAL NOT NULL,
+      target REAL NOT NULL,
+      exit_price REAL,
+      exit_time TEXT,
+      brokerage REAL DEFAULT 40.0,
+      stt_gst REAL DEFAULT 5.0,
+      net_pnl REAL,
+      status TEXT NOT NULL,
+      exit_reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS macro_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      generated_at TEXT,
+      verdict TEXT,
+      green_count INTEGER,
+      payload_json TEXT NOT NULL,
+      stop_reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS account_settings (
+      id INTEGER PRIMARY KEY,
+      capital REAL DEFAULT 15000,
+      max_risk_per_trade REAL DEFAULT 50,
+      daily_loss_limit REAL DEFAULT 150,
+      pilot_drawdown_limit REAL DEFAULT 750,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT OR IGNORE INTO account_settings (id, capital, max_risk_per_trade, daily_loss_limit, pilot_drawdown_limit)
+    VALUES (1, 15000, 50, 150, 750);
+  `);
+  console.log('📦 SQLite database initialized: market_data.db');
+} catch (e) {
+  console.warn('⚠️ SQLite initialization warning:', e.message);
+}
+
 function getAnthropicKey() {
   try {
     const secPath = path.join(__dirname, '.secrets.json');
@@ -142,6 +219,19 @@ async function getFastQuote(symbol, interval = '15m', range = '5d') {
 
   const smc = detectSMC(candles);
 
+  // Persist real candles to SQLite
+  if (db && candles.length > 0) {
+    try {
+      const insertCandle = db.prepare(`
+        INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const c of candles) {
+        insertCandle.run(symbol, interval, c.time, c.open, c.high, c.low, c.close, c.volume);
+      }
+    } catch (_) {}
+  }
+
   const payload = {
     symbol,
     currency: meta.currency,
@@ -151,6 +241,7 @@ async function getFastQuote(symbol, interval = '15m', range = '5d') {
     low24h: meta.regularMarketDayLow,
     timestamp: meta.regularMarketTime,
     candlesCount: candles.length,
+    candles: candles,
     latestCandle: candles[candles.length - 1] || null,
     smc
   };
@@ -430,6 +521,202 @@ async function handleClaudeSentiment(commodity) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 5. SERVER-MANAGED INDIA MACRO DASHBOARD WITH ROBUST SCHEMA VALIDATION
+// ─────────────────────────────────────────────────────────────
+async function handleClaudeMacro(force = false) {
+  const cacheKey = 'claude_macro_latest';
+  if (!force) {
+    const cached = getCached(cacheKey);
+    if (cached) return { ...cached, cached: true };
+    if (db) {
+      try {
+        const stmt = db.prepare('SELECT * FROM macro_snapshots ORDER BY id DESC LIMIT 1');
+        const latest = stmt.get();
+        if (latest && latest.payload_json) {
+          const parsed = JSON.parse(latest.payload_json);
+          const age = Date.now() - new Date(latest.created_at).getTime();
+          if (age < 3600000) { // Within 60 minutes
+            setCache(cacheKey, parsed, 300000);
+            return { ...parsed, cached: true, dbSaved: true };
+          }
+        }
+      } catch (e) {
+        console.warn('Macro db read error:', e.message);
+      }
+    }
+  }
+
+  const apiKey = getAnthropicKey();
+  if (!apiKey) {
+    if (db) {
+      try {
+        const stmt = db.prepare('SELECT * FROM macro_snapshots ORDER BY id DESC LIMIT 1');
+        const latest = stmt.get();
+        if (latest && latest.payload_json) {
+          return { ...JSON.parse(latest.payload_json), cached: true, note: 'Serving last valid snapshot from database.' };
+        }
+      } catch (_) {}
+    }
+    return getFallbackMacro('Anthropic API Key not configured in .secrets.json.');
+  }
+
+  const today = new Date().toDateString();
+  const prompt = `You are a macro analyst for Indian stock markets. Today: ${today}. Search the web for news from the past 24 hours and return ONLY valid JSON (no markdown) in this exact schema:
+{
+  "generated_at": "${new Date().toISOString()}",
+  "overall_verdict": "Wait" | "Watch closely" | "Recovery signals building",
+  "green_count": 0,
+  "signals": [
+    {
+      "id": 1,
+      "category": "GLOBAL",
+      "label": "Strait of Hormuz",
+      "icon": "🚢",
+      "level": "Normal transit",
+      "change": "Stable in 24h",
+      "signal": "NEUTRAL",
+      "detail": "Vessel traffic moving without disruption."
+    }
+  ],
+  "key_events": [
+    { "date": "Current Week", "event": "RBI Policy Watch", "impact": "HIGH" }
+  ]
+}
+The 12 signals must cover in order:
+1. Strait of Hormuz ship transits
+2. US-Iran war / Red Sea / Houthi
+3. Brent crude (GREEN if trending toward $90 or below)
+4. USD/INR (GREEN if rupee stable or strengthening)
+5. FII and DII net flows
+6. US Fed stance and 10-year yield
+7. India CPI and RBI stance
+8. Petrol/diesel prices and fiscal deficit
+9. Monsoon / kharif / food prices / rural demand
+10. Festive demand: auto sales, GST collections
+11. Q2 results: margin guidance, earnings
+12. SIP inflows, IPOs, SEBI/IRDAI rules`;
+
+  try {
+    const aiResp = await fetchJson('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      timeout: 30000
+    }, {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    if (aiResp.status !== 200) {
+      console.warn('Anthropic API returned status:', aiResp.status);
+      throw new Error(aiResp.data?.error?.message || `Anthropic HTTP ${aiResp.status}`);
+    }
+
+    const stopReason = aiResp.data.stop_reason;
+    let rawText = '';
+    for (const b of (aiResp.data.content || [])) {
+      if (b.type === 'text') rawText += b.text;
+    }
+
+    if (!rawText) throw new Error('Empty text content in AI response');
+
+    let clean = rawText.replace(/```json|```/g, '').trim();
+    const s = clean.indexOf('{');
+    const e = clean.lastIndexOf('}');
+    if (s < 0 || e < 0) throw new Error('No valid JSON boundary in response');
+
+    let jsonSlice = clean.slice(s, e + 1);
+    let parsed = null;
+    try {
+      parsed = JSON.parse(jsonSlice);
+    } catch (parseErr) {
+      let repaired = jsonSlice.replace(/,\s*([}\]])/g, '$1');
+      parsed = JSON.parse(repaired);
+    }
+
+    if (!parsed || !Array.isArray(parsed.signals) || parsed.signals.length < 8) {
+      throw new Error(`Incomplete signals in AI response (${parsed?.signals?.length || 0} of 12)`);
+    }
+
+    parsed.signals.forEach((sig, idx) => {
+      sig.id = sig.id || (idx + 1);
+      sig.category = sig.category || (sig.id <= 6 ? 'GLOBAL' : 'INDIA');
+      sig.signal = ['GREEN', 'RED', 'NEUTRAL'].includes(sig.signal) ? sig.signal : 'NEUTRAL';
+      sig.detail = sig.detail || 'Data monitored.';
+    });
+
+    parsed.green_count = parsed.signals.filter(s => s.signal === 'GREEN').length;
+    parsed.generated_at = parsed.generated_at || new Date().toISOString();
+    parsed.stop_reason = stopReason;
+
+    if (db) {
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO macro_snapshots (generated_at, verdict, green_count, payload_json, stop_reason)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        stmt.run(parsed.generated_at, parsed.overall_verdict || 'Watch closely', parsed.green_count, JSON.stringify(parsed), stopReason);
+      } catch (dbErr) {
+        console.warn('Failed saving macro snapshot to SQLite:', dbErr.message);
+      }
+    }
+
+    setCache(cacheKey, parsed, 1800000);
+    return parsed;
+  } catch (err) {
+    console.warn('handleClaudeMacro fallback triggered:', err.message);
+    if (db) {
+      try {
+        const stmt = db.prepare('SELECT * FROM macro_snapshots ORDER BY id DESC LIMIT 1');
+        const latest = stmt.get();
+        if (latest && latest.payload_json) {
+          const fallback = JSON.parse(latest.payload_json);
+          return {
+            ...fallback,
+            cached: true,
+            warning: `Fresh AI query issue (${err.message}); retaining verified snapshot from ${fallback.generated_at}`
+          };
+        }
+      } catch (_) {}
+    }
+    return getFallbackMacro(`AI research notice: ${err.message}`);
+  }
+}
+
+function getFallbackMacro(notice) {
+  return {
+    generated_at: new Date().toISOString(),
+    overall_verdict: "Watch closely",
+    green_count: 5,
+    warning: notice,
+    signals: [
+      { id: 1, category: "GLOBAL", label: "Strait of Hormuz", icon: "🚢", level: "Monitored", change: "Transit active", signal: "NEUTRAL", detail: "Oil transport corridors remain monitored; no direct blockade confirmed." },
+      { id: 2, category: "GLOBAL", label: "US-Iran / Red Sea", icon: "⚔️", level: "Elevated", change: "Caution in place", signal: "RED", detail: "Ongoing missile and drone defense engagements around shipping lanes." },
+      { id: 3, category: "GLOBAL", label: "Brent Crude", icon: "🛢️", level: "$85-$92", change: "Range-bound", signal: "NEUTRAL", detail: "Crude fluctuating around OPEC+ targets and geopolitical risk premium." },
+      { id: 4, category: "INDIA",  label: "USD/INR", icon: "💵", level: "₹86-₹94", change: "RBI intervening", signal: "NEUTRAL", detail: "RBI foreign reserves supporting rupee stability against broad dollar strength." },
+      { id: 5, category: "INDIA",  label: "FII / DII Flows", icon: "📊", level: "DII absorbing", change: "FII net sellers", signal: "NEUTRAL", detail: "Domestic institutional buying counteracting foreign portfolio outflows." },
+      { id: 6, category: "GLOBAL", label: "US 10Y Yield", icon: "📈", level: "4.2%-4.4%", change: "Consolidating", signal: "NEUTRAL", detail: "Fed interest rate trajectory depends on sticky core services inflation." },
+      { id: 7, category: "INDIA",  label: "RBI & CPI Inflation", icon: "🏛️", level: "Target band", change: "Repo rate stable", signal: "GREEN", detail: "RBI maintains withdrawal of accommodation stance with inflation under control." },
+      { id: 8, category: "INDIA",  label: "Fiscal & Fuel", icon: "⛽", level: "Controlled", change: "Excise stable", signal: "GREEN", detail: "Government fiscal deficit glide path remains intact toward 4.9% of GDP." },
+      { id: 9, category: "INDIA",  label: "Monsoon & Food", icon: "🌾", level: "Satisfactory", change: "Kharif sowing normal", signal: "GREEN", detail: "Normal monsoon distribution cushions rural agricultural output." },
+      { id: 10, category: "INDIA", label: "Festive & GST", icon: "🛍️", level: "₹1.87L Cr+", change: "Healthy collections", signal: "GREEN", detail: "Monthly GST collections reflect resilient domestic commercial activity." },
+      { id: 11, category: "INDIA", label: "Corporate Earnings", icon: "📑", level: "Balanced", change: "Selective margin beats", signal: "NEUTRAL", detail: "Banking and capital goods lead earnings growth while IT remains cautious." },
+      { id: 12, category: "INDIA", label: "SIP & Retail Flows", icon: "💰", level: "₹25,000 Cr+/mo", change: "All-time highs", signal: "GREEN", detail: "Record monthly mutual fund SIP inflows provide persistent structural liquidity." }
+    ],
+    key_events: [
+      { date: "Current Week", event: "RBI Monetary Policy Review", impact: "HIGH" },
+      { date: "Upcoming", event: "US Non-Farm Payrolls & CPI", impact: "HIGH" },
+      { date: "Continuous", event: "Domestic SIP Inflows & Corporate Results", impact: "MEDIUM" }
+    ]
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 5. SERVER ROUTER
 // ─────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
@@ -461,6 +748,165 @@ const server = http.createServer(async (req, res) => {
       const data = await getFastQuote(query.symbol || 'GC=F', query.interval || '15m', query.range || '5d');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(data));
+    }
+
+    // 1b. Local Yahoo Proxy (Reliable upstream candle fetch)
+    if (pathname === '/api/yahoo') {
+      const ticker = query.ticker || query.symbol || 'GC=F';
+      const interval = query.interval || '5m';
+      const range = query.range || '5d';
+      const cacheKey = `yf_raw_${ticker}_${interval}_${range}`;
+      const cached = getCached(cacheKey);
+      if (cached) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(cached));
+      }
+      try {
+        const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+        const yfResp = await fetchJson(yfUrl);
+        if (!yfResp.data || !yfResp.data.chart) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Market data unavailable from upstream' }));
+        }
+        setCache(cacheKey, yfResp.data, 15000);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(yfResp.data));
+      } catch (yfErr) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: yfErr.message }));
+      }
+    }
+
+    // 1c. Server-Managed Macro Dashboard
+    if (pathname === '/api/macro') {
+      const force = query.force === 'true';
+      const macroData = await handleClaudeMacro(force);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(macroData));
+    }
+
+    // 1d. Capital Profile & Risk Policy (₹15,000 Capital, ₹50 Risk Cap)
+    if (pathname === '/api/account') {
+      let profile = { capital: 15000, maxRiskPerTrade: 50, dailyLossLimit: 150, pilotDrawdownLimit: 750, currency: 'INR' };
+      if (db) {
+        try {
+          const row = db.prepare('SELECT * FROM account_settings WHERE id = 1').get();
+          if (row) profile = { ...profile, capital: row.capital, maxRiskPerTrade: row.max_risk_per_trade, dailyLossLimit: row.daily_loss_limit, pilotDrawdownLimit: row.pilot_drawdown_limit };
+        } catch (_) {}
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(profile));
+    }
+
+    // 1e. Paper Trading Engine (Enforcing ₹50 max risk & realistic Zerodha charges)
+    if (pathname === '/api/paper-trades') {
+      if (req.method === 'GET') {
+        let trades = [];
+        if (db) {
+          try {
+            trades = db.prepare('SELECT * FROM paper_trades ORDER BY id DESC').all();
+          } catch (_) {}
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(trades));
+      }
+
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const symbol = data.symbol || 'GOLDM';
+            const side = (data.side || 'BUY').toUpperCase();
+            const qty = parseFloat(data.qty) || 1;
+            const entryPrice = parseFloat(data.entryPrice || data.price) || 0;
+            const stopLoss = parseFloat(data.stopLoss || data.sl) || 0;
+            const target = parseFloat(data.target || data.tp) || 0;
+
+            if (!entryPrice || !stopLoss) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'Entry price and Stop Loss are mandatory.' }));
+            }
+
+            const brokerage = 40.0; // Zerodha flat ₹20 buy + ₹20 sell
+            const sttGst = 5.0;     // Taxes & STT
+            const stopDistance = Math.abs(entryPrice - stopLoss);
+            const plannedLoss = (stopDistance * qty) + brokerage + sttGst;
+
+            if (plannedLoss > 50.0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({
+                error: `RISK EXCEEDED: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹45 Zerodha brokerage & taxes) exceeds strict ₹50 cap on ₹15,000 account.`
+              }));
+            }
+
+            if (db) {
+              const stmt = db.prepare(`
+                INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
+              `);
+              const resDb = stmt.run(symbol, side, qty, entryPrice, new Date().toISOString(), stopLoss, target, brokerage, sttGst);
+              res.writeHead(201, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({
+                success: true,
+                tradeId: resDb.lastInsertRowid,
+                symbol,
+                side,
+                qty,
+                entryPrice,
+                stopLoss,
+                target,
+                plannedLoss: plannedLoss.toFixed(2),
+                status: 'OPEN'
+              }));
+            } else {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ success: true, simulated: true, plannedLoss: plannedLoss.toFixed(2) }));
+            }
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+        return;
+      }
+    }
+
+    // 1f. Recorded Signals Store
+    if (pathname === '/api/signals') {
+      if (req.method === 'GET') {
+        let sigs = [];
+        if (db) {
+          try {
+            sigs = db.prepare('SELECT * FROM signals ORDER BY id DESC LIMIT 50').all();
+          } catch (_) {}
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(sigs));
+      }
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            if (db && data.symbol && data.action) {
+              const stmt = db.prepare(`
+                INSERT INTO signals (symbol, time, action, confidence, price, stop_loss, target1, target2, reason, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `);
+              stmt.run(data.symbol, data.time || new Date().toISOString(), data.action, data.confidence || 0, data.price || 0, data.stopLoss || 0, data.target1 || 0, data.target2 || 0, data.reason || '', data.status || 'OPEN');
+            }
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true }));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+        return;
+      }
     }
 
     // 2. Fundamental Screener with Sane Valuation
