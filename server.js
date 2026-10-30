@@ -7,6 +7,8 @@
 const http = require('http');
 const https = require('https');
 const url = require('url');
+const fs = require('fs');
+const path = require('path');
 const kite = require('./kite');
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
@@ -366,7 +368,7 @@ Return ONLY valid JSON:
 // ─────────────────────────────────────────────────────────────
 // 5. SERVER ROUTER
 // ─────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8000;
 
 const server = http.createServer(async (req, res) => {
   // CORS Headers
@@ -501,6 +503,23 @@ const server = http.createServer(async (req, res) => {
         }
       });
       return;
+    }
+
+    // Static Files Handler (e.g. /mcx-beginner.html, /apex-terminal.html)
+    const cleanPath = pathname === '/' ? '/mcx-beginner.html' : pathname;
+    const localFile = path.join(__dirname, cleanPath);
+    if (fs.existsSync(localFile) && fs.statSync(localFile).isFile()) {
+      const ext = path.extname(localFile).toLowerCase();
+      const mimeTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'text/javascript; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.svg': 'image/svg+xml'
+      };
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'text/plain' });
+      return fs.createReadStream(localFile).pipe(res);
     }
 
     // 404 Route

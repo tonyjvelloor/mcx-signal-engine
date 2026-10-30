@@ -823,7 +823,7 @@ function handleKiteLogin() {
 
 async function checkKiteSession() {
   try {
-    const res = await fetch('http://localhost:3001/api/kite/status');
+    const res = await fetch('/api/kite/status');
     const d = await res.json();
     if (d && d.connected) {
       document.getElementById('kite-pulse').style.background = 'var(--green)';

@@ -1779,13 +1779,13 @@ async function checkKiteStatus() {
   const reqToken = urlParams.get('request_token');
   if (reqToken) {
     try {
-      await fetch(`http://localhost:3001/api/kite/callback?request_token=${reqToken}`);
+      await fetch(`/api/kite/callback?request_token=${reqToken}`);
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch(e) {}
   }
 
   try {
-    const res = await fetch('http://localhost:3001/api/kite/status');
+    const res = await fetch('/api/kite/status');
     const d = await res.json();
     const dot = document.getElementById('kiteDot');
     const txt = document.getElementById('kiteTxt');
