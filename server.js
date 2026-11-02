@@ -16,6 +16,7 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const kite = require('./kite');
+const riskEngine = require('./risk');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -32,7 +33,9 @@ const ALLOWED_STATIC_FILES = {
   '/apex-terminal.html': 'apex-terminal.html',
   '/mcx-logger.html': 'mcx-logger.html',
   '/terminal.html': 'index.html',
-  '/index.html': 'index.html'
+  '/index.html': 'index.html',
+  '/risk.js': 'risk.js',
+  '/shared/indicators.js': 'shared/indicators.js'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
@@ -920,17 +923,45 @@ const server = http.createServer(async (req, res) => {
               }
             }
 
-            const brokerage = 40.0; // Zerodha flat ₹20 buy + ₹20 sell
-            const sttGst = 5.0;     // Taxes & STT
-            const stopDistance = Math.abs(entryPrice - stopLoss);
-            const plannedLoss = (stopDistance * rawQty) + brokerage + sttGst;
+            const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
+            const segment = isComm ? 'commodity' : 'equity';
+            const lotMult = Number(data.lotMultiplier) || (symbol.includes('GOLD') ? 10 : (symbol.includes('CRUDE') ? 10 : 1));
 
+            // Sizing and Pre-Trade Risk Evaluation Gate
+            const sized = riskEngine.sizeTrade({
+              side,
+              entry: entryPrice,
+              sl: stopLoss,
+              target: target > 0 ? target : (side === 'BUY' ? entryPrice + (Math.abs(entryPrice - stopLoss) * 2) : entryPrice - (Math.abs(entryPrice - stopLoss) * 2)),
+              lotMultiplier: lotMult,
+              segment,
+              maxLossTotal: 50.0,
+              minNetRR: 1.2,
+              atr: data.atr
+            });
+
+            if (!sized.ok) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: sized.reason }));
+            }
+
+            const plannedLoss = (Math.abs(entryPrice - stopLoss) * lotMult * rawQty) + sized.stopFees;
             if (plannedLoss > 50.0) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({
-                error: `RISK_VIOLATION: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹45 Zerodha brokerage & taxes) exceeds strict ₹50 cap on ₹15,000 account.`
+                error: `RISK_VIOLATION: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹${sized.stopFees.toFixed(2)} Zerodha charges) exceeds strict ₹50 cap on ₹15,000 account.`
               }));
             }
+
+            const feesAtEntry = riskEngine.calculateZerodhaFees({
+              segment,
+              buyPrice: side === 'BUY' ? entryPrice : stopLoss,
+              sellPrice: side === 'BUY' ? stopLoss : entryPrice,
+              qty: rawQty,
+              lotMultiplier: lotMult
+            });
+            const brokerage = feesAtEntry.brokerage;
+            const sttGst = Math.round((feesAtEntry.totalFees - brokerage) * 100) / 100;
 
             const stmt = db.prepare(`
               INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status)
@@ -948,6 +979,7 @@ const server = http.createServer(async (req, res) => {
               stopLoss,
               target,
               plannedLoss: plannedLoss.toFixed(2),
+              fees: feesAtEntry.totalFees,
               status: 'OPEN'
             }));
           } catch (e) {
@@ -990,17 +1022,29 @@ const server = http.createServer(async (req, res) => {
               return res.end(JSON.stringify({ error: `IDEMPOTENCY_CONFLICT: Trade #${tradeId} is already closed and immutable.` }));
             }
 
+            const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => trade.symbol.includes(c));
+            const segment = isComm ? 'commodity' : 'equity';
+            const lotMult = Number(trade.lot_multiplier) || (trade.symbol.includes('GOLD') ? 10 : (trade.symbol.includes('CRUDE') ? 10 : 1));
+
+            const actualFees = riskEngine.calculateZerodhaFees({
+              segment,
+              buyPrice: trade.side === 'BUY' ? trade.entry_price : exitPrice,
+              sellPrice: trade.side === 'BUY' ? exitPrice : trade.entry_price,
+              qty: trade.qty,
+              lotMultiplier: lotMult
+            });
+
             const grossPnl = trade.side === 'BUY'
-              ? (exitPrice - trade.entry_price) * trade.qty
-              : (trade.entry_price - exitPrice) * trade.qty;
-            const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
+              ? (exitPrice - trade.entry_price) * trade.qty * lotMult
+              : (trade.entry_price - exitPrice) * trade.qty * lotMult;
+            const netPnl = grossPnl - actualFees.totalFees;
             const status = netPnl > 0 ? 'WIN' : 'LOSS';
 
             db.prepare(`
               UPDATE paper_trades
-              SET exit_price = ?, exit_time = ?, net_pnl = ?, status = ?, exit_reason = ?
+              SET exit_price = ?, exit_time = ?, net_pnl = ?, brokerage = ?, stt_gst = ?, status = ?, exit_reason = ?
               WHERE id = ?
-            `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
+            `).run(exitPrice, new Date().toISOString(), netPnl, actualFees.brokerage, Math.round((actualFees.totalFees - actualFees.brokerage) * 100) / 100, status, exitReason, tradeId);
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
@@ -1223,13 +1267,32 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: `GEOMETRY_ERROR: Short stop loss (₹${stopLoss}) must be strictly above entry price (₹${price}).` }));
           }
 
-          const stopDistance = Math.abs(price - stopLoss);
-          const totalEstimatedLoss = (stopDistance * qty) + 45.0; // ₹45 Zerodha brokerage + taxes
+          const symbol = String(order.tradingsymbol || order.symbol || '').toUpperCase();
+          const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
+          const segment = isComm ? 'commodity' : 'equity';
+          const lotMult = Number(order.lotMultiplier) || (symbol.includes('GOLD') ? 10 : (symbol.includes('CRUDE') ? 10 : 1));
 
-          if (totalEstimatedLoss > 50.0) {
+          const sized = riskEngine.sizeTrade({
+            side: txType,
+            entry: price,
+            sl: stopLoss,
+            target: Number(order.target) || (txType === 'BUY' ? price + (Math.abs(price - stopLoss) * 2) : price - (Math.abs(price - stopLoss) * 2)),
+            lotMultiplier: lotMult,
+            segment,
+            maxLossTotal: 50.0,
+            minNetRR: 1.2
+          });
+
+          if (!sized.ok) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: sized.reason }));
+          }
+
+          const plannedLoss = (Math.abs(price - stopLoss) * lotMult * qty) + sized.stopFees;
+          if (plannedLoss > 50.0) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
-              error: `RISK_VIOLATION: Estimated trade loss (₹${totalEstimatedLoss.toFixed(2)} with charges) exceeds ₹50 budget limit.`
+              error: `RISK_VIOLATION: Estimated trade loss (₹${plannedLoss.toFixed(2)} with charges) exceeds ₹50 budget limit.`
             }));
           }
 
@@ -1250,7 +1313,10 @@ const server = http.createServer(async (req, res) => {
       const fileName = ALLOWED_STATIC_FILES[pathname];
       const safePath = path.join(__dirname, fileName);
 
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      const contentType = fileName.endsWith('.js')
+        ? 'application/javascript; charset=utf-8'
+        : 'text/html; charset=utf-8';
+      res.writeHead(200, { 'Content-Type': contentType });
       if (req.method === 'HEAD') return res.end();
       return fs.createReadStream(safePath).pipe(res);
     }

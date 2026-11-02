@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Apex Trading & Macro Terminal | Unified System</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="/risk.js"></script>
+<script src="/shared/indicators.js"></script>
 
 <style>
 :root {
@@ -1081,13 +1083,30 @@ function updatePlanAndExecution(candles, state) {
   // Structural Stop Loss Distance (Never artificially shrunk)
   const slDistance = Math.max(atr * 1.5, activeInst.slDist || 5.0);
   const stopLoss = action === 'BUY' ? Math.round(lastPrice - slDistance) : Math.round(lastPrice + slDistance);
-  const target1 = action === 'BUY' ? Math.round(lastPrice + slDistance * 1.5) : Math.round(lastPrice - slDistance * 1.5);
-  const target2 = action === 'BUY' ? Math.round(lastPrice + slDistance * 2.5) : Math.round(lastPrice - slDistance * 2.5);
+  const target1 = action === 'BUY' ? Math.round(lastPrice + slDistance * 2.0) : Math.round(lastPrice - slDistance * 2.0);
+  const target2 = action === 'BUY' ? Math.round(lastPrice + slDistance * 3.0) : Math.round(lastPrice - slDistance * 3.0);
 
-  const qty = 1;
-  const priceLoss = slDistance * qty;
-  const zerodhaFees = 45.0; // ₹40 brokerage + ₹5 STT/GST
-  const totalPlannedLoss = priceLoss + zerodhaFees;
+  const segment = activeInst.type === 'mcx' ? 'commodity' : 'equity';
+  const lotMultiplier = activeInst.lotMultiplier || 1;
+
+  // Evaluate through canonical shared Risk Engine
+  const sizing = (typeof RiskEngine !== 'undefined' ? RiskEngine.sizeTrade({
+    side: action === 'WAIT' ? 'BUY' : action,
+    entry: lastPrice,
+    sl: stopLoss,
+    target: target1,
+    lotMultiplier,
+    segment,
+    maxLossTotal: 50.0,
+    minNetRR: 1.2,
+    atr
+  }) : null);
+
+  const qty = sizing?.ok ? sizing.qty : 1;
+  const priceLoss = slDistance * qty * lotMultiplier;
+  const totalPlannedLoss = sizing?.ok ? sizing.totalPlannedLoss : (priceLoss + 45.0);
+  const estFees = sizing?.ok ? sizing.stopFees : 45.0;
+  const netRR = sizing?.ok ? sizing.netRR : 0;
 
   window.currentPlan = {
     symbol: activeInst.name,
@@ -1098,7 +1117,13 @@ function updatePlanAndExecution(candles, state) {
     target2,
     slDistance,
     qty,
-    totalPlannedLoss
+    lotMultiplier,
+    segment,
+    totalPlannedLoss,
+    fees: estFees,
+    netRR,
+    sizingOk: sizing?.ok || false,
+    reason: sizing?.reason || ''
   };
 
   document.getElementById('plan-price').innerText = `₹${Math.round(lastPrice).toLocaleString('en-IN')}`;
@@ -1108,8 +1133,8 @@ function updatePlanAndExecution(candles, state) {
   document.getElementById('plan-tp2').innerText = `₹${target2.toLocaleString('en-IN')}`;
 
   document.getElementById('risk-dist').innerText = `₹${slDistance.toFixed(2)}`;
-  document.getElementById('risk-priceloss').innerText = `₹${priceLoss.toFixed(2)}`;
-  document.getElementById('risk-total').innerText = `₹${totalPlannedLoss.toFixed(2)}`;
+  document.getElementById('risk-priceloss').innerText = `₹${priceLoss.toFixed(2)} (${qty} sh)`;
+  document.getElementById('risk-total').innerText = `₹${totalPlannedLoss.toFixed(2)} (fees: ₹${estFees.toFixed(2)})`;
 
   if (action === 'WAIT') {
     banner.className = 'state-banner sb-BLOCKED';
@@ -1118,20 +1143,20 @@ function updatePlanAndExecution(candles, state) {
     desc.innerText = 'Technical factors disagree (Trend, MACD, or Structure). Waiting for clear directional alignment.';
     btn.disabled = true;
     btn.innerText = 'Waiting for Setup';
-  } else if (totalPlannedLoss > 50.0) {
+  } else if (!sizing?.ok) {
     banner.className = 'state-banner sb-BLOCKED';
     icon.innerText = '⚠️';
-    title.innerText = 'RISK CAP EXCEEDED';
-    desc.innerText = `NO TRADE: Min lot of 1 has planned loss of ₹${totalPlannedLoss.toFixed(2)} (₹${priceLoss.toFixed(2)} risk + ₹45 fees), which exceeds your ₹50 budget on ₹15,000 capital.`;
+    title.innerText = 'RISK GATE REJECTED';
+    desc.innerText = `NO TRADE: ${sizing ? sizing.reason : 'Risk validation failed.'}`;
     btn.disabled = true;
-    btn.innerText = 'Blocked: Risk > ₹50';
+    btn.innerText = 'Blocked by Risk Gate';
   } else {
     banner.className = 'state-banner sb-READY';
     icon.innerText = '🟢';
-    title.innerText = `READY TO TRADE (${action})`;
-    desc.innerText = `Setup verified (${action}). Planned risk ₹${totalPlannedLoss.toFixed(2)} is within the ₹50 account budget.`;
+    title.innerText = `READY TO TRADE (${action} · Net R:R 1:${netRR})`;
+    desc.innerText = `Setup verified (${action}). Qty: ${qty} units. Planned loss ₹${totalPlannedLoss.toFixed(2)} (fees ₹${estFees.toFixed(2)}) within ₹50 budget.`;
     btn.disabled = false;
-    btn.innerText = `⚡ Record Paper Trade (${action} · Risk: ₹${totalPlannedLoss.toFixed(2)})`;
+    btn.innerText = `⚡ Record Paper Trade (${action} · ${qty} Qty · Risk: ₹${totalPlannedLoss.toFixed(2)})`;
   }
 }
 
@@ -1279,9 +1304,11 @@ async function submitPaperTrade() {
         symbol: plan.symbol,
         side: plan.action,
         qty: plan.qty || 1,
+        lotMultiplier: plan.lotMultiplier || 1,
         entryPrice: plan.entryPrice,
         stopLoss: plan.stopLoss,
-        target: plan.target1
+        target: plan.target1,
+        atr: (liveData[activeInst.id]?.candles ? calculateATR(liveData[activeInst.id].candles) : null)
       })
     });
     const d = await res.json();
