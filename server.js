@@ -1234,12 +1234,15 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/kite/login') {
       const loginUrl = kite.getLoginUrl();
-      if (query.redirect === 'true') {
-        res.writeHead(302, { 'Location': loginUrl });
-        return res.end();
+      // If client requests JSON explicitly via Accept header or query param json=true, return JSON.
+      // Otherwise, redirect directly to Kite login portal for seamless browser navigation.
+      const wantsJson = query.json === 'true' || (req.headers.accept && req.headers.accept.includes('application/json') && !req.headers.accept.includes('text/html'));
+      if (wantsJson) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ loginUrl }));
       }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ loginUrl }));
+      res.writeHead(302, { 'Location': loginUrl });
+      return res.end();
     }
 
     // 5. Kite Auth Callback
