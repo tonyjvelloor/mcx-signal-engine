@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const kite = require('./kite');
 const riskEngine = require('./risk');
+const ticker = require('./kite-ticker');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1286,6 +1287,87 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(quoteData));
     }
 
+    // ─── KITE WEBSOCKET TICKER ENDPOINTS ────────────────────────────────────
+
+    // 8a. SSE stream — browser connects here to receive live ticks
+    //     GET /api/kite/ticker/stream
+    if (pathname === '/api/kite/ticker/stream') {
+      res.writeHead(200, {
+        'Content-Type':                'text/event-stream',
+        'Cache-Control':               'no-cache',
+        'Connection':                  'keep-alive',
+        'X-Accel-Buffering':           'no',
+        'Access-Control-Allow-Origin': 'http://127.0.0.1:8000'
+      });
+      // SSE keep-alive comment every 25s to prevent proxy timeouts
+      const keepAlive = setInterval(() => {
+        try { res.write(': keepalive\n\n'); } catch (_) { clearInterval(keepAlive); }
+      }, 25000);
+      res.on('close', () => clearInterval(keepAlive));
+
+      const clientId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      ticker.addSseClient(res, clientId);
+      return; // SSE handler — do NOT call res.end()
+    }
+
+    // 8b. Subscribe to tokens
+    //     POST /api/kite/ticker/subscribe
+    //     Body: { tokens: [256265, 408065, ...], mode: "quote" }
+    if (pathname === '/api/kite/ticker/subscribe' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { tokens, mode } = JSON.parse(body);
+          if (!Array.isArray(tokens) || tokens.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'tokens must be a non-empty array of instrument token integers.' }));
+          }
+          const session = kite.loadSession();
+          if (!session) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'No active Kite session. Login first at /api/kite/login.' }));
+          }
+          ticker.subscribe(tokens, mode || ticker.MODE_QUOTE);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, subscribed: tokens, mode: mode || ticker.MODE_QUOTE }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    // 8c. Unsubscribe from tokens
+    //     POST /api/kite/ticker/unsubscribe
+    //     Body: { tokens: [256265, ...] }
+    if (pathname === '/api/kite/ticker/unsubscribe' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { tokens } = JSON.parse(body);
+          ticker.unsubscribe(tokens || []);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, unsubscribed: tokens }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    // 8d. Ticker status + last snapshot
+    //     GET /api/kite/ticker/status
+    if (pathname === '/api/kite/ticker/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(ticker.getStatus()));
+    }
+
+    // ─── END TICKER ENDPOINTS ────────────────────────────────────────────────
+
     // 8. Order Placement (Protected with Safety Controls)
     if (pathname === '/api/kite/order' && req.method === 'POST') {
       let body = '';
@@ -1395,6 +1477,11 @@ server.listen(PORT, HOST, () => {
       console.error('Startup catch-up initialization error:', err.message);
     }
   }, 3000);
+
+  // Start Kite WebSocket ticker (connects if active session exists; retries automatically)
+  setTimeout(() => {
+    ticker.start();
+  }, 5000);
 });
 
 // ─────────────────────────────────────────────────────────────
