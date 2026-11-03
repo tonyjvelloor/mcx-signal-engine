@@ -29,7 +29,8 @@ const {
   getKolkataTime,
   isNseTradingDay,
   getHolidayReason,
-  getLastCompletedTradingDay
+  getLastCompletedTradingDay,
+  isOptionalFeedSession
 } = require('../shared/nse_holidays');
 
 const DB_PATH = path.join(__dirname, '..', 'market_data.db');
@@ -241,6 +242,11 @@ function checkDataFreshness(db) {
     if (checkKt.dateStr > lastCompletedDay) continue;
 
     if (isNseTradingDay(checkKt.dateStr)) {
+      // Omit optional feed sessions (e.g. Sunday Muhurat) where upstream proxy rarely publishes candles
+      if (isOptionalFeedSession(checkKt.dateStr)) {
+        continue;
+      }
+
       // Check if DB has bars for this trading day across universe
       const countRow = db.prepare(`
         SELECT COUNT(DISTINCT symbol) as symCount 

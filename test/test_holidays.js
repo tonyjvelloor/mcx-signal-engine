@@ -11,22 +11,31 @@
 
 const assert = require('assert');
 const {
+  CIRCULAR_METADATA,
   NSE_HOLIDAYS_2026,
   NSE_WEEKEND_FESTIVALS_2026,
   SPECIAL_SESSIONS_2026,
   isNseTradingDay,
   isExcludedSpecialSession,
+  isOptionalFeedSession,
   getSpecialSessionInfo
 } = require('../shared/nse_holidays');
 
 console.log('🧪 Running NSE Trading Holiday & Special Session Integrity Tests...\n');
 
-// 1. Assert exactly 15 weekday trading holidays as announced in Circular NSE/CMTR/71775
+// 1. Assert Circular Metadata & Source URLs
+assert.strictEqual(CIRCULAR_METADATA.HOLIDAYS_CIRCULAR.circularNo, 'NSE/CMTR/71775');
+assert.strictEqual(CIRCULAR_METADATA.HOLIDAYS_CIRCULAR.url, 'https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf');
+assert.strictEqual(CIRCULAR_METADATA.MUHURAT_CIRCULAR.circularNo, 'NSE/CMTR/76941');
+assert.strictEqual(CIRCULAR_METADATA.MUHURAT_CIRCULAR.url, 'https://nsearchives.nseindia.com/content/circulars/CMTR76941.pdf');
+console.log('✓ Test 1 Passed: Official NSE Circular metadata and PDF URLs verified.');
+
+// 2. Assert exactly 15 weekday trading holidays as announced in Circular NSE/CMTR/71775
 const holidayDates = Object.keys(NSE_HOLIDAYS_2026);
 assert.strictEqual(holidayDates.length, 15, `Expected exactly 15 weekday holidays, found ${holidayDates.length}`);
-console.log('✓ Test 1 Passed: Exactly 15 official weekday holidays confirmed.');
+console.log('✓ Test 2 Passed: Exactly 15 official weekday holidays confirmed.');
 
-// 2. Assert specific key 2026 dates
+// 3. Assert specific key 2026 dates
 const expectedDates = [
   '2026-01-26', // Republic Day
   '2026-03-03', // Holi
@@ -49,24 +58,26 @@ for (const d of expectedDates) {
   assert.ok(NSE_HOLIDAYS_2026[d], `Expected holiday date ${d} missing from calendar`);
   assert.strictEqual(isNseTradingDay(d), false, `Expected ${d} to be closed, but isNseTradingDay returned true`);
 }
-console.log('✓ Test 2 Passed: All 15 specific statutory holiday dates verified closed.');
+console.log('✓ Test 3 Passed: All 15 specific statutory holiday dates verified closed.');
 
-// 3. Assert Muhurat Trading Schedule (Circular NSE/CMTR/76941)
+// 4. Assert Muhurat Trading Schedule (Circular NSE/CMTR/76941)
 const muhuratDate = '2026-11-08';
 const muhuratInfo = getSpecialSessionInfo(muhuratDate);
 assert.ok(muhuratInfo, 'Diwali Muhurat session 2026-11-08 missing from SPECIAL_SESSIONS_2026');
 assert.strictEqual(muhuratInfo.circular, 'NSE/CMTR/76941', 'Circular reference mismatch');
-assert.strictEqual(muhuratInfo.openTime, '14:20', `Expected openTime 14:20, got ${muhuratInfo.openTime}`);
-assert.strictEqual(muhuratInfo.closeTime, '15:30', `Expected closeTime 15:30, got ${muhuratInfo.closeTime}`);
+assert.strictEqual(muhuratInfo.continuousTradingCAS, '14:20 - 15:15', `Expected CAS continuous trading 14:20 - 15:15, got ${muhuratInfo.continuousTradingCAS}`);
+assert.strictEqual(muhuratInfo.continuousTradingNonCAS, '14:20 - 15:30', `Expected non-CAS continuous trading 14:20 - 15:30, got ${muhuratInfo.continuousTradingNonCAS}`);
+assert.strictEqual(muhuratInfo.expectedBars5mCAS, 11, 'Expected 11 5m bars for CAS securities');
 assert.strictEqual(muhuratInfo.dayOfWeek, 'Sunday', 'Muhurat 2026 should fall on Sunday');
 assert.strictEqual(isNseTradingDay(muhuratDate), true, 'Special Sunday session must register as trading day');
 assert.strictEqual(isExcludedSpecialSession(muhuratDate), true, 'Muhurat session must be excluded from quant backtests');
-console.log('✓ Test 3 Passed: Sunday Nov 8, 2026 Muhurat trading session schedule (14:20 - 15:30) verified.');
+assert.strictEqual(isOptionalFeedSession(muhuratDate), true, 'Muhurat session must be optional in upstream freshness audit');
+console.log('✓ Test 4 Passed: Sunday Nov 8, 2026 Muhurat trading schedule & optional feed status verified.');
 
-// 4. Assert Regular Weekends
+// 5. Assert Regular Weekends
 assert.strictEqual(isNseTradingDay('2026-11-01'), false, 'Regular Sunday 2026-11-01 should be closed');
 assert.strictEqual(isNseTradingDay('2026-11-07'), false, 'Regular Saturday 2026-11-07 should be closed');
 assert.strictEqual(isNseTradingDay('2026-11-02'), true, 'Regular Monday 2026-11-02 should be open');
-console.log('✓ Test 4 Passed: Regular weekday vs weekend status verified.');
+console.log('✓ Test 5 Passed: Regular weekday vs weekend status verified.');
 
-console.log('\n🎉 ALL 4 CALENDAR INTEGRITY TESTS PASSED SUCCESSFULLY.\n');
+console.log('\n🎉 ALL 5 CALENDAR & CIRCULAR SOURCE INTEGRITY TESTS PASSED SUCCESSFULLY.\n');

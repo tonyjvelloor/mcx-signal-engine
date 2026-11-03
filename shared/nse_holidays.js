@@ -2,11 +2,33 @@
  * shared/nse_holidays.js — Official NSE Equity Trading Calendar & Timezone Utilities
  * 
  * Sources:
- * - NSE Circular No. NSE/CMTR/71775 (Ref 172/2025, Dec 12, 2025): Calendar Year 2026 Trading Holidays
- * - NSE Circular No. NSE/CMTR/76941 (Ref 149/2026, Oct 19, 2026): Diwali Muhurat Trading for Samvat 2083
+ * - NSE Circular No. NSE/CMTR/71775 (Ref 172/2025, Dec 12, 2025):
+ *   URL: https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf
+ *   Trading Holidays for the Calendar Year 2026.
+ * 
+ * - NSE Circular No. NSE/CMTR/76941 (Ref 149/2026, Oct 19, 2026):
+ *   URL: https://nsearchives.nseindia.com/content/circulars/CMTR76941.pdf
+ *   Diwali Muhurat Trading for Samvat 2083.
  * 
  * Pinned strictly to Asia/Kolkata (Indian Standard Time, UTC+5:30).
  */
+
+const CIRCULAR_METADATA = {
+  HOLIDAYS_CIRCULAR: {
+    circularNo: 'NSE/CMTR/71775',
+    refNo: '172/2025',
+    issueDate: '2025-12-12',
+    subject: 'Trading Holidays for the Calendar Year 2026',
+    url: 'https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf'
+  },
+  MUHURAT_CIRCULAR: {
+    circularNo: 'NSE/CMTR/76941',
+    refNo: '149/2026',
+    issueDate: '2026-10-19',
+    subject: 'Diwali Muhurat Trading for Samvat 2083',
+    url: 'https://nsearchives.nseindia.com/content/circulars/CMTR76941.pdf'
+  }
+};
 
 // Official NSE Equity Trading Holidays for 2026 (15 Weekday Holidays as per Circular NSE/CMTR/71775)
 const NSE_HOLIDAYS_2026 = {
@@ -41,11 +63,14 @@ const SPECIAL_SESSIONS_2026 = {
     name: 'Diwali Laxmi Pujan (Muhurat Trading Samvat 2083)',
     circular: 'NSE/CMTR/76941',
     dayOfWeek: 'Sunday',
-    preOpenTime: '14:05',
-    openTime: '14:20',
-    closeTime: '15:30',
-    expectedBars5m: 14,
-    excludeFromQuantitativeEvaluation: true // Exclude from calibration & holdout
+    preOpenTime: '14:05 - 14:17',
+    continuousTradingCAS: '14:20 - 15:15',      // For CAS / Liquid Nifty large-caps (11 5m bars)
+    continuousTradingNonCAS: '14:20 - 15:30',   // For non-CAS securities (14 5m bars)
+    closingAuctionSession: '15:20 - 15:35',
+    expectedBars5mCAS: 11,
+    expectedBars5mNonCAS: 14,
+    excludeFromQuantitativeEvaluation: true,     // Exclude from calibration & holdout
+    isOptionalForUpstreamFeed: true              // Yahoo feed rarely publishes Sunday auction data; do not flag as stale
   }
 };
 
@@ -92,17 +117,14 @@ function getKolkataTime(date = new Date()) {
  * Accounts for regular weekdays, official holidays, and special weekend sessions (e.g. Muhurat).
  */
 function isNseTradingDay(dateStr) {
-  // If it is explicitly scheduled as a special session, it is an active trading day (even on weekends)
   if (SPECIAL_SESSIONS_2026[dateStr]) return true;
 
-  // Check day of week
   const [y, m, d] = dateStr.split('-').map(Number);
   const utcDate = new Date(Date.UTC(y, m - 1, d, 6, 0, 0)); // ~11:30 IST
   const dow = utcDate.getUTCDay();
   if (dow === 0 || dow === 6) return false; // Weekend
 
-  // Check holiday
-  if (NSE_HOLIDAYS_2026[dateStr]) return false;
+  if (NSE_HOLIDAYS_2026[dateStr]) return false; // Official holiday
 
   return true;
 }
@@ -122,9 +144,18 @@ function getSpecialSessionInfo(dateStr) {
 }
 
 /**
+ * Checks whether a session is an optional feed session (e.g. Sunday Muhurat)
+ * where third-party upstream proxies (Yahoo Finance) frequently omit candles.
+ * Prevents false freshness alerts.
+ */
+function isOptionalFeedSession(dateStr) {
+  const info = SPECIAL_SESSIONS_2026[dateStr];
+  return Boolean(info && info.isOptionalForUpstreamFeed);
+}
+
+/**
  * Checks whether a session should be excluded from backtesting & holdout evaluation.
- * Special sessions (e.g. 1-hour Muhurat trading) have truncated duration, unusual liquidity,
- * and distorted VWAP/ATR that contaminate quantitative model testing.
+ * Keyed strictly on explicit calendar dates, never on bar-count thresholds.
  */
 function isExcludedSpecialSession(dateStr) {
   const info = SPECIAL_SESSIONS_2026[dateStr];
@@ -157,6 +188,7 @@ function getLastCompletedTradingDay(refDate = new Date()) {
 }
 
 module.exports = {
+  CIRCULAR_METADATA,
   NSE_HOLIDAYS_2026,
   NSE_WEEKEND_FESTIVALS_2026,
   SPECIAL_SESSIONS_2026,
@@ -164,6 +196,7 @@ module.exports = {
   isNseTradingDay,
   getHolidayReason,
   getSpecialSessionInfo,
+  isOptionalFeedSession,
   isExcludedSpecialSession,
   getLastCompletedTradingDay
 };

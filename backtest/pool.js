@@ -23,6 +23,8 @@ const {
 } = require('./signals');
 const { simulateStrategy } = require('./sim');
 const { calculateMetrics, createPrng } = require('./metrics');
+const { getHypothesis, isHypothesisEligibleForHoldout } = require('../shared/hypothesis_registry');
+const { logHoldoutAttempt } = require('./audit_logger');
 
 const DEFAULT_UNIVERSE = [
   'RELIANCE',
@@ -295,20 +297,63 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
   console.log(`\nFINAL VERDICT: 🚫 SYSTEM NOT ELIGIBLE FOR LIVE DEPLOYMENT`);
   console.log('Action: Keep in research sandbox. Do not allocate live capital.\n');
 
-  // Guard enforcement for --final
+  // Holdout Guard Enforcement for --final
   const isFinalEvaluation = process.argv.includes('--final') || process.env.EVALUATE_HOLDOUT === 'true';
-  const logPath = path.join(__dirname, '..', 'docs', 'holdout_evaluation_audit.log');
-  const auditEntry = `[${new Date().toISOString()}] EVALUATION_ATTEMPT: Flags="${process.argv.slice(2).join(' ')}", Trades=${oosTradeCount}, Sessions=${oosSessionCount}, MeetsDualFloor=${meetsTradeFloor && meetsSessionFloor}\n`;
-  try {
-    fs.appendFileSync(logPath, auditEntry);
-  } catch (_) {}
+  const isDryRun = process.argv.includes('--dry-run') || process.argv.includes('--test');
 
-  if (isFinalEvaluation && (!meetsTradeFloor || !meetsSessionFloor)) {
-    console.error(`🚫 [HOLDOUT GUARD ABORT] Pre-registration Dual-Floor Violation:`);
-    console.error(`   Floor 1 (Trade Count):      Requires >= 150 trades (Observed: ${oosTradeCount}) -> ${meetsTradeFloor ? 'PASS' : 'FAIL'}`);
-    console.error(`   Floor 2 (Session Clusters): Requires >= 60 independent sessions (Observed: ${oosSessionCount}) -> ${meetsSessionFloor ? 'PASS' : 'FAIL'}`);
-    console.error(`   Evaluation aborted to preserve holdout integrity. Outcome remains: INCONCLUSIVE (KEEP COLLECTING).\n`);
-    process.exit(1);
+  if (isFinalEvaluation) {
+    // 1. Mandatory Hypothesis Flag Check
+    const hypIdx = process.argv.indexOf('--hypothesis');
+    const hypId = hypIdx !== -1 ? process.argv[hypIdx + 1]?.toUpperCase() : null;
+
+    if (!hypId) {
+      console.error('🚫 [HOLDOUT GUARD ABORT] Missing Hypothesis Flag:');
+      console.error('   Running holdout evaluation requires passing --hypothesis <ID> (e.g. --hypothesis H2).');
+      console.error('   Holdout evaluation aborted.\n');
+      process.exit(1);
+    }
+
+    const hyp = getHypothesis(hypId);
+    if (!hyp) {
+      console.error(`🚫 [HOLDOUT GUARD ABORT] Unregistered Hypothesis: "${hypId}"`);
+      console.error('   Only pre-registered hypotheses recorded in shared/hypothesis_registry.js can open holdout data.\n');
+      process.exit(1);
+    }
+
+    // 2. Closed-Hypothesis Refusal Check
+    if (!hyp.eligibleForHoldoutEvaluation) {
+      console.error(`\n🚫 [HOLDOUT GUARD ABORT] Refusing holdout evaluation for Hypothesis ${hyp.id}:`);
+      console.error(`   Status:        ${hyp.status}`);
+      console.error(`   Stopping Rule: ${hyp.stoppingRule}`);
+      console.error(`   Reason:        ${hyp.refusalReason}`);
+      console.error(`   Action:        Holdout forward data is locked and preserved for future valid pre-registered hypotheses.\n`);
+
+      logHoldoutAttempt({
+        hypothesisId: hyp.id,
+        status: hyp.status,
+        action: 'REFUSED_CLOSED_HYPOTHESIS',
+        flags: process.argv.slice(2).join(' ')
+      }, isDryRun);
+
+      process.exit(1);
+    }
+
+    // 3. Dual-Floor Check (Trade count >= 150 AND Sessions >= 60)
+    logHoldoutAttempt({
+      hypothesisId: hyp.id,
+      trades: oosTradeCount,
+      sessions: oosSessionCount,
+      meetsDualFloor: meetsTradeFloor && meetsSessionFloor,
+      flags: process.argv.slice(2).join(' ')
+    }, isDryRun);
+
+    if (!meetsTradeFloor || !meetsSessionFloor) {
+      console.error(`🚫 [HOLDOUT GUARD ABORT] Pre-registration Dual-Floor Violation for Hypothesis ${hyp.id}:`);
+      console.error(`   Floor 1 (Trade Count):      Requires >= 150 trades (Observed: ${oosTradeCount}) -> ${meetsTradeFloor ? 'PASS' : 'FAIL'}`);
+      console.error(`   Floor 2 (Session Clusters): Requires >= 60 independent sessions (Observed: ${oosSessionCount}) -> ${meetsSessionFloor ? 'PASS' : 'FAIL'}`);
+      console.error(`   Evaluation aborted to preserve holdout integrity. Outcome remains: INCONCLUSIVE (KEEP COLLECTING).\n`);
+      process.exit(1);
+    }
   }
 
   // 7. Write out backtest_results.json for live UI synchronization

@@ -169,8 +169,32 @@ The observation that H1 achieved a gross expectancy of **+₹3.81 / trade** (pro
 * **Official NSE Weekday Trading Holidays (Circular NSE/CMTR/71775):** Reconciled exactly 15 statutory weekday holidays for 2026.
 * **Diwali Muhurat Trading Schedule (Circular NSE/CMTR/76941):**
   * Date: **Sunday, November 8, 2026**.
-  * Timing: Pre-Open 14:05–14:17 IST; **Continuous Trading 14:20 to 15:30 IST** (~70 minutes).
-  * System Recognition: Handled as an active trading session by `shared/nse_holidays.js` and the Sunday scheduler.
+  * Timing: Pre-Open 14:05–14:17 IST; **Continuous Trading 14:20 to 15:15 IST** (for CAS / Nifty large-caps, 11 bars) and up to 15:30 IST for non-CAS securities.
+  * System Recognition: Handled as an active trading session by `shared/nse_holidays.js` and the Sunday scheduler, but marked optional for upstream third-party freshness audits.
 * **Special Session Exclusion Policy:**
-  * All truncated special sessions (e.g. Muhurat trading) are **strictly excluded from backtest calibration and holdout evaluation**.
-  * Truncated 14-bar sessions distort Session VWAP accumulation, ATR smoothing, and execution fills, introducing non-stationary anomalies into quantitative model testing.
+  * All truncated special sessions (e.g. Muhurat trading) are **strictly excluded from backtest calibration and holdout evaluation**, keyed on explicit calendar dates rather than bar counts.
+  * Truncated sessions distort Session VWAP accumulation, ATR smoothing, and execution fills, introducing non-stationary anomalies into quantitative model testing.
+
+---
+
+### Addendum 3 (2026-11-03): Hypothesis Lifecycle Registry, Signal Inversion Prohibition, and Standing Review Date
+
+#### 1. Mechanical Hypothesis Lifecycle & Guard Enforcement
+To prevent future accidental or erroneous holdout evaluations on dead hypotheses:
+* **Registry Status:** In [`shared/hypothesis_registry.js`](file:///Volumes/One%20Touch/GOLD%20INVESTMNET/shared/hypothesis_registry.js), Hypothesis 1 is assigned permanent status: **`CLOSED_FALSIFIED_ON_CALIBRATION`**.
+* **Mandatory Flag Requirement:** Running holdout evaluation via `--final` strictly requires passing `--hypothesis <ID>` (e.g., `--final --hypothesis H2`).
+* **Mechanical Refusal of Closed IDs:** Passing `--final --hypothesis H1` immediately terminates execution with exit code 1:
+  > *🚫 [HOLDOUT GUARD ABORT] Refusing holdout evaluation for Hypothesis H1: Status: CLOSED_FALSIFIED_ON_CALIBRATION. Unlocking holdout data on a dead hypothesis violates pre-registration and wastes unspent forward data.*
+* **Cryptographic Tamper-Evident Audit Chain:** All evaluation attempts are appended to [`docs/holdout_evaluation_audit.log`](file:///Volumes/One%20Touch/GOLD%20INVESTMNET/docs/holdout_evaluation_audit.log) using a SHA-256 hash chain linking to previous blocks. Test and verification runs must pass `--dry-run` or `--test` to be segregated from production attempts.
+
+#### 2. Explicit Prohibition on Signal Inversion ("Fading")
+A multi-seed empirical $p$-value of $\approx 0.967$ indicates that the Pro strategy underperforms a random coin toss. This statistical failure must **NOT** be inverted into a "fade" or contrarian system:
+* **The Arithmetic of Signal Inversion:** Pro's gross expectancy was already negative (-₹6.33/trade). Inverting entry direction would at best yield $\approx +₹6.33$/trade gross, which is immediately wiped out by $\approx ₹10.14$/trade in statutory transaction costs and slippage, leaving a net negative expectation ($\approx -₹3.81$/trade).
+* **Data-Mining Boundary:** Fading a strategy that failed out-of-sample is post-hoc calibration data mining. Signal inversion is officially prohibited across the platform.
+
+#### 3. Standing Calendar Review Date & Sunset Horizon
+* **Formal Review Horizon:** **February 1, 2027** (or upon accumulation of $\ge 60$ completed forward trading sessions in `market_data.db`).
+* **Standing Decision Framework at Review Date:**
+  When the archiver reaches 60 forward sessions, the project will execute one of two predefined paths:
+  1. **Option A (Final Structural Hypothesis):** Pre-register exactly ONE structurally different hypothesis targeting higher timeframes (daily/swing holding periods where statutory friction is $< 5\%$ of expected price moves) or lower-friction instruments (MCX commodity futures). Test against the unspent prospective holdout with $k = 5 \implies \alpha = 0.01$.
+  2. **Option B (Permanent Platform Closure):** Accept the conclusion that retail quantitative models on 5-minute equity bars possess no institutional edge after statutory friction, and permanently transition the engine to a research, journaling, and paper risk workstation.
