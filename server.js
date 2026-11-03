@@ -812,14 +812,15 @@ const server = http.createServer(async (req, res) => {
       const ticker = query.ticker || query.symbol || 'GC=F';
       const interval = query.interval || '5m';
       const range = query.range || '5d';
-      const cacheKey = `yf_raw_${ticker}_${interval}_${range}`;
+      const cacheKey = `yf_raw_${ticker}_${interval}_${range}_${query.events || ''}`;
       const cached = getCached(cacheKey);
       if (cached) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(cached));
       }
       try {
-        const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+        const eventsParam = query.events ? `&events=${encodeURIComponent(query.events)}` : '';
+        const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}${eventsParam}`;
         const yfResp = await fetchJson(yfUrl);
         if (!yfResp.data || !yfResp.data.chart) {
           res.writeHead(502, { 'Content-Type': 'application/json' });

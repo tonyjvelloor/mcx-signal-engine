@@ -32,7 +32,9 @@ const DEFAULT_UNIVERSE = [
   'SBIN',
   'ITC',
   'LT',
-  'TATAMOTORS'
+  'KOTAKBANK',
+  'AXISBANK',
+  'MARUTI'
 ];
 
 async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
@@ -49,7 +51,7 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
 
   for (const sym of universe) {
     try {
-      const res = await getHistoricalCandles(sym, '5m', 1500);
+      const res = await getHistoricalCandles(sym, '5m', 4300);
       universeData[sym] = res;
       console.log(`  ✓ ${sym.padEnd(10)}: ${res.candles.length} bars (${res.source}) from ${res.startDate} to ${res.endDate}`);
     } catch (err) {

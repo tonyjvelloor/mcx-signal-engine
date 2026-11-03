@@ -15,9 +15,10 @@ const ind = require('../shared/indicators');
 function evaluateRandomStrategy(candles, entryProb = 0.05) {
   if (!candles || candles.length < 30) return null;
 
-  const closes = candles.map(c => c.close);
-  const highs = candles.map(c => c.high);
-  const lows = candles.map(c => c.low);
+  const slice = candles.length > 30 ? candles.slice(-30) : candles;
+  const closes = slice.map(c => c.close);
+  const highs = slice.map(c => c.high);
+  const lows = slice.map(c => c.low);
 
   const currentClose = closes[closes.length - 1];
   const atr = ind.calcATR(closes, highs, lows, 14) || (currentClose * 0.005);

@@ -357,7 +357,8 @@ main {
   align-items: flex-start;
   gap: 10px;
 }
-.sb-READY { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.sb-READY { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.3); color: #60A5FA; }
+.sb-RESEARCH { background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.3); color: #C084FC; }
 .sb-WATCHING { background: var(--gold-bg); border-color: var(--gold); color: var(--gold); }
 .sb-BLOCKED { background: var(--red-bg); border-color: var(--red); color: var(--red); }
 .sb-icon { font-size: 18px; }
@@ -574,7 +575,7 @@ table.j-table tr:hover td {
 <header>
   <div class="brand">
     <div class="brand-logo">APEX</div>
-    <span class="brand-badge">TERMINAL 2.0</span>
+    <span class="brand-badge" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:var(--gold);">NSE RESEARCH SANDBOX (PAPER)</span>
   </div>
 
   <div class="nav-tabs">
@@ -606,6 +607,18 @@ table.j-table tr:hover td {
     </div>
   </div>
 </header>
+
+<!-- PERSISTENT RESEARCH & REGULATORY DISCLAIMER BANNER -->
+<div class="research-warning-banner" style="background:#13111C;border-bottom:1px solid rgba(245,158,11,0.25);padding:7px 16px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#D8D6E8;flex-shrink:0;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-size:13px;">⚠️</span>
+    <span><strong>UNVALIDATED SIGNALS — RESEARCH &amp; PAPER JOURNALING ONLY.</strong> Walk-forward backtests show <em>no statistical edge</em> (Monte Carlo p = 0.756). Not investment advice.</span>
+  </div>
+  <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;display:flex;align-items:center;gap:12px;">
+    <span>Cost Hurdle: <strong style="color:var(--gold);">₹8.76 / trade</strong></span>
+    <span style="background:rgba(245,158,11,0.15);color:var(--gold);padding:2px 6px;border-radius:4px;border:1px solid rgba(245,158,11,0.3);">NSE MICRO-EQUITY SANDBOX</span>
+  </div>
+</div>
 
 <!-- ═══════════ MAIN VIEWPORT ═══════════ -->
 <main>
@@ -661,12 +674,12 @@ table.j-table tr:hover td {
 
     <!-- COLUMN 3: EXECUTION PLAN & RISK -->
     <div class="trade-exec">
-      <!-- 5 QUESTIONS ANSWERED -->
-      <div class="state-banner" id="exec-state-banner">
-        <div class="sb-icon" id="sb-icon">🟢</div>
+      <!-- 5 QUESTIONS ANSWERED (RESEARCH & RISK TRANSPARENCY) -->
+      <div class="state-banner sb-RESEARCH" id="exec-state-banner">
+        <div class="sb-icon" id="sb-icon">🔬</div>
         <div>
-          <div class="sb-title" id="sb-title">READY TO TRADE</div>
-          <div class="sb-desc" id="sb-desc">Algorithmic alignment across technical and volume indicators.</div>
+          <div class="sb-title" id="sb-title">RESEARCH SETUP (UNVALIDATED)</div>
+          <div class="sb-desc" id="sb-desc">Unvalidated research model. Statutory fees &amp; slippage require &gt; ₹8.76 gross profit to break even.</div>
         </div>
       </div>
 
@@ -1151,12 +1164,12 @@ function updatePlanAndExecution(candles, state) {
     btn.disabled = true;
     btn.innerText = 'Blocked by Risk Gate';
   } else {
-    banner.className = 'state-banner sb-READY';
-    icon.innerText = '🟢';
-    title.innerText = `READY TO TRADE (${action} · Net R:R 1:${netRR})`;
-    desc.innerText = `Setup verified (${action}). Qty: ${qty} units. Planned loss ₹${totalPlannedLoss.toFixed(2)} (fees ₹${estFees.toFixed(2)}) within ₹50 budget.`;
+    banner.className = 'state-banner sb-RESEARCH';
+    icon.innerText = '🔬';
+    title.innerText = `RESEARCH SETUP (${action} · Paper Sim · Net R:R 1:${netRR})`;
+    desc.innerText = `Unvalidated model (${action}). Qty: ${qty} sh. Planned risk: ₹${totalPlannedLoss.toFixed(2)} (fees: ₹${estFees.toFixed(2)}). Hurdle: ₹8.76/trade before gross profit.`;
     btn.disabled = false;
-    btn.innerText = `⚡ Record Paper Trade (${action} · ${qty} Qty · Risk: ₹${totalPlannedLoss.toFixed(2)})`;
+    btn.innerText = `📝 Record Paper Trade (${action} · ${qty} sh · Paper Sim)`;
   }
 }
 

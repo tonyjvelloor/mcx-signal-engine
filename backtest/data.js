@@ -24,6 +24,9 @@ const SYMBOL_MAP = {
   'SBIN': 'SBIN.NS',
   'ITC': 'ITC.NS',
   'LT': 'LT.NS',
+  'KOTAKBANK': 'KOTAKBANK.NS',
+  'AXISBANK': 'AXISBANK.NS',
+  'MARUTI': 'MARUTI.NS',
   'TATAMOTORS': 'TATAMOTORS.NS',
   'GOLD': 'GC=F',
   'SILVER': 'SI=F',
@@ -175,12 +178,13 @@ async function getHistoricalCandles(rawSymbol, interval = '5m', count = 1500) {
   // 1. Try Loading from Local SQLite Database first
   let candles = loadCandlesFromDb(symbol, interval);
   if (candles && candles.length >= 300) {
+    const sliced = candles.slice(-count);
     return {
-      candles: candles.slice(-count),
+      candles: sliced,
       source: 'LOCAL_SQLITE_CACHE',
       ticker,
-      startDate: new Date(candles[0].time).toISOString().split('T')[0],
-      endDate: new Date(candles[candles.length - 1].time).toISOString().split('T')[0]
+      startDate: new Date(sliced[0].time).toISOString().split('T')[0],
+      endDate: new Date(sliced[sliced.length - 1].time).toISOString().split('T')[0]
     };
   }
 
