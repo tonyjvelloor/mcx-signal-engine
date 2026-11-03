@@ -1,35 +1,51 @@
 /**
  * shared/nse_holidays.js — Official NSE Equity Trading Calendar & Timezone Utilities
  * 
- * Pinned strictly to Asia/Kolkata (Indian Standard Time, UTC+5:30) to eliminate
- * host machine timezone drift.
+ * Sources:
+ * - NSE Circular No. NSE/CMTR/71775 (Ref 172/2025, Dec 12, 2025): Calendar Year 2026 Trading Holidays
+ * - NSE Circular No. NSE/CMTR/76941 (Ref 149/2026, Oct 19, 2026): Diwali Muhurat Trading for Samvat 2083
+ * 
+ * Pinned strictly to Asia/Kolkata (Indian Standard Time, UTC+5:30).
  */
 
-// Official NSE Equity Trading Holidays for 2026 (Excluding regular Saturday/Sunday)
+// Official NSE Equity Trading Holidays for 2026 (15 Weekday Holidays as per Circular NSE/CMTR/71775)
 const NSE_HOLIDAYS_2026 = {
   '2026-01-26': 'Republic Day',
-  '2026-03-03': 'Mahashivratri',
-  '2026-03-25': 'Holi',
+  '2026-03-03': 'Holi',
+  '2026-03-26': 'Shri Ram Navami',
+  '2026-03-31': 'Shri Mahavir Jayanti',
   '2026-04-03': 'Good Friday',
   '2026-04-14': 'Dr. Baba Saheb Ambedkar Jayanti',
   '2026-05-01': 'Maharashtra Day',
-  '2026-05-27': 'Bakri Id / Eid-ul-Adha',
-  '2026-07-17': 'Muharram',
-  '2026-09-14': 'Milad-un-Nabi / Id-e-Milad',
+  '2026-05-28': 'Bakri Id',
+  '2026-06-26': 'Muharram',
+  '2026-09-14': 'Ganesh Chaturthi',
   '2026-10-02': 'Mahatma Gandhi Jayanti',
   '2026-10-20': 'Dussehra',
-  '2026-11-10': 'Diwali Balipratipada',
-  '2026-11-24': 'Guru Nanak Jayanti',
+  '2026-11-10': 'Diwali-Balipratipada',
+  '2026-11-24': 'Prakash Gurpurb Sri Guru Nanak Dev',
   '2026-12-25': 'Christmas'
 };
 
-// Special / truncated trading sessions (e.g. Diwali Muhurat Trading)
+// Official Weekend Festival Days (Falling on Saturday/Sunday per Circular NSE/CMTR/71775)
+const NSE_WEEKEND_FESTIVALS_2026 = {
+  '2026-02-15': 'Mahashivratri (Sunday)',
+  '2026-03-21': 'Id-Ul-Fitr (Saturday)',
+  '2026-08-15': 'Independence Day (Saturday)',
+  '2026-11-08': 'Diwali Laxmi Pujan (Sunday)'
+};
+
+// Special / Truncated trading sessions (e.g. Diwali Muhurat Trading per Circular NSE/CMTR/76941)
 const SPECIAL_SESSIONS_2026 = {
   '2026-11-08': {
-    name: 'Diwali Laxmi Pujan (Muhurat Trading)',
-    openTime: '18:15',
-    closeTime: '19:15',
-    expectedBars5m: 12
+    name: 'Diwali Laxmi Pujan (Muhurat Trading Samvat 2083)',
+    circular: 'NSE/CMTR/76941',
+    dayOfWeek: 'Sunday',
+    preOpenTime: '14:05',
+    openTime: '14:20',
+    closeTime: '15:30',
+    expectedBars5m: 14,
+    excludeFromQuantitativeEvaluation: true // Exclude from calibration & holdout
   }
 };
 
@@ -72,9 +88,11 @@ function getKolkataTime(date = new Date()) {
 }
 
 /**
- * Checks whether a given calendar date (YYYY-MM-DD) is an active NSE trading day
+ * Checks whether a given calendar date (YYYY-MM-DD) is an active NSE trading day.
+ * Accounts for regular weekdays, official holidays, and special weekend sessions (e.g. Muhurat).
  */
 function isNseTradingDay(dateStr) {
+  // If it is explicitly scheduled as a special session, it is an active trading day (even on weekends)
   if (SPECIAL_SESSIONS_2026[dateStr]) return true;
 
   // Check day of week
@@ -90,17 +108,27 @@ function isNseTradingDay(dateStr) {
 }
 
 /**
- * Returns the holiday name if dateStr is a holiday, otherwise null
+ * Returns the holiday description if dateStr is an official weekday trading holiday
  */
 function getHolidayReason(dateStr) {
   return NSE_HOLIDAYS_2026[dateStr] || null;
 }
 
 /**
- * Returns special session info if dateStr is a special session, otherwise null
+ * Returns special session info if dateStr is a special trading session
  */
 function getSpecialSessionInfo(dateStr) {
   return SPECIAL_SESSIONS_2026[dateStr] || null;
+}
+
+/**
+ * Checks whether a session should be excluded from backtesting & holdout evaluation.
+ * Special sessions (e.g. 1-hour Muhurat trading) have truncated duration, unusual liquidity,
+ * and distorted VWAP/ATR that contaminate quantitative model testing.
+ */
+function isExcludedSpecialSession(dateStr) {
+  const info = SPECIAL_SESSIONS_2026[dateStr];
+  return Boolean(info && info.excludeFromQuantitativeEvaluation);
 }
 
 /**
@@ -130,10 +158,12 @@ function getLastCompletedTradingDay(refDate = new Date()) {
 
 module.exports = {
   NSE_HOLIDAYS_2026,
+  NSE_WEEKEND_FESTIVALS_2026,
   SPECIAL_SESSIONS_2026,
   getKolkataTime,
   isNseTradingDay,
   getHolidayReason,
   getSpecialSessionInfo,
+  isExcludedSpecialSession,
   getLastCompletedTradingDay
 };

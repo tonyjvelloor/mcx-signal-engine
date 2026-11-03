@@ -7,6 +7,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const http = require('http');
+const { isExcludedSpecialSession } = require('../shared/nse_holidays');
 
 const DB_PATH = path.join(__dirname, '..', 'market_data.db');
 
@@ -177,12 +178,19 @@ const FREEZE_DATE_STR = '2026-11-02';
  * All candles past the freeze date (Nov 2, 2026) are strictly excluded unless --final is passed.
  */
 function applyHoldoutGuard(candles) {
+  // 1. Always exclude truncated special sessions (e.g. Diwali Muhurat trading) from quant evaluation
+  let filtered = candles.filter(c => {
+    const day = new Date(c.time + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+    return !isExcludedSpecialSession(day);
+  });
+
+  // 2. Enforce holdout boundary post-Nov 2, 2026
   const allowHoldout = process.argv.includes('--final') || process.env.EVALUATE_HOLDOUT === 'true';
-  const hasForwardBars = candles.some(c => c.time > FREEZE_TIMESTAMP);
+  const hasForwardBars = filtered.some(c => c.time > FREEZE_TIMESTAMP);
 
   if (hasForwardBars && !allowHoldout) {
-    const calibrationOnly = candles.filter(c => c.time <= FREEZE_TIMESTAMP);
-    const lockedCount = candles.length - calibrationOnly.length;
+    const calibrationOnly = filtered.filter(c => c.time <= FREEZE_TIMESTAMP);
+    const lockedCount = filtered.length - calibrationOnly.length;
     if (!applyHoldoutGuard._logged) {
       console.log(`🔒 [HOLDOUT GUARD] Retrospective calibration mode: 2026-11-02 freeze enforced.`);
       console.log(`   Excluded ${lockedCount} forward candles. Pass --final to evaluate prospective holdout.\n`);
@@ -190,7 +198,7 @@ function applyHoldoutGuard(candles) {
     }
     return calibrationOnly;
   }
-  return candles;
+  return filtered;
 }
 
 /**

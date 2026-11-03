@@ -22,7 +22,7 @@ const {
   evaluateProStrategy
 } = require('./signals');
 const { simulateStrategy } = require('./sim');
-const { calculateMetrics } = require('./metrics');
+const { calculateMetrics, createPrng } = require('./metrics');
 
 const DEFAULT_UNIVERSE = [
   'RELIANCE',
@@ -178,47 +178,67 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
     console.log(`95% Conf. Interval:  ₹${m.ci95Low.toFixed(2)} to ₹${m.ci95High.toFixed(2)} per trade\n`);
   }
 
-  // 4. Monte Carlo Null Hypothesis Permutation Test (1,000 Iterations)
+  // 4. Multi-Seed Monte Carlo Null Hypothesis Permutation Test (1,000 Portfolio Runs across 5 Seeds)
   console.log('================================================================================');
-  console.log('   MONTE CARLO NULL PERMUTATION TEST (1,000 Random Portfolio Runs)');
+  console.log('   MULTI-SEED MONTE CARLO NULL PERMUTATION TEST (1,000 Runs across 5 Seeds)');
   console.log('================================================================================');
 
   const proPooledTrades = strategyRuns['pro'].pooledOOSTrades;
   const proExpectancy = pooledMetrics['pro'].expectancyRupees;
 
   console.log(`Target Strategy: MCX Pro (Observed Pooled Expectancy: ₹${proExpectancy.toFixed(2)}/trade)`);
-  console.log('Simulating 1,000 independent random-entry portfolios across all 10 symbols...\n');
+  console.log('Simulating 1,000 independent random-entry portfolios across seeds [42, 101, 777, 1337, 2026]...\n');
 
-  const nullExpectancies = [];
-  let betterThanProCount = 0;
+  const SEEDS = [42, 101, 777, 1337, 2026];
+  const RUNS_PER_SEED = 200; // 5 * 200 = 1,000 total permutations
+  const seedResults = [];
+  const allNullExpectancies = [];
+  let totalBetterThanPro = 0;
 
-  for (let mc = 0; mc < 1000; mc++) {
-    const randomPooledTrades = [];
-    for (const sym of validSymbols) {
-      const candles = universeData[sym].candles;
-      const splitIdx = Math.floor(candles.length * 0.60);
-      const outSample = candles.slice(splitIdx);
-      const sim = simulateStrategy(outSample, evaluateRandomStrategy, { ...baseConfig, symbol: sym });
-      randomPooledTrades.push(...sim.trades);
+  for (const seed of SEEDS) {
+    const prng = createPrng(seed);
+    let seedBetter = 0;
+    const seedExpectancies = [];
+
+    for (let mc = 0; mc < RUNS_PER_SEED; mc++) {
+      const randomPooledTrades = [];
+      for (const sym of validSymbols) {
+        const candles = universeData[sym].candles;
+        const splitIdx = Math.floor(candles.length * 0.60);
+        const outSample = candles.slice(splitIdx);
+        const sim = simulateStrategy(outSample, (c) => evaluateRandomStrategy(c, 0.05, prng), { ...baseConfig, symbol: sym });
+        randomPooledTrades.push(...sim.trades);
+      }
+      const randM = calculateMetrics(randomPooledTrades, 15000, seed);
+      seedExpectancies.push(randM.expectancyRupees);
+      allNullExpectancies.push(randM.expectancyRupees);
+
+      if (randM.expectancyRupees >= proExpectancy) {
+        seedBetter++;
+        totalBetterThanPro++;
+      }
     }
-    const randM = calculateMetrics(randomPooledTrades);
-    nullExpectancies.push(randM.expectancyRupees);
 
-    if (randM.expectancyRupees >= proExpectancy) {
-      betterThanProCount++;
-    }
+    const seedPVal = seedBetter / RUNS_PER_SEED;
+    const seedMeanHurdle = Math.abs(seedExpectancies.reduce((a, b) => a + b, 0) / RUNS_PER_SEED);
+    seedResults.push({ seed, pValue: seedPVal, hurdle: Math.round(seedMeanHurdle * 100) / 100 });
   }
 
-  nullExpectancies.sort((a, b) => a - b);
-  const nullMean = nullExpectancies.reduce((a, b) => a + b, 0) / 1000;
-  const nullP95 = nullExpectancies[Math.floor(0.95 * 1000)];
-  const empiricalPValue = betterThanProCount / 1000;
+  allNullExpectancies.sort((a, b) => a - b);
+  const nullMean = allNullExpectancies.reduce((a, b) => a + b, 0) / allNullExpectancies.length;
+  const nullP95 = allNullExpectancies[Math.floor(0.95 * allNullExpectancies.length)];
+  const empiricalPValue = totalBetterThanPro / allNullExpectancies.length;
 
-  console.log(`• Null Mean Expectancy:              ${nullMean >= 0 ? '+' : ''}₹${nullMean.toFixed(2)} / trade`);
-  console.log(`• Null 95th Percentile:              ${nullP95 >= 0 ? '+' : ''}₹${nullP95.toFixed(2)} / trade`);
+  const minPValue = Math.min(...seedResults.map(s => s.pValue));
+  const maxPValue = Math.max(...seedResults.map(s => s.pValue));
+  const minHurdle = Math.min(...seedResults.map(s => s.hurdle));
+  const maxHurdle = Math.max(...seedResults.map(s => s.hurdle));
+
+  console.log(`• Null Mean Cost Hurdle:             ₹${nullMean.toFixed(2)} / trade (multi-seed range: ₹${minHurdle.toFixed(2)} to ₹${maxHurdle.toFixed(2)})`);
+  console.log(`• Null 95th Percentile:              ₹${nullP95.toFixed(2)} / trade`);
   console.log(`• Strategy Observed Expectancy:      ${proExpectancy >= 0 ? '+' : ''}₹${proExpectancy.toFixed(2)} / trade`);
-  console.log(`• Empirical p-value (P(Null >= Pro)): ${empiricalPValue.toFixed(3)}`);
-  console.log(`• Statistical Edge Verification:     ${empiricalPValue < 0.05 ? '✅ STATISTICALLY SIGNIFICANT EDGE (p < 0.05)' : '❌ NO EVIDENCE OF EDGE (p >= 0.05)'}\n`);
+  console.log(`• Empirical p-value Mean:            ${empiricalPValue.toFixed(3)} (multi-seed range: ${minPValue.toFixed(3)} to ${maxPValue.toFixed(3)})`);
+  console.log(`• Statistical Edge Verification:     ${empiricalPValue < 0.0125 ? '✅ STATISTICALLY SIGNIFICANT EDGE (p < 0.0125)' : '❌ NO EVIDENCE OF EDGE (p >= 0.0125)'}\n`);
 
   // 5. Cost Stress-Testing on Pooled Pro Strategy (2x Slippage & 1.5x Fees)
   console.log('================================================================================');
@@ -249,15 +269,47 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
   console.log(`• Stressed 95% CI:          ₹${stressM.ci95Low.toFixed(2)} to ₹${stressM.ci95High.toFixed(2)} / trade`);
   console.log(`• Go-Live Stress Standard:  ${survivesStress ? '✅ PASSED (Lower bound > 0)' : '❌ FAILED (Lower bound <= 0)'}\n`);
 
-  // 6. Final Evaluation against Go-Live Bar
+  // 6. Dual-Floor Pre-Registration Check & Holdout Guard Enforcement
   console.log('================================================================================');
   console.log('   GO-LIVE COMMITMENT BAR EVALUATION');
   console.log('================================================================================');
-  console.log(`[1] Total OOS Trades >= 150:            ${stressM.totalTrades >= 150 ? '✅ PASS' : '❌ FAIL'} (${stressM.totalTrades}/150)`);
-  console.log(`[2] Stressed 95% CI Lower Bound > 0:    ${stressM.ci95Low > 0 ? '✅ PASS' : '❌ FAIL'} (₹${stressM.ci95Low.toFixed(2)})`);
-  console.log(`[3] Beats Random Baseline (p < 0.05):   ${empiricalPValue < 0.05 ? '✅ PASS' : '❌ FAIL'} (p = ${empiricalPValue.toFixed(3)})`);
+
+  // Count distinct session clusters in out-of-sample data
+  const oosSessions = new Set();
+  for (const t of proPooledTrades) {
+    if (t.entryTime) {
+      const d = new Date(t.entryTime + 5.5 * 3600 * 1000).toISOString().split('T')[0];
+      oosSessions.add(d);
+    }
+  }
+
+  const oosTradeCount = stressM.totalTrades;
+  const oosSessionCount = oosSessions.size;
+  const meetsTradeFloor = oosTradeCount >= 150;
+  const meetsSessionFloor = oosSessionCount >= 60;
+
+  console.log(`[1] Total OOS Trades >= 150 (Floor 1):   ${meetsTradeFloor ? '✅ PASS' : '❌ FAIL'} (${oosTradeCount}/150)`);
+  console.log(`[2] Total OOS Sessions >= 60 (Floor 2): ${meetsSessionFloor ? '✅ PASS' : '❌ FAIL'} (${oosSessionCount}/60)`);
+  console.log(`[3] Stressed 95% CI Lower Bound > 0:    ${stressM.ci95Low > 0 ? '✅ PASS' : '❌ FAIL'} (₹${stressM.ci95Low.toFixed(2)})`);
+  console.log(`[4] Beats Random Baseline (p < 0.0125): ${empiricalPValue < 0.0125 ? '✅ PASS' : '❌ FAIL'} (p = ${empiricalPValue.toFixed(3)})`);
   console.log(`\nFINAL VERDICT: 🚫 SYSTEM NOT ELIGIBLE FOR LIVE DEPLOYMENT`);
   console.log('Action: Keep in research sandbox. Do not allocate live capital.\n');
+
+  // Guard enforcement for --final
+  const isFinalEvaluation = process.argv.includes('--final') || process.env.EVALUATE_HOLDOUT === 'true';
+  const logPath = path.join(__dirname, '..', 'docs', 'holdout_evaluation_audit.log');
+  const auditEntry = `[${new Date().toISOString()}] EVALUATION_ATTEMPT: Flags="${process.argv.slice(2).join(' ')}", Trades=${oosTradeCount}, Sessions=${oosSessionCount}, MeetsDualFloor=${meetsTradeFloor && meetsSessionFloor}\n`;
+  try {
+    fs.appendFileSync(logPath, auditEntry);
+  } catch (_) {}
+
+  if (isFinalEvaluation && (!meetsTradeFloor || !meetsSessionFloor)) {
+    console.error(`🚫 [HOLDOUT GUARD ABORT] Pre-registration Dual-Floor Violation:`);
+    console.error(`   Floor 1 (Trade Count):      Requires >= 150 trades (Observed: ${oosTradeCount}) -> ${meetsTradeFloor ? 'PASS' : 'FAIL'}`);
+    console.error(`   Floor 2 (Session Clusters): Requires >= 60 independent sessions (Observed: ${oosSessionCount}) -> ${meetsSessionFloor ? 'PASS' : 'FAIL'}`);
+    console.error(`   Evaluation aborted to preserve holdout integrity. Outcome remains: INCONCLUSIVE (KEEP COLLECTING).\n`);
+    process.exit(1);
+  }
 
   // 7. Write out backtest_results.json for live UI synchronization
   const resultsPayload = {
@@ -266,9 +318,19 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
     universeCount: validSymbols.length,
     universe: validSymbols,
     seed: 42,
+    seedsTested: SEEDS,
     resampleMethod: "trading_day_block_bootstrap",
     monteCarloRuns: 1000,
     bootstrapRuns: 1000,
+    monteCarloVariance: {
+      seedResults,
+      pValueMean: empiricalPValue,
+      pValueMin: minPValue,
+      pValueMax: maxPValue,
+      hurdleMean: Math.abs(nullMean),
+      hurdleMin: minHurdle,
+      hurdleMax: maxHurdle
+    },
     pro: {
       strategyName: "Pro Multi-Factor (Supertrend 10/3 + Wilder ADX > 20 + Stoch)",
       totalTrades: pooledMetrics['pro'].totalTrades,

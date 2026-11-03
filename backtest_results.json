@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-03T04:10:00.000Z",
+  "updatedAt": "2026-11-03T04:36:53.984Z",
   "samplePeriod": "2026-08-07 to 2026-11-02",
   "universeCount": 12,
   "universe": [
@@ -17,9 +17,51 @@
     "MARUTI"
   ],
   "seed": 42,
+  "seedsTested": [
+    42,
+    101,
+    777,
+    1337,
+    2026
+  ],
   "resampleMethod": "trading_day_block_bootstrap",
   "monteCarloRuns": 1000,
   "bootstrapRuns": 1000,
+  "monteCarloVariance": {
+    "seedResults": [
+      {
+        "seed": 42,
+        "pValue": 0.96,
+        "hurdle": 10.15
+      },
+      {
+        "seed": 101,
+        "pValue": 0.98,
+        "hurdle": 10.11
+      },
+      {
+        "seed": 777,
+        "pValue": 0.955,
+        "hurdle": 10.23
+      },
+      {
+        "seed": 1337,
+        "pValue": 0.97,
+        "hurdle": 9.76
+      },
+      {
+        "seed": 2026,
+        "pValue": 0.97,
+        "hurdle": 10.44
+      }
+    ],
+    "pValueMean": 0.967,
+    "pValueMin": 0.955,
+    "pValueMax": 0.98,
+    "hurdleMean": 10.135680000000013,
+    "hurdleMin": 9.76,
+    "hurdleMax": 10.44
+  },
   "pro": {
     "strategyName": "Pro Multi-Factor (Supertrend 10/3 + Wilder ADX > 20 + Stoch)",
     "totalTrades": 322,
@@ -28,28 +70,28 @@
     "expectancy": -16.37,
     "expectancyR": -0.35,
     "profitFactor": 0.77,
-    "ci95Low": -23.11,
-    "ci95High": -9.21,
+    "ci95Low": -23.19,
+    "ci95High": -8.8,
     "feeDragPct": 48.6,
-    "monteCarloPValue": 0.977,
-    "empiricalCostHurdle": 9.75,
-    "evaluatedAt": "2026-11-03"
+    "monteCarloPValue": 0.967,
+    "empiricalCostHurdle": 10.135680000000013,
+    "evaluatedAt": "2026-11-03T04:36:53.984Z"
   },
   "beginner": {
     "strategyName": "Beginner Trend & Momentum (EMA 20/50 + RSI 14)",
     "totalTrades": 435,
     "winRate": 25.3,
     "expectancy": -15.91,
-    "ci95Low": -20.82,
-    "ci95High": -10.9
+    "ci95Low": -20.99,
+    "ci95High": -10.63
   },
   "baseline": {
     "strategyName": "Benchmark Control (EMA 9/21 Crossover)",
     "totalTrades": 142,
     "winRate": 33.8,
     "expectancy": -5.77,
-    "ci95Low": -15.26,
-    "ci95High": 3.48
+    "ci95Low": -15.11,
+    "ci95High": 4.14
   },
   "hypothesis1_calibration": {
     "strategyName": "Hypothesis 1 (1H 50-EMA Trend + Session VWAP Pullback + Rejection)",

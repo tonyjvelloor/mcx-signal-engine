@@ -110,6 +110,9 @@ Because 12 large-cap equities move contemporaneously with the broad Nifty 50 ind
 
 ### Addendum 1 (2026-11-03): Calibration Stopping Rule & Empirical Power Projection
 
+> **Provenance Transparency Note:**  
+> The baseline pre-registration (Sections 1–6 above) was locked and committed at git commit [`6c5c743`](https://github.com/tonyjvelloor/mcx-signal-engine/commit/6c5c743) and tagged [`h1-prereg-v1`](https://github.com/tonyjvelloor/mcx-signal-engine/releases/tag/h1-prereg-v1). This Addendum 1 was authored in commit [`3b6e128`](https://github.com/tonyjvelloor/mcx-signal-engine/commit/3b6e128) after the H1 strategy code existed and before the calibration results were formally reported. Git tags establish disciplined internal source versioning, recognizing that git commit timestamps are self-reported.
+
 #### 1. Calibration Stopping Rule
 To prevent quiet parameter tweaking or data snooping if a strategy fails on historical calibration, the pre-registration establishes an explicit gatekeeper rule:
 * **The Rule:** If Hypothesis 1's 95% Day-Block Bootstrap Confidence Interval upper bound on the retrospective calibration set (Aug 7 – Nov 2, 2026) is $\le ₹0.00$ after realistic costs (1 tick slippage, 0.10 spread, Zerodha statutory fee schedule), **the hypothesis is FALSIFIED immediately on calibration**.
@@ -133,8 +136,41 @@ Execution of Hypothesis 1 on the 60-session retrospective calibration archive (5
   * The directional signal (+₹3.81) is mathematically insufficient to clear the ₹11.06/trade micro-equity friction hurdle on a ₹50 risk budget.
   * **Holdout integrity is 100% preserved:** The prospective forward dataset remains unspent and untouched.
 
-#### 3. Trade Arrival Rate & Sample Power Forecast
+#### 3. Observed Arrival Rate & Initial Horizon Calculation
 * **Observed Arrival Rate:** 665 trades over 60 trading days = **11.08 trades / session across 12 stocks** (~0.92 trades / session per stock).
-* **Sample Horizon to $N = 150$:** 
-  $$\frac{150\text{ trades}}{11.08\text{ trades/session}} \approx 14\text{ trading sessions} \quad (\approx 3\text{ trading weeks or } 0.7\text{ calendar months})$$
-* **Methodological Takeaway:** Micro-equity intraday signals at 5-minute resolution generate sufficient trade counts quickly (~3 weeks), but statutory fee drag is the primary adversary, not sample duration. Any future hypothesis must either widen the target multiple, target higher volatility instruments (MCX commodities with lower percentage turnover costs), or trade higher timeframes (15m/1H swing).
+* **Nominal Trade Horizon to $N = 150$:** 
+  $$\frac{150\text{ trades}}{11.08\text{ trades/session}} \approx 14\text{ trading sessions}$$
+
+---
+
+### Addendum 2 (2026-11-03): Cluster Correlation Correction, Dual-Floor Holdout Standard, and Governance Protocol
+
+#### 1. Correction: Cluster Correlation & Dual-Floor Holdout Floor
+The initial projection of evaluating holdout data in 14 trading sessions was methodologically flawed:
+* **Cluster Dependence:** The Trading-Day Block Bootstrap clusters trades by calendar session to account for contemporaneous index correlation among the 12 large-caps. Evaluating after 14 sessions provides only **14 cluster blocks**, which produces severe sampling instability and excessively wide, volatile confidence intervals.
+* **Dual-Floor Pre-Registration Standard:**
+  Any future holdout evaluation requires meeting **both** criteria simultaneously before the holdout can be unlocked:
+  1. **Trade Count Floor:** $N \ge 150$ completed holdout trades.
+  2. **Session Cluster Floor:** $S \ge 60$ independent completed trading sessions (~3 full calendar months of continuous forward data).
+* **Mechanical Enforcement:** The `--final` execution guard checks both `trades >= 150` and `sessions >= 60`. If either condition is unmet, execution aborts with exit code 1 to protect holdout power.
+
+#### 2. Absolute Ban on Mining the Calibration Gross Edge
+The observation that H1 achieved a gross expectancy of **+₹3.81 / trade** (profit factor 1.15) must not be exploited to justify retrospective parameter tuning on the Aug 07 – Nov 02 calibration data:
+* **No Curve-Fitting:** Attempting to "engineer down fees" by tuning profit targets, stop distances, or pullback tolerances on the same 3 months of historical data burns the calibration set and invalidates prospective testing.
+* **Structural Reality:** Micro-equity statutory fees + slippage average **₹11.06 / trade** on ₹50 risk, which is ~3x the gross edge. This gap cannot be bridged by parameter optimization at 5-minute bar resolution.
+* **Future Research Protocols:**
+  If another hypothesis is proposed in the future:
+  1. It must possess a fundamentally new economic or structural rationale (e.g., daily swing holding periods where fees are < 5% of expected return, or MCX commodity futures with lower turnover friction).
+  2. It must be pre-registered in full before writing any strategy code.
+  3. The multiple testing comparison count must be incremented ($k = 5 \implies \alpha_{\text{adjusted}} = 0.05 / 5 = 0.01$).
+  4. Forward data post-Nov 02 is a single-shot holdout. Once evaluated, it converts permanently to historical calibration data for any subsequent inquiries.
+
+#### 3. Statutory Calendar Reconciliation & Special Session Exclusions
+* **Official NSE Weekday Trading Holidays (Circular NSE/CMTR/71775):** Reconciled exactly 15 statutory weekday holidays for 2026.
+* **Diwali Muhurat Trading Schedule (Circular NSE/CMTR/76941):**
+  * Date: **Sunday, November 8, 2026**.
+  * Timing: Pre-Open 14:05–14:17 IST; **Continuous Trading 14:20 to 15:30 IST** (~70 minutes).
+  * System Recognition: Handled as an active trading session by `shared/nse_holidays.js` and the Sunday scheduler.
+* **Special Session Exclusion Policy:**
+  * All truncated special sessions (e.g. Muhurat trading) are **strictly excluded from backtest calibration and holdout evaluation**.
+  * Truncated 14-bar sessions distort Session VWAP accumulation, ATR smoothing, and execution fills, introducing non-stationary anomalies into quantitative model testing.

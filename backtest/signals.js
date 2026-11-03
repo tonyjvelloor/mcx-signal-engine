@@ -12,7 +12,7 @@ const ind = require('../shared/indicators');
  * Enters at random intervals with the exact same 1.5x ATR stop & 2.2x ATR target geometry.
  * Used for Monte Carlo permutation tests to verify if an edge is statistically real.
  */
-function evaluateRandomStrategy(candles, entryProb = 0.05) {
+function evaluateRandomStrategy(candles, entryProb = 0.05, prngFn = Math.random) {
   if (!candles || candles.length < 30) return null;
 
   const slice = candles.length > 30 ? candles.slice(-30) : candles;
@@ -25,7 +25,7 @@ function evaluateRandomStrategy(candles, entryProb = 0.05) {
   const slDist = Math.max(atr * 1.5, currentClose * 0.003);
 
   // Random coin toss with configurable frequency
-  const rand = Math.random();
+  const rand = prngFn ? prngFn() : Math.random();
   if (rand < entryProb) {
     return {
       action: 'BUY',
@@ -279,7 +279,7 @@ function evaluateHypothesis1(candles) {
  * Matched Null Baseline Generator for Hypothesis 1
  * Mirrors H1's exact 1.5x ATR stop loss & 1:3.0 target multiple geometry
  */
-function evaluateHypothesis1Baseline(candles, entryProb = 0.03) {
+function evaluateHypothesis1Baseline(candles, entryProb = 0.03, prngFn = Math.random) {
   if (!candles || candles.length < 30) return null;
 
   const slice = candles.length > 30 ? candles.slice(-30) : candles;
@@ -291,7 +291,7 @@ function evaluateHypothesis1Baseline(candles, entryProb = 0.03) {
   const atr = ind.calcATR(closes, highs, lows, 14) || (currentClose * 0.005);
   const slDist = Math.max(atr * 1.5, currentClose * 0.003);
 
-  const rand = Math.random();
+  const rand = prngFn ? prngFn() : Math.random();
   if (rand < entryProb) {
     return {
       action: 'BUY',

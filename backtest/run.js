@@ -198,6 +198,20 @@ async function runBacktestSuite(symbol = 'RELIANCE', segment = 'equity', lotMult
   } else {
     console.log('• Pro strategy did not take trades on this slice. Capital protected.');
   }
+  // Holdout Guard Check
+  const isFinalEvaluation = process.argv.includes('--final') || process.env.EVALUATE_HOLDOUT === 'true';
+  if (isFinalEvaluation) {
+    const fs = require('fs');
+    const path = require('path');
+    const logPath = path.join(__dirname, '..', 'docs', 'holdout_evaluation_audit.log');
+    const auditEntry = `[${new Date().toISOString()}] SINGLE_SYMBOL_EVALUATION_ATTEMPT: Symbol=${symbol}, Flags="${process.argv.slice(2).join(' ')}"\n`;
+    try {
+      fs.appendFileSync(logPath, auditEntry);
+    } catch (_) {}
+    console.warn('⚠️ [HOLDOUT GUARD] Single-symbol runs cannot constitute a valid institutional holdout evaluation.');
+    console.warn('   Institutional pre-registration requires running pooled verification: node backtest/pool.js --final\n');
+  }
+
   console.log('================================================================================\n');
 }
 
