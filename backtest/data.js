@@ -181,7 +181,7 @@ async function getHistoricalCandles(rawSymbol, interval = '5m', count = 1500) {
     const sliced = candles.slice(-count);
     return {
       candles: sliced,
-      source: 'LOCAL_SQLITE_CACHE',
+      source: 'LOCAL_SQLITE_ARCHIVE (YAHOO_PROXY_FEED)',
       ticker,
       startDate: new Date(sliced[0].time).toISOString().split('T')[0],
       endDate: new Date(sliced[sliced.length - 1].time).toISOString().split('T')[0]
@@ -190,12 +190,12 @@ async function getHistoricalCandles(rawSymbol, interval = '5m', count = 1500) {
 
   // 2. Fetch Real Candles from Upstream Proxy
   try {
-    const upstreamCandles = await fetchUpstreamCandles(ticker, interval, '1mo');
+    const upstreamCandles = await fetchUpstreamCandles(ticker, interval, '60d');
     if (upstreamCandles && upstreamCandles.length >= 200) {
       saveCandlesToDb(symbol, interval, upstreamCandles);
       return {
         candles: upstreamCandles.slice(-count),
-        source: ticker.includes('.NS') ? 'REAL_NSE_EXCHANGE' : 'REAL_COMMODITY_FUTURES',
+        source: ticker.includes('.NS') ? 'YAHOO_FINANCE_PROXY (UNOFFICIAL NSE DELAYED/EOD)' : 'YAHOO_FINANCE_PROXY (COMMODITIES)',
         ticker,
         startDate: new Date(upstreamCandles[0].time).toISOString().split('T')[0],
         endDate: new Date(upstreamCandles[upstreamCandles.length - 1].time).toISOString().split('T')[0]

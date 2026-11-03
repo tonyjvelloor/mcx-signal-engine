@@ -20,6 +20,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const http = require('http');
+const { createBackup } = require('./backup_db');
 
 const DB_PATH = path.join(__dirname, '..', 'market_data.db');
 
@@ -234,6 +235,9 @@ async function runArchiver() {
   const grandTotal = db.prepare(`SELECT COUNT(*) as count FROM candles WHERE interval = '5m'`).get();
   console.log(`Total 5-minute candles stored across all symbols: ${grandTotal.count}`);
   console.log('✅ Archive run complete.\n');
+
+  // Automatically take a rotating backup snapshot after every archive run
+  createBackup();
 }
 
 if (require.main === module) {

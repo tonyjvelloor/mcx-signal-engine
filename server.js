@@ -856,6 +856,39 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(profile));
     }
 
+    // 1d2. Dynamic Institutional Backtest Statistics (Zero-Drift UI Feed)
+    if (pathname === '/api/backtest/stats') {
+      const statsFile = path.join(__dirname, 'backtest_results.json');
+      if (fs.existsSync(statsFile)) {
+        try {
+          const raw = fs.readFileSync(statsFile, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(raw);
+        } catch (_) {}
+      }
+      const fallback = {
+        updatedAt: new Date().toISOString(),
+        pro: { totalTrades: 322, monteCarloPValue: 0.977, empiricalCostHurdle: 9.75, expectancy: -16.37 }
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(fallback));
+    }
+
+    // 1d3. Trigger Daily Historical Archiver On-Demand
+    if (pathname === '/api/archive/run' && req.method === 'POST') {
+      const { runArchiver } = require('./scripts/archive_candles');
+      runArchiver()
+        .then(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok', message: 'Archiver completed successfully' }));
+        })
+        .catch(err => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', message: err.message }));
+        });
+      return;
+    }
+
     // 1e. Paper Trading Engine (Enforcing ₹50 max risk & realistic Zerodha charges)
     if (pathname === '/api/paper-trades') {
       if (req.method === 'GET') {
@@ -1337,5 +1370,30 @@ server.listen(PORT, HOST, () => {
   console.log(`🔒 Hardened Server running securely on http://${HOST}:${PORT}`);
   console.log(`🛡️ Paper Trading Mode: ${process.env.ENABLE_LIVE_ORDERS === 'true' ? 'DISABLED (LIVE)' : 'ACTIVE (SAFE)'}`);
 });
+
+// ─────────────────────────────────────────────────────────────
+// AUTOMATED EOD CANDLE ARCHIVER SCHEDULER
+// Triggers daily at 15:45 IST on weekdays to store continuous market candles
+// ─────────────────────────────────────────────────────────────
+let lastScheduledArchiveDate = null;
+setInterval(() => {
+  try {
+    const nowIst = new Date(Date.now() + (5.5 * 3600 * 1000));
+    const dayOfWeek = nowIst.getUTCDay(); // 1 = Mon, ..., 5 = Fri
+    const hour = nowIst.getUTCHours();
+    const minute = nowIst.getUTCMinutes();
+    const todayStr = nowIst.toISOString().split('T')[0];
+
+    // Trigger on weekdays once past 15:45 IST
+    if (dayOfWeek >= 1 && dayOfWeek <= 5 && (hour > 15 || (hour === 15 && minute >= 45))) {
+      if (lastScheduledArchiveDate !== todayStr) {
+        lastScheduledArchiveDate = todayStr;
+        console.log(`⏰ [SCHEDULER] Triggering EOD candle archiver for ${todayStr}...`);
+        const { runArchiver } = require('./scripts/archive_candles');
+        runArchiver().catch(e => console.error('Scheduler archiver error:', e.message));
+      }
+    }
+  } catch (_) {}
+}, 10 * 60 * 1000); // Check every 10 minutes
 
 module.exports = server;

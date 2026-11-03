@@ -71,17 +71,33 @@ function calculateMetrics(trades, initialCapital = 15000) {
   // Fee Drag: What fraction of gross winnings went straight to fees?
   const feeDragPct = grossProfit > 0 ? (totalFees / grossProfit) * 100 : 100;
 
-  // Bootstrap 95% Confidence Interval for Expectancy (1,000 resamples)
+  // Block Bootstrap 95% Confidence Interval by Calendar Trading Day (1,000 resamples)
+  // Preserves cross-sectional correlation across stocks on the same session.
+  const dayClusters = {};
+  for (const t of closed) {
+    const day = t.entryTime ? new Date(t.entryTime + (5.5 * 3600 * 1000)).toISOString().split('T')[0] : 'unknown';
+    if (!dayClusters[day]) dayClusters[day] = [];
+    dayClusters[day].push(t);
+  }
+  const uniqueDays = Object.keys(dayClusters);
+  const numDays = uniqueDays.length;
+
   const bootstrapExpectancies = [];
-  const n = closed.length;
   for (let b = 0; b < 1000; b++) {
     let sampleSum = 0;
-    for (let k = 0; k < n; k++) {
-      const randIdx = Math.floor(Math.random() * n);
-      sampleSum += closed[randIdx].netPnl;
+    let sampleCount = 0;
+
+    for (let k = 0; k < numDays; k++) {
+      const randDay = uniqueDays[Math.floor(Math.random() * numDays)];
+      const dayTrades = dayClusters[randDay];
+      for (let j = 0; j < dayTrades.length; j++) {
+        sampleSum += dayTrades[j].netPnl;
+        sampleCount++;
+      }
     }
-    bootstrapExpectancies.push(sampleSum / n);
+    bootstrapExpectancies.push(sampleCount > 0 ? (sampleSum / sampleCount) : 0);
   }
+
   bootstrapExpectancies.sort((a, b) => a - b);
   const ci95Low = bootstrapExpectancies[Math.floor(0.025 * 1000)];
   const ci95High = bootstrapExpectancies[Math.floor(0.975 * 1000)];

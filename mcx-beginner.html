@@ -71,7 +71,7 @@
       <div>
         <div style="font-weight:700;font-size:12px;margin-bottom:2px;letter-spacing:0.3px;">UNVALIDATED SIGNALS — RESEARCH SANDBOX ONLY (NOT INVESTMENT ADVICE)</div>
         <div>
-          The algorithmic signals shown in this interface are experimental quantitative hypotheses undergoing walk-forward validation. Multi-symbol backtests across 12 NSE large-caps demonstrate <strong>no statistical edge over random chance (p = 0.756)</strong>. Statutory transaction costs and slippage create a <strong>~₹8.76 / trade cost hurdle</strong>. All trades are simulated on a ₹15,000 / ₹50 risk-cap paper ledger. Not registered with SEBI as an investment advisor or research analyst.
+          The algorithmic signals shown in this interface are experimental quantitative hypotheses undergoing walk-forward validation. Multi-symbol backtests across <span id="b-warn-syms">12 NSE large-caps</span> (<span id="b-warn-trades">322 OOS trades</span>) demonstrate <strong>no statistical edge over random chance (<span id="b-warn-pval">p = 0.984</span>)</strong>. Statutory transaction costs and slippage create a <strong id="b-warn-hurdle">~₹9.90 / trade cost hurdle</strong>. All trades are simulated on a ₹15,000 / ₹50 risk-cap paper ledger. Not registered with SEBI as an investment advisor or research analyst.
         </div>
       </div>
     </div>
@@ -1921,7 +1921,26 @@ async function handleKiteConnect() {
   window.location.href = '/api/kite/login?redirect=true';
 }
 
+async function loadBacktestStatsBeg() {
+  try {
+    const res = await fetch('/api/backtest/stats');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d?.pro) {
+      const p = document.getElementById('b-warn-pval');
+      const h = document.getElementById('b-warn-hurdle');
+      const t = document.getElementById('b-warn-trades');
+      const s = document.getElementById('b-warn-syms');
+      if (p && d.pro.monteCarloPValue != null) p.innerText = `p = ${Number(d.pro.monteCarloPValue).toFixed(3)}`;
+      if (h && d.pro.empiricalCostHurdle != null) h.innerText = `~₹${Number(d.pro.empiricalCostHurdle).toFixed(2)} / trade cost hurdle`;
+      if (t && d.pro.totalTrades != null) t.innerText = `${d.pro.totalTrades} OOS trades`;
+      if (s && d.universeCount != null) s.innerText = `${d.universeCount} NSE large-caps`;
+    }
+  } catch (_) {}
+}
+
 function _boot(){
+  loadBacktestStatsBeg();
   const params = new URLSearchParams(window.location.search);
   const targetCom = params.get('com');
   if (targetCom && COMMS.some(c => c.id === targetCom)) {

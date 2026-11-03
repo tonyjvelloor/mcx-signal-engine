@@ -612,10 +612,10 @@ table.j-table tr:hover td {
 <div class="research-warning-banner" style="background:#13111C;border-bottom:1px solid rgba(245,158,11,0.25);padding:7px 16px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#D8D6E8;flex-shrink:0;">
   <div style="display:flex;align-items:center;gap:10px;">
     <span style="font-size:13px;">⚠️</span>
-    <span><strong>UNVALIDATED SIGNALS — RESEARCH &amp; PAPER JOURNALING ONLY.</strong> Walk-forward backtests show <em>no statistical edge</em> (Monte Carlo p = 0.756). Not investment advice.</span>
+    <span><strong>UNVALIDATED SIGNALS — RESEARCH &amp; PAPER JOURNALING ONLY.</strong> Walk-forward backtests across <span id="warn-symbols-cnt">12 symbols</span> (<span id="warn-trades-cnt">322 OOS trades</span>) show <em>no statistical edge</em> (<span id="warn-pvalue">Monte Carlo p = 0.984</span>). Not investment advice.</span>
   </div>
   <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;display:flex;align-items:center;gap:12px;">
-    <span>Cost Hurdle: <strong style="color:var(--gold);">₹8.76 / trade</strong></span>
+    <span>Cost Hurdle: <strong id="warn-hurdle" style="color:var(--gold);">₹9.90 / trade</strong></span>
     <span style="background:rgba(245,158,11,0.15);color:var(--gold);padding:2px 6px;border-radius:4px;border:1px solid rgba(245,158,11,0.3);">NSE MICRO-EQUITY SANDBOX</span>
   </div>
 </div>
@@ -1527,9 +1527,30 @@ function updateMarketClock() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// DYNAMIC BACKTEST STATS LOADER (PREVENTS HARD-CODED DRIFT)
+async function loadBacktestStats() {
+  try {
+    const res = await fetch('/api/backtest/stats');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d?.pro) {
+      const p = document.getElementById('warn-pvalue');
+      const h = document.getElementById('warn-hurdle');
+      const t = document.getElementById('warn-trades-cnt');
+      const s = document.getElementById('warn-symbols-cnt');
+      if (p && d.pro.monteCarloPValue != null) p.innerText = `Monte Carlo p = ${Number(d.pro.monteCarloPValue).toFixed(3)}`;
+      if (h && d.pro.empiricalCostHurdle != null) h.innerText = `₹${Number(d.pro.empiricalCostHurdle).toFixed(2)} / trade`;
+      if (t && d.pro.totalTrades != null) t.innerText = `${d.pro.totalTrades} OOS trades`;
+      if (s && d.universeCount != null) s.innerText = `${d.universeCount} symbols`;
+    }
+  } catch (_) {}
+}
+
+// ─────────────────────────────────────────────────────────────
 // INITIALIZATION
 // ─────────────────────────────────────────────────────────────
 function initApp() {
+  loadBacktestStats();
   renderWatchlist();
   fetchMarketDataForActive();
   checkKiteStatus();

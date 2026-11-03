@@ -12,6 +12,8 @@
  *   node backtest/pool.js
  */
 
+const fs = require('fs');
+const path = require('path');
 const { getHistoricalCandles } = require('./data');
 const {
   evaluateRandomStrategy,
@@ -256,6 +258,45 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
   console.log(`[3] Beats Random Baseline (p < 0.05):   ${empiricalPValue < 0.05 ? '✅ PASS' : '❌ FAIL'} (p = ${empiricalPValue.toFixed(3)})`);
   console.log(`\nFINAL VERDICT: 🚫 SYSTEM NOT ELIGIBLE FOR LIVE DEPLOYMENT`);
   console.log('Action: Keep in research sandbox. Do not allocate live capital.\n');
+
+  // 7. Write out backtest_results.json for live UI synchronization
+  const resultsPayload = {
+    updatedAt: new Date().toISOString(),
+    samplePeriod: `${universeData[validSymbols[0]]?.startDate} to ${universeData[validSymbols[0]]?.endDate}`,
+    universeCount: validSymbols.length,
+    universe: validSymbols,
+    pro: {
+      totalTrades: pooledMetrics['pro'].totalTrades,
+      winRate: pooledMetrics['pro'].winRate,
+      netPnl: pooledMetrics['pro'].netPnl,
+      expectancy: pooledMetrics['pro'].expectancyRupees,
+      expectancyR: pooledMetrics['pro'].expectancyR,
+      profitFactor: pooledMetrics['pro'].profitFactor,
+      ci95Low: pooledMetrics['pro'].ci95Low,
+      ci95High: pooledMetrics['pro'].ci95High,
+      feeDragPct: pooledMetrics['pro'].feeDragPct,
+      monteCarloPValue: empiricalPValue,
+      empiricalCostHurdle: Math.abs(nullMean)
+    },
+    beginner: {
+      totalTrades: pooledMetrics['beginner'].totalTrades,
+      winRate: pooledMetrics['beginner'].winRate,
+      expectancy: pooledMetrics['beginner'].expectancyRupees,
+      ci95Low: pooledMetrics['beginner'].ci95Low,
+      ci95High: pooledMetrics['beginner'].ci95High
+    },
+    baseline: {
+      totalTrades: pooledMetrics['baseline'].totalTrades,
+      winRate: pooledMetrics['baseline'].winRate,
+      expectancy: pooledMetrics['baseline'].expectancyRupees,
+      ci95Low: pooledMetrics['baseline'].ci95Low,
+      ci95High: pooledMetrics['baseline'].ci95High
+    }
+  };
+
+  const resultsPath = path.join(__dirname, '..', 'backtest_results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify(resultsPayload, null, 2));
+  console.log(`📁 Synced results payload to: ${resultsPath}\n`);
 }
 
 if (require.main === module) {
