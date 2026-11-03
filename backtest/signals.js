@@ -8,6 +8,45 @@
 const ind = require('../shared/indicators');
 
 /**
+ * 0. Null Baseline: Random-Entry Generator
+ * Enters at random intervals with the exact same 1.5x ATR stop & 2.2x ATR target geometry.
+ * Used for Monte Carlo permutation tests to verify if an edge is statistically real.
+ */
+function evaluateRandomStrategy(candles, entryProb = 0.05) {
+  if (!candles || candles.length < 30) return null;
+
+  const closes = candles.map(c => c.close);
+  const highs = candles.map(c => c.high);
+  const lows = candles.map(c => c.low);
+
+  const currentClose = closes[closes.length - 1];
+  const atr = ind.calcATR(closes, highs, lows, 14) || (currentClose * 0.005);
+  const slDist = Math.max(atr * 1.5, currentClose * 0.003);
+
+  // Random coin toss with configurable frequency
+  const rand = Math.random();
+  if (rand < entryProb) {
+    return {
+      action: 'BUY',
+      entry: currentClose,
+      sl: currentClose - slDist,
+      target: currentClose + (slDist * 2.2),
+      atr
+    };
+  } else if (rand > (1 - entryProb)) {
+    return {
+      action: 'SELL',
+      entry: currentClose,
+      sl: currentClose + slDist,
+      target: currentClose - (slDist * 2.2),
+      atr
+    };
+  }
+
+  return null;
+}
+
+/**
  * 1. Benchmark Control Strategy: Simple EMA Crossover (9 / 21) with 1.5x ATR Stop
  */
 function evaluateBaselineStrategy(candles) {
@@ -36,7 +75,7 @@ function evaluateBaselineStrategy(candles) {
       action: 'BUY',
       entry: currentClose,
       sl: currentClose - slDist,
-      target: currentClose + (slDist * 2.0),
+      target: currentClose + (slDist * 2.2),
       atr
     };
   }
@@ -47,7 +86,7 @@ function evaluateBaselineStrategy(candles) {
       action: 'SELL',
       entry: currentClose,
       sl: currentClose + slDist,
-      target: currentClose - (slDist * 2.0),
+      target: currentClose - (slDist * 2.2),
       atr
     };
   }
@@ -82,7 +121,7 @@ function evaluateBeginnerStrategy(candles) {
       action: 'BUY',
       entry: currentClose,
       sl: currentClose - slDist,
-      target: currentClose + (slDist * 2.0),
+      target: currentClose + (slDist * 2.2),
       atr
     };
   }
@@ -93,7 +132,7 @@ function evaluateBeginnerStrategy(candles) {
       action: 'SELL',
       entry: currentClose,
       sl: currentClose + slDist,
-      target: currentClose - (slDist * 2.0),
+      target: currentClose - (slDist * 2.2),
       atr
     };
   }
@@ -155,6 +194,7 @@ function evaluateProStrategy(candles) {
 }
 
 module.exports = {
+  evaluateRandomStrategy,
   evaluateBaselineStrategy,
   evaluateBeginnerStrategy,
   evaluateProStrategy
