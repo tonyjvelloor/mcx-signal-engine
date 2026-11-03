@@ -889,6 +889,22 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 1d4. Market Data Archival & Freshness Status
+    if (pathname === '/api/archive/status') {
+      const statusFile = path.join(__dirname, 'archive_status.json');
+      if (fs.existsSync(statusFile)) {
+        try {
+          const raw = fs.readFileSync(statusFile, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(raw);
+        } catch (_) {}
+      }
+      const { checkDataFreshness } = require('./scripts/archive_candles');
+      const st = checkDataFreshness(db);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(st));
+    }
+
     // 1e. Paper Trading Engine (Enforcing ₹50 max risk & realistic Zerodha charges)
     if (pathname === '/api/paper-trades') {
       if (req.method === 'GET') {
@@ -1369,31 +1385,53 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`🔒 Hardened Server running securely on http://${HOST}:${PORT}`);
   console.log(`🛡️ Paper Trading Mode: ${process.env.ENABLE_LIVE_ORDERS === 'true' ? 'DISABLED (LIVE)' : 'ACTIVE (SAFE)'}`);
+  
+  // On startup catch-up: detect any missing sessions from the last 60 days
+  setTimeout(() => {
+    try {
+      const { catchUpMissingSessions } = require('./scripts/archive_candles');
+      catchUpMissingSessions(db).catch(e => console.error('Startup catch-up error:', e.message));
+    } catch (err) {
+      console.error('Startup catch-up initialization error:', err.message);
+    }
+  }, 3000);
 });
 
 // ─────────────────────────────────────────────────────────────
-// AUTOMATED EOD CANDLE ARCHIVER SCHEDULER
-// Triggers daily at 15:45 IST on weekdays to store continuous market candles
+// AUTOMATED EOD & MORNING CANDLE ARCHIVER SCHEDULER
+// Pinned strictly to Asia/Kolkata (UTC+5:30) via shared/nse_holidays.js
+// Primary Run: 16:30 IST on weekdays (allowing EOD auction/settlement bars to finalize)
+// Secondary Gap-Fill Run: 08:30 IST next morning on weekdays (pre-market audit)
 // ─────────────────────────────────────────────────────────────
-let lastScheduledArchiveDate = null;
+const { getKolkataTime, isNseTradingDay } = require('./shared/nse_holidays');
+let lastArchivedPrimaryDate = null;
+let lastArchivedMorningDate = null;
+
 setInterval(() => {
   try {
-    const nowIst = new Date(Date.now() + (5.5 * 3600 * 1000));
-    const dayOfWeek = nowIst.getUTCDay(); // 1 = Mon, ..., 5 = Fri
-    const hour = nowIst.getUTCHours();
-    const minute = nowIst.getUTCMinutes();
-    const todayStr = nowIst.toISOString().split('T')[0];
+    const kt = getKolkataTime();
+    if (!isNseTradingDay(kt.dateStr)) return; // Quietly skip weekends and holidays
 
-    // Trigger on weekdays once past 15:45 IST
-    if (dayOfWeek >= 1 && dayOfWeek <= 5 && (hour > 15 || (hour === 15 && minute >= 45))) {
-      if (lastScheduledArchiveDate !== todayStr) {
-        lastScheduledArchiveDate = todayStr;
-        console.log(`⏰ [SCHEDULER] Triggering EOD candle archiver for ${todayStr}...`);
+    // 1. Primary Run: Once past 16:30 IST
+    if (kt.hour > 16 || (kt.hour === 16 && kt.minute >= 30)) {
+      if (lastArchivedPrimaryDate !== kt.dateStr) {
+        lastArchivedPrimaryDate = kt.dateStr;
+        console.log(`⏰ [SCHEDULER 16:30 IST] Running primary EOD candle archiver for ${kt.dateStr}...`);
         const { runArchiver } = require('./scripts/archive_candles');
-        runArchiver().catch(e => console.error('Scheduler archiver error:', e.message));
+        runArchiver().catch(e => console.error('Scheduler EOD archiver error:', e.message));
+      }
+    }
+
+    // 2. Secondary Gap-Fill Run: 08:30 IST next morning
+    if (kt.hour === 8 && kt.minute >= 30) {
+      if (lastArchivedMorningDate !== kt.dateStr) {
+        lastArchivedMorningDate = kt.dateStr;
+        console.log(`⏰ [SCHEDULER 08:30 IST] Running morning gap-fill check for ${kt.dateStr}...`);
+        const { catchUpMissingSessions } = require('./scripts/archive_candles');
+        catchUpMissingSessions(db).catch(e => console.error('Scheduler morning catch-up error:', e.message));
       }
     }
   } catch (_) {}
-}, 10 * 60 * 1000); // Check every 10 minutes
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 module.exports = server;

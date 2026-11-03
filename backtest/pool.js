@@ -265,7 +265,12 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
     samplePeriod: `${universeData[validSymbols[0]]?.startDate} to ${universeData[validSymbols[0]]?.endDate}`,
     universeCount: validSymbols.length,
     universe: validSymbols,
+    seed: 42,
+    resampleMethod: "trading_day_block_bootstrap",
+    monteCarloRuns: 1000,
+    bootstrapRuns: 1000,
     pro: {
+      strategyName: "Pro Multi-Factor (Supertrend 10/3 + Wilder ADX > 20 + Stoch)",
       totalTrades: pooledMetrics['pro'].totalTrades,
       winRate: pooledMetrics['pro'].winRate,
       netPnl: pooledMetrics['pro'].netPnl,
@@ -276,9 +281,11 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
       ci95High: pooledMetrics['pro'].ci95High,
       feeDragPct: pooledMetrics['pro'].feeDragPct,
       monteCarloPValue: empiricalPValue,
-      empiricalCostHurdle: Math.abs(nullMean)
+      empiricalCostHurdle: Math.abs(nullMean),
+      evaluatedAt: new Date().toISOString()
     },
     beginner: {
+      strategyName: "Beginner Trend & Momentum (EMA 20/50 + RSI 14)",
       totalTrades: pooledMetrics['beginner'].totalTrades,
       winRate: pooledMetrics['beginner'].winRate,
       expectancy: pooledMetrics['beginner'].expectancyRupees,
@@ -286,11 +293,28 @@ async function runPooledSuite(universe = DEFAULT_UNIVERSE) {
       ci95High: pooledMetrics['beginner'].ci95High
     },
     baseline: {
+      strategyName: "Benchmark Control (EMA 9/21 Crossover)",
       totalTrades: pooledMetrics['baseline'].totalTrades,
       winRate: pooledMetrics['baseline'].winRate,
       expectancy: pooledMetrics['baseline'].expectancyRupees,
       ci95Low: pooledMetrics['baseline'].ci95Low,
       ci95High: pooledMetrics['baseline'].ci95High
+    },
+    hypothesis1_calibration: {
+      strategyName: "Hypothesis 1 (1H 50-EMA Trend + Session VWAP Pullback + Rejection)",
+      status: "FALSIFIED_ON_CALIBRATION_UNDER_ADDENDUM_1",
+      stoppingRuleTriggered: true,
+      totalTrades: 665,
+      tradesPerSession: 11.08,
+      winRate: 28.7,
+      grossProfit: 19816.36,
+      grossLoss: 17283.59,
+      grossExpectancy: 3.81,
+      avgFeePerTrade: 11.06,
+      netExpectancy: -7.25,
+      ci95Low: -12.62,
+      ci95High: -1.94,
+      holdoutStatus: "LOCKED_AND_PRESERVED_UNTOUCHED"
     }
   };
 

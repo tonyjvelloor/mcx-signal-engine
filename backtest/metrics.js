@@ -11,7 +11,20 @@
  * - Bootstrap 95% Confidence Interval
  */
 
-function calculateMetrics(trades, initialCapital = 15000) {
+/**
+ * Mulberry32 seeded pseudo-random number generator for reproducible bootstrap & Monte Carlo
+ */
+function createPrng(seed = 42) {
+  let s = (seed || 42) >>> 0;
+  return function() {
+    let t = (s += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function calculateMetrics(trades, initialCapital = 15000, seed = 42) {
   if (!trades || !trades.length) {
     return {
       totalTrades: 0,
@@ -83,12 +96,13 @@ function calculateMetrics(trades, initialCapital = 15000) {
   const numDays = uniqueDays.length;
 
   const bootstrapExpectancies = [];
+  const rand = createPrng(seed);
   for (let b = 0; b < 1000; b++) {
     let sampleSum = 0;
     let sampleCount = 0;
 
     for (let k = 0; k < numDays; k++) {
-      const randDay = uniqueDays[Math.floor(Math.random() * numDays)];
+      const randDay = uniqueDays[Math.floor(rand() * numDays)];
       const dayTrades = dayClusters[randDay];
       for (let j = 0; j < dayTrades.length; j++) {
         sampleSum += dayTrades[j].netPnl;
@@ -126,5 +140,6 @@ function calculateMetrics(trades, initialCapital = 15000) {
 }
 
 module.exports = {
-  calculateMetrics
+  calculateMetrics,
+  createPrng
 };

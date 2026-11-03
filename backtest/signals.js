@@ -194,9 +194,130 @@ function evaluateProStrategy(candles) {
   return null;
 }
 
+/**
+ * 4. Hypothesis 1: Multi-Timeframe Macro Trend + Session VWAP Pullback + Candlestick Rejection
+ * Pre-registered institutional hypothesis designed to overcome the ~₹9.75 statutory cost hurdle.
+ * Parameters fixed by market convention (Zero tuning / No sweeps):
+ * - 1H 50-EMA Trend Filter & Slope
+ * - Intraday Session VWAP with 09:15 daily reset
+ * - Pullback within 0.20x ATR of Session VWAP
+ * - Rejection: Hammer / Bullish Engulfing for Long; Shooting Star / Bearish Engulfing for Short
+ * - Geometry: 1.5x ATR Stop Loss, 1:3.0 Target Multiple (Net R:R >= 2.2)
+ */
+function evaluateHypothesis1(candles) {
+  // Requires at least 50 hourly bars (600 5m bars) for 1H EMA(50) warmup
+  if (!candles || candles.length < 600) return null;
+
+  // Slice to last 750 bars to bound runtime while preserving >60 1H bars and complete intraday session VWAP
+  const windowCandles = candles.length > 750 ? candles.slice(-750) : candles;
+
+  const closes = windowCandles.map(c => c.close);
+  const highs = windowCandles.map(c => c.high);
+  const lows = windowCandles.map(c => c.low);
+  const opens = windowCandles.map(c => c.open);
+  const currentClose = closes[closes.length - 1];
+
+  // 1. Resample to 1-Hour Bars for Higher-Timeframe Macro Trend Filter
+  const hourlyBars = ind.resampleBars(windowCandles, 12);
+  if (hourlyBars.length < 52) return null;
+
+  const hourlyCloses = hourlyBars.map(b => b.close);
+  const currentHourlyClose = hourlyCloses[hourlyCloses.length - 1];
+  const ema50Current = ind.calcEMA(hourlyCloses, 50);
+  const prevHourlyCloses = hourlyCloses.slice(0, -1);
+  const ema50Prev = ind.calcEMA(prevHourlyCloses, 50);
+
+  const isBullTrend = currentHourlyClose > ema50Current && ema50Current > ema50Prev;
+  const isBearTrend = currentHourlyClose < ema50Current && ema50Current < ema50Prev;
+
+  if (!isBullTrend && !isBearTrend) return null;
+
+  // 2. Session VWAP & Volatility Calculation
+  const vwapSeries = ind.calcSessionVWAP(windowCandles);
+  const currentVWAP = vwapSeries[vwapSeries.length - 1];
+  const atr = ind.calcATR(closes, highs, lows, 14) || (currentClose * 0.005);
+  const vwapTolerance = 0.20 * atr;
+
+  // 3. Price Pullback into VWAP Value Zone
+  const lastLow = lows[lows.length - 1];
+  const lastHigh = highs[highs.length - 1];
+  const bullVwapTouch = lastLow <= (currentVWAP + vwapTolerance) && currentClose >= (currentVWAP - vwapTolerance);
+  const bearVwapTouch = lastHigh >= (currentVWAP - vwapTolerance) && currentClose <= (currentVWAP + vwapTolerance);
+
+  // 4. Candlestick Price Rejection Confirmation Trigger
+  const patterns = ind.detectCandlePatterns(opens, highs, lows, closes);
+  const hasBullRejection = patterns.some(p => p.name === 'Hammer' || p.name === 'Bullish Engulfing');
+  const hasBearRejection = patterns.some(p => p.name === 'Shooting Star' || p.name === 'Bearish Engulfing');
+
+  // 5. Symmetric Geometry: 1.5x ATR Stop Loss, 1:3.0 Target Multiple
+  const slDist = Math.max(atr * 1.5, currentClose * 0.003);
+
+  if (isBullTrend && bullVwapTouch && hasBullRejection) {
+    return {
+      action: 'BUY',
+      entry: currentClose,
+      sl: currentClose - slDist,
+      target: currentClose + (slDist * 3.0),
+      atr
+    };
+  }
+
+  if (isBearTrend && bearVwapTouch && hasBearRejection) {
+    return {
+      action: 'SELL',
+      entry: currentClose,
+      sl: currentClose + slDist,
+      target: currentClose - (slDist * 3.0),
+      atr
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Matched Null Baseline Generator for Hypothesis 1
+ * Mirrors H1's exact 1.5x ATR stop loss & 1:3.0 target multiple geometry
+ */
+function evaluateHypothesis1Baseline(candles, entryProb = 0.03) {
+  if (!candles || candles.length < 30) return null;
+
+  const slice = candles.length > 30 ? candles.slice(-30) : candles;
+  const closes = slice.map(c => c.close);
+  const highs = slice.map(c => c.high);
+  const lows = slice.map(c => c.low);
+
+  const currentClose = closes[closes.length - 1];
+  const atr = ind.calcATR(closes, highs, lows, 14) || (currentClose * 0.005);
+  const slDist = Math.max(atr * 1.5, currentClose * 0.003);
+
+  const rand = Math.random();
+  if (rand < entryProb) {
+    return {
+      action: 'BUY',
+      entry: currentClose,
+      sl: currentClose - slDist,
+      target: currentClose + (slDist * 3.0),
+      atr
+    };
+  } else if (rand > (1 - entryProb)) {
+    return {
+      action: 'SELL',
+      entry: currentClose,
+      sl: currentClose + slDist,
+      target: currentClose - (slDist * 3.0),
+      atr
+    };
+  }
+
+  return null;
+}
+
 module.exports = {
   evaluateRandomStrategy,
   evaluateBaselineStrategy,
   evaluateBeginnerStrategy,
-  evaluateProStrategy
+  evaluateProStrategy,
+  evaluateHypothesis1,
+  evaluateHypothesis1Baseline
 };

@@ -168,6 +168,31 @@ function generateBenchmarkCandles(symbol = 'RELIANCE', count = 1000, startPrice 
   return candles;
 }
 
+const FREEZE_TIMESTAMP = 1793615400000; // 2026-11-02 16:00:00 IST
+const FREEZE_DATE_STR = '2026-11-02';
+
+/**
+ * Institutional Holdout Guard
+ * Prevents accidental or exploratory contamination of prospective holdout data.
+ * All candles past the freeze date (Nov 2, 2026) are strictly excluded unless --final is passed.
+ */
+function applyHoldoutGuard(candles) {
+  const allowHoldout = process.argv.includes('--final') || process.env.EVALUATE_HOLDOUT === 'true';
+  const hasForwardBars = candles.some(c => c.time > FREEZE_TIMESTAMP);
+
+  if (hasForwardBars && !allowHoldout) {
+    const calibrationOnly = candles.filter(c => c.time <= FREEZE_TIMESTAMP);
+    const lockedCount = candles.length - calibrationOnly.length;
+    if (!applyHoldoutGuard._logged) {
+      console.log(`🔒 [HOLDOUT GUARD] Retrospective calibration mode: 2026-11-02 freeze enforced.`);
+      console.log(`   Excluded ${lockedCount} forward candles. Pass --final to evaluate prospective holdout.\n`);
+      applyHoldoutGuard._logged = true;
+    }
+    return calibrationOnly;
+  }
+  return candles;
+}
+
 /**
  * Get historical candles with honest source attribution
  */
@@ -178,7 +203,8 @@ async function getHistoricalCandles(rawSymbol, interval = '5m', count = 1500) {
   // 1. Try Loading from Local SQLite Database first
   let candles = loadCandlesFromDb(symbol, interval);
   if (candles && candles.length >= 300) {
-    const sliced = candles.slice(-count);
+    const guarded = applyHoldoutGuard(candles);
+    const sliced = guarded.slice(-count);
     return {
       candles: sliced,
       source: 'LOCAL_SQLITE_ARCHIVE (YAHOO_PROXY_FEED)',
@@ -193,12 +219,13 @@ async function getHistoricalCandles(rawSymbol, interval = '5m', count = 1500) {
     const upstreamCandles = await fetchUpstreamCandles(ticker, interval, '60d');
     if (upstreamCandles && upstreamCandles.length >= 200) {
       saveCandlesToDb(symbol, interval, upstreamCandles);
+      const guarded = applyHoldoutGuard(upstreamCandles);
       return {
-        candles: upstreamCandles.slice(-count),
+        candles: guarded.slice(-count),
         source: ticker.includes('.NS') ? 'YAHOO_FINANCE_PROXY (UNOFFICIAL NSE DELAYED/EOD)' : 'YAHOO_FINANCE_PROXY (COMMODITIES)',
         ticker,
-        startDate: new Date(upstreamCandles[0].time).toISOString().split('T')[0],
-        endDate: new Date(upstreamCandles[upstreamCandles.length - 1].time).toISOString().split('T')[0]
+        startDate: new Date(guarded[0].time).toISOString().split('T')[0],
+        endDate: new Date(guarded[guarded.length - 1].time).toISOString().split('T')[0]
       };
     }
   } catch (err) {

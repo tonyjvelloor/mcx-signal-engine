@@ -105,3 +105,36 @@ Because 12 large-cap equities move contemporaneously with the broad Nifty 50 ind
 - **Outcome C (Inconclusive / Underpowered):**
   - Total Prospective Trades $< 150$.
   - *Action:* Explicitly report as **"Inconclusive due to insufficient sample size"**. Do NOT declare "no edge" prematurely. Continue prospective forward data accumulation until 150 trades are recorded or a pre-agreed sunset horizon is reached.
+
+---
+
+### Addendum 1 (2026-11-03): Calibration Stopping Rule & Empirical Power Projection
+
+#### 1. Calibration Stopping Rule
+To prevent quiet parameter tweaking or data snooping if a strategy fails on historical calibration, the pre-registration establishes an explicit gatekeeper rule:
+* **The Rule:** If Hypothesis 1's 95% Day-Block Bootstrap Confidence Interval upper bound on the retrospective calibration set (Aug 7 – Nov 2, 2026) is $\le ₹0.00$ after realistic costs (1 tick slippage, 0.10 spread, Zerodha statutory fee schedule), **the hypothesis is FALSIFIED immediately on calibration**.
+* **Consequence:** The prospective holdout partition is **NEVER OPENED OR SPENT**. The strategy is rejected as structurally incapable of overcoming micro-equity statutory transaction friction without risking holdout contamination.
+
+#### 2. Empirical Calibration Findings across 12 NSE Large-Caps
+Execution of Hypothesis 1 on the 60-session retrospective calibration archive (52,575 5-minute bars) yielded:
+* **Gross Performance:**
+  * Gross Profit: ₹19,816.36 | Gross Loss: ₹17,283.59 | Profit Factor: **1.15**
+  * Average Gross P&L: **+₹3.81 / trade** (The directional signal demonstrates positive gross selection edge).
+* **Statutory Drag:**
+  * Statutory Fees + Slippage: ₹7,355.17
+  * Average Fee Burden: **₹11.06 / trade**
+* **Net Performance:**
+  * Net Trades: 665
+  * Net Win Rate: 28.7%
+  * Net Expectancy: **-₹7.25 / trade**
+  * **Day-Block Bootstrap 95% CI:** **[-₹12.62, -₹1.94]**
+* **Calibration Stopping Rule Verdict:**
+  * Because the upper bound of the Day-Block Bootstrap CI (**-₹1.94**) is strictly negative ($\le ₹0.00$), **Hypothesis 1 is dropped on calibration**.
+  * The directional signal (+₹3.81) is mathematically insufficient to clear the ₹11.06/trade micro-equity friction hurdle on a ₹50 risk budget.
+  * **Holdout integrity is 100% preserved:** The prospective forward dataset remains unspent and untouched.
+
+#### 3. Trade Arrival Rate & Sample Power Forecast
+* **Observed Arrival Rate:** 665 trades over 60 trading days = **11.08 trades / session across 12 stocks** (~0.92 trades / session per stock).
+* **Sample Horizon to $N = 150$:** 
+  $$\frac{150\text{ trades}}{11.08\text{ trades/session}} \approx 14\text{ trading sessions} \quad (\approx 3\text{ trading weeks or } 0.7\text{ calendar months})$$
+* **Methodological Takeaway:** Micro-equity intraday signals at 5-minute resolution generate sufficient trade counts quickly (~3 weeks), but statutory fee drag is the primary adversary, not sample duration. Any future hypothesis must either widen the target multiple, target higher volatility instruments (MCX commodities with lower percentage turnover costs), or trade higher timeframes (15m/1H swing).

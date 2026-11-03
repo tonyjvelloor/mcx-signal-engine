@@ -1,28 +1,39 @@
 /**
- * scripts/archive_candles.js — Daily Market Data Archiver & Corporate Actions Tracker
+ * scripts/archive_candles.js — Resilient Historical Candle Archiver & Corporate Actions Tracker
  * 
  * Purpose:
  * Accumulates real 5m exchange candles daily into SQLite (market_data.db) to build
  * a permanent, non-expiring multi-month historical dataset that Kite/Yahoo API lookback
  * limits prevent backfilling later.
  * 
- * Features:
- * - Upserts 5m candles with (symbol, interval, time) primary key.
- * - Captures adj_close from upstream quotes.
- * - Tracks corporate actions (splits, dividends) in `corporate_actions` table.
- * - Replaces any delisted/demerged tickers with liquid Nifty 50 large-caps.
- * - Reports date ranges, bar counts, and data gaps.
+ * Institutional Enhancements:
+ * 1. Startup Catch-Up: On every server/archiver launch, detects any missing sessions
+ *    from the last 60 days and automatically backfills them via idempotent INSERT OR REPLACE.
+ * 2. Exchange Holiday Awareness: Cross-references shared/nse_holidays.js; quietly skips
+ *    non-trading days without false alerts.
+ * 3. Freshness Alert: If the latest candle date in DB lags the last completed trading day,
+ *    emits prominent freshness alerts to prevent silent failure.
+ * 4. Pinned Timezone: Strictly pinned to Asia/Kolkata (UTC+5:30) to eliminate host drift.
+ * 5. Atomic Vacuum Backup: Automatically creates an atomic VACUUM INTO backup snapshot.
  * 
  * Usage:
  *   node scripts/archive_candles.js
  */
 
 const { DatabaseSync } = require('node:sqlite');
+const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { createBackup } = require('./backup_db');
+const {
+  getKolkataTime,
+  isNseTradingDay,
+  getHolidayReason,
+  getLastCompletedTradingDay
+} = require('../shared/nse_holidays');
 
 const DB_PATH = path.join(__dirname, '..', 'market_data.db');
+const STATUS_FILE = path.join(__dirname, '..', 'archive_status.json');
 
 const UNIVERSE = {
   'RELIANCE': 'RELIANCE.NS',
@@ -70,19 +81,20 @@ function initDb() {
   return db;
 }
 
-function fetchYahooChart(ticker, interval = '5m', range = '60d') {
+/**
+ * Fetch raw upstream data from local proxy
+ */
+function fetchProxy(url) {
   return new Promise((resolve, reject) => {
-    const url = `http://127.0.0.1:8000/api/yahoo?ticker=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}&events=div%7Csplit`;
     http.get(url, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
           if (res.statusCode !== 200) {
-            return reject(new Error(`Upstream status ${res.statusCode}: ${data.substring(0, 100)}`));
+            return reject(new Error(`Proxy status ${res.statusCode}: ${data.substring(0, 100)}`));
           }
-          const json = JSON.parse(data);
-          resolve(json);
+          resolve(JSON.parse(data));
         } catch (e) {
           reject(e);
         }
@@ -91,96 +103,91 @@ function fetchYahooChart(ticker, interval = '5m', range = '60d') {
   });
 }
 
-function fetchCorporateActions(ticker) {
-  return new Promise((resolve) => {
+/**
+ * Ingest corporate actions (splits, cash dividends) from 1-year daily history
+ */
+async function archiveCorporateActions(db, symbol, ticker) {
+  try {
     const url = `http://127.0.0.1:8000/api/yahoo?ticker=${encodeURIComponent(ticker)}&interval=1d&range=1y&events=div%7Csplit`;
-    http.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(json?.chart?.result?.[0]?.events || null);
-        } catch (_) {
-          resolve(null);
-        }
-      });
-    }).on('error', () => resolve(null));
-  });
+    const data = await fetchProxy(url);
+    const result = data?.chart?.result?.[0];
+    if (!result) return;
+
+    const events = result.events || {};
+    const splits = events.splits || {};
+    const dividends = events.dividends || {};
+
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO corporate_actions (symbol, action_type, date, ratio, details)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    // Ingest splits
+    for (const [timestamp, split] of Object.entries(splits)) {
+      const date = new Date(parseInt(timestamp, 10) * 1000 + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+      const ratio = split.numerator && split.denominator ? (split.numerator / split.denominator) : 1;
+      const details = `${split.numerator}:${split.denominator}`;
+      insertStmt.run(symbol, 'SPLIT', date, ratio, details);
+    }
+
+    // Ingest dividends
+    for (const [timestamp, div] of Object.entries(dividends)) {
+      const date = new Date(parseInt(timestamp, 10) * 1000 + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+      const amount = div.amount || 0;
+      insertStmt.run(symbol, 'DIVIDEND', date, amount, `Amount: ₹${amount}`);
+    }
+  } catch (err) {
+    // Non-fatal
+  }
 }
 
+/**
+ * Fetch and upsert 5-minute candles for a single symbol
+ */
 async function archiveSymbol(db, symbol, ticker, interval = '5m', range = '60d') {
-  console.log(`📡 Ingesting ${symbol} (${ticker}) [${interval}, ${range}]...`);
-  const data = await fetchYahooChart(ticker, interval, range);
-  const result = data?.chart?.result?.[0];
+  console.log(`📡 Ingesting ${symbol} (${ticker}) [interval=${interval}, range=${range}]...`);
 
-  if (!result) {
-    throw new Error(`No chart data returned for ${ticker}`);
-  }
+  // 1. Corporate Actions
+  await archiveCorporateActions(db, symbol, ticker);
+
+  // 2. 5-Minute Candles
+  const url = `http://127.0.0.1:8000/api/yahoo?ticker=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}`;
+  const data = await fetchProxy(url);
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error(`No chart data returned for ${ticker}`);
 
   const timestamps = result.timestamp || [];
   const quote = result.indicators?.quote?.[0] || {};
-  const adjclose = result.indicators?.adjclose?.[0]?.adjclose || [];
-
+  const adjQuote = result.indicators?.adjclose?.[0]?.adjclose || [];
   const opens = quote.open || [];
   const highs = quote.high || [];
   const lows = quote.low || [];
   const closes = quote.close || [];
-  const vols = quote.volume || [];
+  const volumes = quote.volume || [];
 
   const minLen = Math.min(timestamps.length, closes.length, highs.length, lows.length);
-  if (minLen === 0) {
-    throw new Error(`Empty candle array for ${ticker}`);
-  }
+  if (minLen === 0) throw new Error(`Empty candle array for ${ticker}`);
 
-  // 1. Fetch & Record Corporate Actions (from 1y daily events)
-  try {
-    const events = await fetchCorporateActions(ticker);
-    if (events) {
-      const actStmt = db.prepare(`
-        INSERT OR IGNORE INTO corporate_actions (symbol, action_type, date, ratio, details)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-
-      if (events.splits) {
-        for (const [epoch, s] of Object.entries(events.splits)) {
-          const d = new Date(parseInt(epoch, 10) * 1000).toISOString().split('T')[0];
-          actStmt.run(symbol, 'SPLIT', d, s.numerator / s.denominator, s.splitRatio || `${s.numerator}:${s.denominator}`);
-          console.log(`   📌 [SPLIT] ${symbol} on ${d}: ${s.splitRatio}`);
-        }
-      }
-      if (events.dividends) {
-        for (const [epoch, div] of Object.entries(events.dividends)) {
-          const d = new Date(parseInt(epoch, 10) * 1000).toISOString().split('T')[0];
-          actStmt.run(symbol, 'DIVIDEND', d, div.amount, `Amount: ₹${div.amount}`);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(`   ⚠️ Corporate actions fetch warning for ${symbol}:`, err.message);
-  }
-
-  // Insert or Replace Candles into DB
-  const candleStmt = db.prepare(`
+  const insertCandle = db.prepare(`
     INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume, adj_close)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  let validCount = 0;
   db.exec('BEGIN TRANSACTION');
+  let validCount = 0;
+
   for (let i = 0; i < minLen; i++) {
     const ts = timestamps[i] * 1000;
     const cl = closes[i];
     const hi = highs[i];
     const lo = lows[i];
     const op = opens[i] != null && isFinite(opens[i]) ? opens[i] : cl;
-    const vl = vols[i] != null && isFinite(vols[i]) ? vols[i] : 0;
-    const adj = adjclose[i] != null && isFinite(adjclose[i]) ? adjclose[i] : cl;
+    const vl = volumes[i] != null && isFinite(volumes[i]) ? volumes[i] : 0;
+    const adj = adjQuote[i] != null && isFinite(adjQuote[i]) ? adjQuote[i] : cl;
 
     if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
-      // Basic integrity check
       if (hi >= lo && hi >= Math.max(op, cl) * 0.999 && lo <= Math.min(op, cl) * 1.001) {
-        candleStmt.run(
+        insertCandle.run(
           symbol,
           interval,
           ts,
@@ -197,31 +204,116 @@ async function archiveSymbol(db, symbol, ticker, interval = '5m', range = '60d')
   }
   db.exec('COMMIT');
 
-  // Verify total stored in DB for this symbol
   const totalInDb = db.prepare(`SELECT COUNT(*) as count, MIN(time) as minTime, MAX(time) as maxTime FROM candles WHERE symbol = ? AND interval = ?`).get(symbol, interval);
-  const minDate = new Date(totalInDb.minTime).toISOString().split('T')[0];
-  const maxDate = new Date(totalInDb.maxTime).toISOString().split('T')[0];
+  const minDate = new Date(totalInDb.minTime + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+  const maxDate = new Date(totalInDb.maxTime + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
 
   console.log(`   ✓ ${symbol.padEnd(10)}: Stored ${validCount} candles. Total in DB: ${totalInDb.count} bars (${minDate} to ${maxDate})`);
   return { symbol, validCount, total: totalInDb.count, minDate, maxDate };
 }
 
-async function runArchiver() {
+/**
+ * Audit database data freshness and detect any missing trading sessions
+ */
+function checkDataFreshness(db) {
+  const lastCompletedDay = getLastCompletedTradingDay();
+  const maxTimeRow = db.prepare(`SELECT MAX(time) as maxTime, COUNT(*) as totalCandles FROM candles WHERE interval = '5m'`).get();
+  
+  if (!maxTimeRow || !maxTimeRow.maxTime) {
+    return {
+      status: 'stale',
+      message: 'Database is completely empty',
+      latestDate: null,
+      lastCompletedDay,
+      totalCandles: 0,
+      missingDays: [lastCompletedDay]
+    };
+  }
+
+  const latestDate = new Date(maxTimeRow.maxTime + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+  
+  // Find all expected trading days in the last 60 calendar days up to lastCompletedDay
+  const missingDays = [];
+  const refDate = new Date();
+  for (let d = 1; d <= 60; d++) {
+    const checkDate = new Date(refDate.getTime() - d * 24 * 3600 * 1000);
+    const checkKt = getKolkataTime(checkDate);
+    if (checkKt.dateStr > lastCompletedDay) continue;
+
+    if (isNseTradingDay(checkKt.dateStr)) {
+      // Check if DB has bars for this trading day across universe
+      const countRow = db.prepare(`
+        SELECT COUNT(DISTINCT symbol) as symCount 
+        FROM candles 
+        WHERE interval = '5m' 
+          AND date(time/1000, 'unixepoch', '+330 minutes') = ?
+      `).get(checkKt.dateStr);
+
+      if (!countRow || countRow.symCount < Object.keys(UNIVERSE).length) {
+        missingDays.push(checkKt.dateStr);
+      }
+    }
+  }
+
+  const isStale = latestDate < lastCompletedDay || missingDays.length > 0;
+  const status = isStale ? 'stale' : 'fresh';
+
+  const statusPayload = {
+    updatedAt: new Date().toISOString(),
+    status,
+    latestCandleDate: latestDate,
+    lastCompletedTradingDay: lastCompletedDay,
+    totalCandles5m: maxTimeRow.totalCandles,
+    universeCount: Object.keys(UNIVERSE).length,
+    missingSessions: missingDays.sort()
+  };
+
+  try {
+    fs.writeFileSync(STATUS_FILE, JSON.stringify(statusPayload, null, 2));
+  } catch (_) {}
+
+  return statusPayload;
+}
+
+/**
+ * Startup catch-up: Automatically verifies and fills any missing historical sessions
+ */
+async function catchUpMissingSessions(db) {
+  const freshness = checkDataFreshness(db);
+  console.log(`🔍 [STARTUP ARCHIVE CHECK] Status: ${freshness.status.toUpperCase()} | Latest: ${freshness.latestCandleDate} | Last Completed Session: ${freshness.lastCompletedTradingDay}`);
+
+  if (freshness.status === 'stale') {
+    console.warn(`⚠️ [STARTUP CATCH-UP] Detected missing or lagging market data (missing sessions: ${freshness.missingSessions.join(', ') || freshness.lastCompletedTradingDay}). Ingesting catch-up candles now...`);
+    await runArchiver(db);
+  } else {
+    console.log(`✅ [STARTUP ARCHIVE CHECK] Market archive is completely up-to-date through ${freshness.latestCandleDate}.`);
+  }
+}
+
+async function runArchiver(existingDb = null) {
+  const kt = getKolkataTime();
   console.log('================================================================================');
   console.log('       HISTORICAL CANDLE ARCHIVER & CORPORATE ACTIONS INGESTION');
   console.log('================================================================================');
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log(`Database:  ${DB_PATH}\n`);
+  console.log(`IST Time: ${kt.dateStr} ${String(kt.hour).padStart(2, '0')}:${String(kt.minute).padStart(2, '0')}:${String(kt.second).padStart(2, '0')} (${kt.weekday})`);
+  console.log(`Database: ${DB_PATH}\n`);
 
-  const db = initDb();
+  // Check if today is a valid trading day
+  const holiday = getHolidayReason(kt.dateStr);
+  if (holiday) {
+    console.log(`📅 [NSE EXCHANGE HOLIDAY] Market is closed today for ${holiday}. Archiver skipped cleanly.\n`);
+    return { skipped: true, reason: holiday };
+  }
+
+  const db = existingDb || initDb();
   const summary = [];
 
   for (const [symbol, ticker] of Object.entries(UNIVERSE)) {
     try {
       const res = await archiveSymbol(db, symbol, ticker, '5m', '60d');
       summary.push(res);
-      // Polite rate delay between symbols to avoid Yahoo 429
-      await new Promise(r => setTimeout(r, 1500));
+      // Polite rate delay between symbols
+      await new Promise(r => setTimeout(r, 1200));
     } catch (err) {
       console.error(`   ✗ Error archiving ${symbol}: ${err.message}`);
     }
@@ -236,8 +328,18 @@ async function runArchiver() {
   console.log(`Total 5-minute candles stored across all symbols: ${grandTotal.count}`);
   console.log('✅ Archive run complete.\n');
 
-  // Automatically take a rotating backup snapshot after every archive run
+  // Verify freshness and update archive_status.json
+  const freshness = checkDataFreshness(db);
+  if (freshness.status === 'stale') {
+    console.warn(`🚨 [FRESHNESS ALERT] Database remains behind! Latest: ${freshness.latestCandleDate}, Target: ${freshness.lastCompletedTradingDay}`);
+  } else {
+    console.log(`🟢 [FRESHNESS OK] Database verified fresh up to ${freshness.latestCandleDate}.`);
+  }
+
+  // Automatically take an atomic VACUUM backup snapshot
   createBackup();
+
+  return { success: true, grandTotal: grandTotal.count, freshness };
 }
 
 if (require.main === module) {
@@ -249,5 +351,7 @@ if (require.main === module) {
 
 module.exports = {
   runArchiver,
+  checkDataFreshness,
+  catchUpMissingSessions,
   UNIVERSE
 };

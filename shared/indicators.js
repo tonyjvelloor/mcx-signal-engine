@@ -230,6 +230,41 @@
     return patterns;
   }
 
+  function calcSessionVWAP(candles) {
+    if (!candles || !candles.length) return [];
+    const vwapSeries = [];
+    let cumPv = 0;
+    let cumVol = 0;
+    let cumTypical = 0;
+    let barCount = 0;
+    let currentDay = null;
+
+    for (let i = 0; i < candles.length; i++) {
+      const c = candles[i];
+      const ts = c.time || c.timestamp;
+      const day = new Date(ts + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+
+      if (day !== currentDay) {
+        currentDay = day;
+        cumPv = 0;
+        cumVol = 0;
+        cumTypical = 0;
+        barCount = 0;
+      }
+
+      const tp = (c.high + c.low + c.close) / 3;
+      const vol = c.volume && c.volume > 0 ? c.volume : 0;
+      cumPv += tp * vol;
+      cumVol += vol;
+      cumTypical += tp;
+      barCount++;
+
+      const vwap = cumVol > 0 ? (cumPv / cumVol) : (cumTypical / barCount);
+      vwapSeries.push(Math.round(vwap * 100) / 100);
+    }
+    return vwapSeries;
+  }
+
   function resampleBars(bars, count = 4) {
     if (!bars || bars.length < count) return bars || [];
     const resampled = [];
@@ -257,6 +292,7 @@
     calcSupertrend,
     calcMACD,
     detectCandlePatterns,
+    calcSessionVWAP,
     resampleBars
   };
 }));
