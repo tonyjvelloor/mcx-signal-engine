@@ -66,3 +66,15 @@ Benchmarks (all computed on identical calibration data):
 ### 6. Honest expectations (written before results)
 At 5-minute resolution prices are close to a random walk and the cost hurdle is about INR 10 per trade.
 The prior probability that H2 passes is low. A falsified H2 is a valid and useful result.
+
+---
+
+## Addendum 1 (2026-11-11, written before any H2 forecast or result exists)
+Clarifications of implementation detail only. No parameter, threshold or decision rule is changed.
+1. **Bar indexing:** "session bar N" is **zero-based** from the 09:15 IST bar (bar 0 = 09:15, bar 12 = 10:15, bar 66 = 14:45).
+2. **Warm-up:** a signal needs a full 512-close context. Signals before 512 prior bars exist are skipped (about the first 7 sessions).
+3. **Cost hurdle C (per share):** `fees(round-trip at sized qty, zero gross move) / qty + 2 x slippage + spread`, using the canonical `risk.js` fee model and simulator slippage/spread defaults.
+4. **Exit mechanics:** exits fill at the **open** of the exit bar with slippage (time exit = entry bar + 12; EOD square-off = first bar at or after 15:15 IST; session rollover never carries a position). A stop is checked on every bar before the time exit.
+5. **Stop sizing:** quantity comes from `risk.sizeTrade` (INR 50 loss cap incl. fees). H2 has no profit target, so the fee-adjusted R:R gate is not applied; trades the cap cannot size are skipped and counted as blocked.
+6. **Matched null:** per symbol-day, the same number of signal slots as the real strategy is drawn at random from that day's 10 slots, with random side and the same stop/hold rules. Overlapping holds are blocked exactly as for the real strategy.
+7. **Data source:** calibration candles come from `getHistoricalCandles`, which already enforces the 2026-11-02 freeze and excludes special sessions. The exported file is SHA-256 hashed in the run report.

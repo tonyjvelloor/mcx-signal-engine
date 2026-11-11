@@ -21,7 +21,9 @@ function simulateStrategy(candles, signalFn, config = {}) {
     slippageTicks = 1,
     tickSize = 0.05,
     spread = 0.10,
-    warmupBars = 60
+    warmupBars = 60,
+    eodSquareOffMinuteIST = null, // optional forced intraday square-off (e.g. 915 = 15:15 IST)
+    signalAtIndex = null          // optional fast path: (i, candles) => signal, avoids O(n^2) slicing
   } = config;
 
   if (!candles || candles.length <= warmupBars) {
@@ -47,16 +49,24 @@ function simulateStrategy(candles, signalFn, config = {}) {
         ? currentBar.open + slipAmount + spreadHalf
         : currentBar.open - slipAmount - spreadHalf;
 
-      // Size trade through canonical risk engine
+      // Size trade through canonical risk engine.
+      // Time-exit-only strategies (e.g. H2) have no profit target: a never-reachable
+      // sentinel target is used and the fee-adjusted R:R gate is disabled for them.
+      const timeExitOnly = pendingSignal.timeExitOnly === true;
+      const sentinelTarget = timeExitOnly && pendingSignal.sl
+        ? (isBuy
+            ? fillPrice + 1000 * Math.abs(fillPrice - pendingSignal.sl)
+            : Math.max(0.01, fillPrice - 0.999 * fillPrice))
+        : pendingSignal.target;
       const sizing = risk.sizeTrade({
         side: pendingSignal.action,
         entry: fillPrice,
         sl: pendingSignal.sl,
-        target: pendingSignal.target,
+        target: sentinelTarget,
         lotMultiplier,
         segment,
         maxLossTotal,
-        minNetRR,
+        minNetRR: timeExitOnly ? 0 : minNetRR,
         atr: pendingSignal.atr
       });
 
@@ -78,7 +88,9 @@ function simulateStrategy(candles, signalFn, config = {}) {
           plannedLoss: sizing.totalPlannedLoss,
           plannedNetReward: sizing.netProfitAtTarget,
           expectedNetRR: sizing.netRR,
-          atr: pendingSignal.atr
+          atr: pendingSignal.atr,
+          maxHoldBars: pendingSignal.maxHoldBars || null,
+          timeExitOnly
         };
       } else {
         blockedCount++;
@@ -92,8 +104,29 @@ function simulateStrategy(candles, signalFn, config = {}) {
       let exitReason = null;
       const isLong = openTrade.side === 'BUY';
 
-      const slHit = isLong ? (currentBar.low <= openTrade.stopLoss) : (currentBar.high >= openTrade.stopLoss);
-      const tpHit = isLong ? (currentBar.high >= openTrade.target) : (currentBar.low <= openTrade.target);
+      // 2a. Time-based exits (fill at this bar's OPEN, with slippage; no lookahead).
+      //     - maxHoldBars: signal-specified holding period
+      //     - eodSquareOffMinuteIST: forced intraday square-off (minutes since 00:00 IST)
+      //     - session rollover: never carry a position across trading days
+      if (i > openTrade.entryBarIndex) {
+        const istMs = currentBar.time + 5.5 * 3600 * 1000;
+        const barDay = new Date(istMs).toISOString().slice(0, 10);
+        const entryDay = new Date(openTrade.entryTime + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+        const minuteOfDay = new Date(istMs).getUTCHours() * 60 + new Date(istMs).getUTCMinutes();
+        let timeReason = null;
+        if (barDay !== entryDay) timeReason = 'SESSION_ROLLOVER_EXIT';
+        else if (eodSquareOffMinuteIST != null && minuteOfDay >= eodSquareOffMinuteIST) timeReason = 'EOD_SQUARE_OFF';
+        else if (openTrade.maxHoldBars && (i - openTrade.entryBarIndex) >= openTrade.maxHoldBars) timeReason = 'TIME_EXIT';
+        if (timeReason) {
+          exitPrice = isLong
+            ? currentBar.open - (slippageTicks * tickSize)
+            : currentBar.open + (slippageTicks * tickSize);
+          exitReason = timeReason;
+        }
+      }
+
+      const slHit = exitPrice === null && (isLong ? (currentBar.low <= openTrade.stopLoss) : (currentBar.high >= openTrade.stopLoss));
+      const tpHit = exitPrice === null && !openTrade.timeExitOnly && (isLong ? (currentBar.high >= openTrade.target) : (currentBar.low <= openTrade.target));
 
       // Conservative Ambiguity Resolution: If both hit in the same bar, assume Stop Loss hit first
       if (slHit && tpHit) {
@@ -151,8 +184,9 @@ function simulateStrategy(candles, signalFn, config = {}) {
 
     // 3. Generate Signals for next bar (strictly using candles slice <= i)
     if (!openTrade && !pendingSignal) {
-      const historySlice = candles.slice(0, i + 1);
-      const sig = signalFn(historySlice);
+      const sig = signalAtIndex
+        ? signalAtIndex(i, candles)
+        : signalFn(candles.slice(0, i + 1));
       if (sig && (sig.action === 'BUY' || sig.action === 'SELL')) {
         pendingSignal = sig;
       }
