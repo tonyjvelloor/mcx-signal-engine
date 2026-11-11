@@ -32,6 +32,18 @@ const HYPOTHESIS_REGISTRY = {
     holdoutStatus: 'LOCKED_AND_PRESERVED_UNTOUCHED',
     eligibleForHoldoutEvaluation: false,
     refusalReason: 'Hypothesis H1 was definitively FALSIFIED on retrospective calibration under Addendum 1 stopping rule (95% CI upper bound was -₹1.94, strictly <= ₹0.00). Unlocking holdout data on a dead hypothesis violates pre-registration and wastes unspent forward data.'
+  },
+  'H2': {
+    id: 'H2',
+    name: 'TimesFM 2.5 Zero-Shot Quantile Forecast Filter on NSE 5-Minute Bars',
+    status: 'PREREGISTERED_AWAITING_CALIBRATION',
+    preRegTag: 'h2-prereg-v1',
+    preRegDoc: 'docs/hypothesis_2_preregistration.md',
+    stoppingRule: 'Calibration Day-Block Bootstrap 95% CI upper bound <= ₹0.00, OR < 30 trades, OR gross expectancy < average fee per trade',
+    calibrationCutoff: '2026-11-02',
+    holdoutStatus: 'LOCKED_AND_PRESERVED_UNTOUCHED',
+    eligibleForHoldoutEvaluation: false,
+    refusalReason: 'Hypothesis H2 has not yet advanced from calibration. Holdout opens only after calibration CI lower bound > 0 and p < 0.01 versus the matched null, plus the dual floor (N >= 150 trades AND S >= 60 sessions).'
   }
 };
 
