@@ -1,0 +1,75 @@
+{
+  "hypothesis": "H2",
+  "evaluatedAt": "2026-11-11T18:14:26.760Z",
+  "inputs": {
+    "candlesSha256": "3a94234c01968bdbfde2ff003415790dda572d748b8a42fcf411e24dde434314",
+    "forecastMeta": {
+      "model": "google/timesfm-2.5-200m-pytorch",
+      "torch": "2.15.0",
+      "context": 512,
+      "horizon": 12,
+      "slots": [
+        12,
+        66,
+        6
+      ],
+      "input_sha256": "3a94234c01968bdbfde2ff003415790dda572d748b8a42fcf411e24dde434314",
+      "total_forecasts": 6360,
+      "created": "2026-11-11T22:41:07.297385+05:30"
+    }
+  },
+  "signals": {
+    "forecasts": 6360,
+    "signals": 1,
+    "unsizable": 133
+  },
+  "trades": 1,
+  "sessions": 1,
+  "winRate": 0,
+  "grossExpectancyPerTrade": -33.15,
+  "avgFeePerTrade": 16.57,
+  "netExpectancy": -49.72,
+  "ci95": [
+    -49.72,
+    -49.72
+  ],
+  "profitFactor": 0,
+  "nullMeanExpectancy": -28.12,
+  "pValueMean": 0.905,
+  "seedResults": [
+    {
+      "seed": 42,
+      "pValue": 0.9154228855721394
+    },
+    {
+      "seed": 101,
+      "pValue": 0.9253731343283582
+    },
+    {
+      "seed": 777,
+      "pValue": 0.8855721393034826
+    },
+    {
+      "seed": 1337,
+      "pValue": 0.8905472636815921
+    },
+    {
+      "seed": 2026,
+      "pValue": 0.9104477611940298
+    }
+  ],
+  "directional": {
+    "allForecasts": {
+      "n": 5442,
+      "accuracy": 0.507,
+      "binomP": 0.3029
+    },
+    "signalledOnly": {
+      "n": 0,
+      "accuracy": null,
+      "binomP": 1
+    }
+  },
+  "verdict": "CLOSED_UNTESTABLE",
+  "reason": "only 1 trades (< 30)"
+}

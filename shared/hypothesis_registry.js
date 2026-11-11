@@ -36,14 +36,29 @@ const HYPOTHESIS_REGISTRY = {
   'H2': {
     id: 'H2',
     name: 'TimesFM 2.5 Zero-Shot Quantile Forecast Filter on NSE 5-Minute Bars',
-    status: 'PREREGISTERED_AWAITING_CALIBRATION',
+    status: 'CLOSED_UNTESTABLE',
     preRegTag: 'h2-prereg-v1',
     preRegDoc: 'docs/hypothesis_2_preregistration.md',
+    closureCommit: 'pending',
     stoppingRule: 'Calibration Day-Block Bootstrap 95% CI upper bound <= ₹0.00, OR < 30 trades, OR gross expectancy < average fee per trade',
     calibrationCutoff: '2026-11-02',
+    calibrationResult: {
+      samplePeriod: '2026-08-06 to 2026-11-02',
+      totalForecasts: 6360,
+      directionalAccuracy: 0.507,
+      directionalPValue: 0.3029,
+      totalTrades: 1,
+      sessions: 1,
+      grossExpectancy: -33.15,
+      averageFeePerTrade: 16.57,
+      netExpectancy: -49.72,
+      ci95Low: -49.72,
+      ci95High: -49.72,
+      verdictReason: 'Only 1 trade generated (< 30 trade minimum viability threshold). Forecast bounds reflect intrinsic high 5m variance and do not clear fee hurdles.'
+    },
     holdoutStatus: 'LOCKED_AND_PRESERVED_UNTOUCHED',
     eligibleForHoldoutEvaluation: false,
-    refusalReason: 'Hypothesis H2 has not yet advanced from calibration. Holdout opens only after calibration CI lower bound > 0 and p < 0.01 versus the matched null, plus the dual floor (N >= 150 trades AND S >= 60 sessions).'
+    refusalReason: 'Hypothesis H2 was declared CLOSED_UNTESTABLE on calibration (only 1 trade generated, directional accuracy 50.7% p=0.30). Unlocking holdout data on an untestable/failed model is prohibited.'
   }
 };
 

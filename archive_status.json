@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-11-03T04:48:56.285Z",
+  "updatedAt": "2026-11-11T16:50:49.115Z",
   "status": "fresh",
-  "latestCandleDate": "2026-11-02",
-  "lastCompletedTradingDay": "2026-11-02",
-  "totalCandles5m": 52575,
+  "latestCandleDate": "2026-11-11",
+  "lastCompletedTradingDay": "2026-11-11",
+  "totalCandles5m": 57898,
   "universeCount": 12,
   "missingSessions": []
 }

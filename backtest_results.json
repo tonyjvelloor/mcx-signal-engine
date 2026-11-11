@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-03T04:36:53.984Z",
+  "updatedAt": "2026-11-11T18:15:18.015Z",
   "samplePeriod": "2026-08-07 to 2026-11-02",
   "universeCount": 12,
   "universe": [
@@ -31,67 +31,67 @@
     "seedResults": [
       {
         "seed": 42,
-        "pValue": 0.96,
-        "hurdle": 10.15
+        "pValue": 0.915,
+        "hurdle": 11.11
       },
       {
         "seed": 101,
-        "pValue": 0.98,
-        "hurdle": 10.11
+        "pValue": 0.915,
+        "hurdle": 11.09
       },
       {
         "seed": 777,
-        "pValue": 0.955,
-        "hurdle": 10.23
+        "pValue": 0.91,
+        "hurdle": 11.11
       },
       {
         "seed": 1337,
-        "pValue": 0.97,
-        "hurdle": 9.76
+        "pValue": 0.95,
+        "hurdle": 11.33
       },
       {
         "seed": 2026,
-        "pValue": 0.97,
-        "hurdle": 10.44
+        "pValue": 0.915,
+        "hurdle": 11.43
       }
     ],
-    "pValueMean": 0.967,
-    "pValueMin": 0.955,
-    "pValueMax": 0.98,
-    "hurdleMean": 10.135680000000013,
-    "hurdleMin": 9.76,
-    "hurdleMax": 10.44
+    "pValueMean": 0.921,
+    "pValueMin": 0.91,
+    "pValueMax": 0.95,
+    "hurdleMean": 11.214639999999992,
+    "hurdleMin": 11.09,
+    "hurdleMax": 11.43
   },
   "pro": {
     "strategyName": "Pro Multi-Factor (Supertrend 10/3 + Wilder ADX > 20 + Stoch)",
-    "totalTrades": 322,
-    "winRate": 25.2,
-    "netPnl": -5269.71,
-    "expectancy": -16.37,
-    "expectancyR": -0.35,
-    "profitFactor": 0.77,
-    "ci95Low": -23.19,
-    "ci95High": -8.8,
-    "feeDragPct": 48.6,
-    "monteCarloPValue": 0.967,
-    "empiricalCostHurdle": 10.135680000000013,
-    "evaluatedAt": "2026-11-03T04:36:53.984Z"
+    "totalTrades": 326,
+    "winRate": 28.5,
+    "netPnl": -5388.32,
+    "expectancy": -16.53,
+    "expectancyR": -0.36,
+    "profitFactor": 0.76,
+    "ci95Low": -24.26,
+    "ci95High": -7.85,
+    "feeDragPct": 49.2,
+    "monteCarloPValue": 0.921,
+    "empiricalCostHurdle": 11.214639999999992,
+    "evaluatedAt": "2026-11-11T18:15:18.015Z"
   },
   "beginner": {
     "strategyName": "Beginner Trend & Momentum (EMA 20/50 + RSI 14)",
-    "totalTrades": 435,
-    "winRate": 25.3,
-    "expectancy": -15.91,
-    "ci95Low": -20.99,
-    "ci95High": -10.63
+    "totalTrades": 444,
+    "winRate": 27.7,
+    "expectancy": -16.41,
+    "ci95Low": -20.67,
+    "ci95High": -11.51
   },
   "baseline": {
     "strategyName": "Benchmark Control (EMA 9/21 Crossover)",
-    "totalTrades": 142,
-    "winRate": 33.8,
-    "expectancy": -5.77,
-    "ci95Low": -15.11,
-    "ci95High": 4.14
+    "totalTrades": 145,
+    "winRate": 34.5,
+    "expectancy": -12.14,
+    "ci95Low": -22.49,
+    "ci95High": 0.18
   },
   "hypothesis1_calibration": {
     "strategyName": "Hypothesis 1 (1H 50-EMA Trend + Session VWAP Pullback + Rejection)",
