@@ -1,0 +1,20 @@
+{
+  "hypothesis": "H3",
+  "evaluatedAt": "2026-11-11T18:24:18.119Z",
+  "trades": 25,
+  "winRate": 28,
+  "netPnl": -783.6,
+  "grossProfit": 1281.63,
+  "grossLoss": 1477.9,
+  "totalFees": 587.33,
+  "feeDragPct": 45.8,
+  "grossExpectancyPerTrade": -7.85,
+  "avgFeePerTrade": 23.49,
+  "netExpectancy": -31.34,
+  "ci95Low": -85.4,
+  "ci95High": 21.45,
+  "profitFactor": 0.87,
+  "pValueMean": 0.637,
+  "verdict": "CLOSED_UNTESTABLE",
+  "reason": "Trade count 25 < 30 minimum floor."
+}

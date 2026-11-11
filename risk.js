@@ -49,7 +49,17 @@
     let stampDuty = 0;
     const sebiCharges = totalTurnover * 0.000001; // ₹10 per crore
 
-    if (segment === 'equity') {
+    let dpCharge = 0;
+
+    if (segment === 'equity_delivery' || segment === 'equity_swing') {
+      // Equity Delivery / Multi-Day Swing (holding overnight)
+      buyBrokerage = 0; // Zerodha delivery brokerage is ₹0
+      sellBrokerage = 0;
+      stt = (buyVal * 0.001) + (sellVal * 0.001); // 0.1% on buy & 0.1% on sell
+      exchangeTxn = totalTurnover * 0.0000297; // 0.00297%
+      stampDuty = buyVal * 0.00015; // 0.015% on buy
+      dpCharge = 15.93; // Flat DP charge (₹13.50 + 18% GST) on debit/sell
+    } else if (segment === 'equity') {
       buyBrokerage = Math.min(20, buyVal * 0.0003);
       sellBrokerage = Math.min(20, sellVal * 0.0003);
       stt = sellVal * 0.00025; // 0.025% on sell
@@ -66,7 +76,7 @@
 
     const totalBrokerage = buyBrokerage + sellBrokerage;
     const gst = (totalBrokerage + exchangeTxn + sebiCharges) * 0.18;
-    const totalFees = totalBrokerage + stt + exchangeTxn + sebiCharges + gst + stampDuty;
+    const totalFees = totalBrokerage + stt + exchangeTxn + sebiCharges + gst + stampDuty + dpCharge;
 
     return {
       brokerage: Math.round(totalBrokerage * 100) / 100,
