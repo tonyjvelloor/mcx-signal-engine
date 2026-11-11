@@ -59,6 +59,18 @@ const HYPOTHESIS_REGISTRY = {
     holdoutStatus: 'LOCKED_AND_PRESERVED_UNTOUCHED',
     eligibleForHoldoutEvaluation: false,
     refusalReason: 'Hypothesis H2 was declared CLOSED_UNTESTABLE on calibration (only 1 trade generated, directional accuracy 50.7% p=0.30). Unlocking holdout data on an untestable/failed model is prohibited.'
+  },
+  'H3': {
+    id: 'H3',
+    name: 'Multi-Day Trend & Volatility Breakout on NSE Large-Caps (Daily Swing)',
+    status: 'PREREGISTERED_AWAITING_CALIBRATION',
+    preRegTag: 'h3-prereg-v1',
+    preRegDoc: 'docs/hypothesis_3_preregistration.md',
+    stoppingRule: 'Calibration Day-Block Bootstrap 95% CI upper bound <= ₹0.00, OR < 30 trades, OR failure to beat matched null (p >= 0.01)',
+    calibrationCutoff: '2026-11-02',
+    holdoutStatus: 'LOCKED_AND_PRESERVED_UNTOUCHED',
+    eligibleForHoldoutEvaluation: false,
+    refusalReason: 'Hypothesis H3 has not yet advanced from calibration. Holdout opens only after calibration CI lower bound > 0 and p < 0.01 versus the matched null, plus the dual floor (N >= 150 trades AND S >= 60 sessions).'
   }
 };
 
