@@ -37,7 +37,28 @@
    *     GST: 18% on (Brokerage + Exchange Txn + SEBI)
    *     Stamp Duty: 0.002% on buy turnover
    */
-  function calculateZerodhaFees({ segment = 'equity', buyPrice, sellPrice, qty = 1, lotMultiplier = 1 }) {
+  function calculateZerodhaFees(params = {}) {
+    const segment = params.segment || 'equity';
+    const qty = Number(params.qty || params.quantity || 1);
+    const lotMultiplier = Number(params.lotMultiplier || 1);
+
+    let buyPrice = Number(params.buyPrice);
+    let sellPrice = Number(params.sellPrice);
+
+    // Dynamic aliasing for entry/exit & side callers
+    if (!buyPrice || !sellPrice || isNaN(buyPrice) || isNaN(sellPrice)) {
+      const side = (params.side || 'BUY').toUpperCase();
+      const entry = Number(params.entry || params.price || 0);
+      const exit = Number(params.exit || params.triggerPrice || params.sl || entry || 0);
+      if (side === 'BUY') {
+        buyPrice = entry;
+        sellPrice = exit;
+      } else {
+        buyPrice = exit;
+        sellPrice = entry;
+      }
+    }
+
     const buyVal = buyPrice * qty * lotMultiplier;
     const sellVal = sellPrice * qty * lotMultiplier;
     const totalTurnover = buyVal + sellVal;
@@ -78,13 +99,15 @@
     const gst = (totalBrokerage + exchangeTxn + sebiCharges) * 0.18;
     const totalFees = totalBrokerage + stt + exchangeTxn + sebiCharges + gst + stampDuty + dpCharge;
 
+    const roundedTotal = Math.round(totalFees * 100) / 100;
     return {
       brokerage: Math.round(totalBrokerage * 100) / 100,
       stt: Math.round(stt * 100) / 100,
       exchangeTxn: Math.round(exchangeTxn * 100) / 100,
       gst: Math.round(gst * 100) / 100,
       stampDuty: Math.round(stampDuty * 100) / 100,
-      totalFees: Math.round(totalFees * 100) / 100
+      totalFees: roundedTotal,
+      total: roundedTotal
     };
   }
 
@@ -235,8 +258,34 @@
     };
   }
 
+  // MCX Commodity Specifications & Sizing Multipliers
+  const MCX_SPECS = {
+    'GOLDPETAL': { name: 'Gold Petal', multiplier: 1, unit: '₹/g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'GOLDM':     { name: 'Gold Mini', multiplier: 10, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'GOLD':      { name: 'Gold Mega', multiplier: 100, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'SILVERMIC': { name: 'Silver Micro', multiplier: 1, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'SILVERM':   { name: 'Silver Mini', multiplier: 5, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'SILVER':    { name: 'Silver Mega', multiplier: 30, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'CRUDEOILM': { name: 'Crude Oil Mini', multiplier: 10, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'CRUDEOIL':  { name: 'Crude Oil Mega', multiplier: 100, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'NATGASM':   { name: 'Natural Gas Mini', multiplier: 250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'NATGAS':    { name: 'Natural Gas Mega', multiplier: 1250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
+    'COPPER':    { name: 'Copper', multiplier: 2500, unit: '₹/kg', tickSize: 0.05, exchange: 'MCX', segment: 'commodity', baseLot: 1 }
+  };
+
+  function getContractSpec(symbol) {
+    if (!symbol) return { name: 'Default Equity', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1 };
+    const clean = symbol.toUpperCase().replace('.NS', '').replace('.BO', '');
+    for (const [key, spec] of Object.entries(MCX_SPECS)) {
+      if (clean === key || clean.startsWith(key)) return spec;
+    }
+    return { name: clean, multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1 };
+  }
+
   return {
     calculateZerodhaFees,
-    sizeTrade
+    sizeTrade,
+    getContractSpec,
+    MCX_SPECS
   };
 }));

@@ -1403,9 +1403,14 @@ const server = http.createServer(async (req, res) => {
           }
 
           const symbol = String(order.tradingsymbol || order.symbol || '').toUpperCase();
-          const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
+          const spec = riskEngine.getContractSpec(symbol);
+          const isComm = spec.segment === 'commodity' || ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
           const segment = isComm ? 'commodity' : 'equity';
-          const lotMult = Number(order.lotMultiplier) || (symbol.includes('GOLD') ? 10 : (symbol.includes('CRUDE') ? 10 : 1));
+          const lotMult = Number(order.lotMultiplier) || spec.multiplier;
+
+          // Adaptive Risk Cap: ₹50 for equity micro-orders; ₹200 for MCX Commodity Minis (or user-specified order.maxLossTotal)
+          const defaultMaxLoss = isComm ? 200.0 : 50.0;
+          const maxLossBudget = Number(order.maxLossTotal) > 0 ? Number(order.maxLossTotal) : defaultMaxLoss;
 
           const sized = riskEngine.sizeTrade({
             side: txType,
@@ -1414,7 +1419,7 @@ const server = http.createServer(async (req, res) => {
             target: Number(order.target) || (txType === 'BUY' ? price + (Math.abs(price - stopLoss) * 2) : price - (Math.abs(price - stopLoss) * 2)),
             lotMultiplier: lotMult,
             segment,
-            maxLossTotal: 50.0,
+            maxLossTotal: maxLossBudget,
             minNetRR: 1.2
           });
 
@@ -1424,10 +1429,10 @@ const server = http.createServer(async (req, res) => {
           }
 
           const plannedLoss = (Math.abs(price - stopLoss) * lotMult * qty) + sized.stopFees;
-          if (plannedLoss > 50.0) {
+          if (plannedLoss > maxLossBudget) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
-              error: `RISK_VIOLATION: Estimated trade loss (₹${plannedLoss.toFixed(2)} with charges) exceeds ₹50 budget limit.`
+              error: `RISK_VIOLATION: Estimated trade loss (₹${plannedLoss.toFixed(2)} with charges) exceeds ₹${maxLossBudget} budget limit.`
             }));
           }
 

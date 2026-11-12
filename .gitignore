@@ -9,3 +9,4 @@ backups/
 ._*
 .venv-timesfm/
 h2/data/
+vercel-proxy/
