@@ -18,6 +18,9 @@ const path = require('path');
 const kite = require('./kite');
 const riskEngine = require('./risk');
 const ticker = require('./kite-ticker');
+const contractResolver = require('./shared/contract_resolver');
+const macroEvents = require('./shared/macro_events');
+const circuitBreaker = require('./shared/circuit_breaker');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -36,7 +39,11 @@ const ALLOWED_STATIC_FILES = {
   '/terminal.html': 'index.html',
   '/index.html': 'index.html',
   '/risk.js': 'risk.js',
-  '/shared/indicators.js': 'shared/indicators.js'
+  '/shared/indicators.js': 'shared/indicators.js',
+  '/shared/contract_resolver.js': 'shared/contract_resolver.js',
+  '/shared/macro_events.js': 'shared/macro_events.js',
+  '/shared/circuit_breaker.js': 'shared/circuit_breaker.js',
+  '/shared/audio_alerts.js': 'shared/audio_alerts.js'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
@@ -1408,6 +1415,29 @@ const server = http.createServer(async (req, res) => {
           const segment = isComm ? 'commodity' : 'equity';
           const lotMult = Number(order.lotMultiplier) || spec.multiplier;
 
+          // 1. Check Macroeconomic Event Blackout
+          const blackout = macroEvents.checkMacroBlackout(symbol);
+          if (blackout.isBlackout && !order.overrideBlackout) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: blackout.warningText }));
+          }
+
+          // 2. Check Daily Circuit Breaker
+          try {
+            const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            if (circuit.tripped && !order.overrideCircuitBreaker) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: circuit.message }));
+            }
+          } catch (_) {}
+
+          // 3. Resolve Exact Exchange Contract Expiry Symbol
+          const resolved = contractResolver.resolveContractExpiry(symbol);
+          order.tradingsymbol = resolved.tradingsymbol || symbol;
+          order.symbol = order.tradingsymbol;
+          order.exchange = order.exchange || resolved.exchange || (isComm ? 'MCX' : 'NSE');
+
           // Adaptive Risk Cap: ₹50 for equity micro-orders; ₹200 for MCX Commodity Minis (or user-specified order.maxLossTotal)
           const defaultMaxLoss = isComm ? 200.0 : 50.0;
           const maxLossBudget = Number(order.maxLossTotal) > 0 ? Number(order.maxLossTotal) : defaultMaxLoss;
@@ -1446,6 +1476,76 @@ const server = http.createServer(async (req, res) => {
         }
       });
       return;
+    }
+
+    // 7c. Kite Broker GTT OCO Placement API
+    if (req.method === 'POST' && pathname === '/api/kite/gtt') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const trigger = JSON.parse(body || '{}');
+          const symbol = String(trigger.symbol || trigger.tradingsymbol || '').toUpperCase();
+          if (!symbol || !trigger.stoploss || !trigger.target) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Missing required GTT parameters (symbol, stoploss, target).' }));
+          }
+
+          // 1. Check Macroeconomic Event Blackout
+          const blackout = macroEvents.checkMacroBlackout(symbol);
+          if (blackout.isBlackout && !trigger.overrideBlackout) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: blackout.warningText }));
+          }
+
+          // 2. Check Daily Circuit Breaker
+          try {
+            const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            if (circuit.tripped && !trigger.overrideCircuitBreaker) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: circuit.message }));
+            }
+          } catch (_) {}
+
+          // 3. Resolve Exact Exchange Contract Expiry Symbol
+          const resolved = contractResolver.resolveContractExpiry(symbol);
+          trigger.tradingsymbol = resolved.tradingsymbol || symbol;
+          trigger.symbol = trigger.tradingsymbol;
+          trigger.exchange = trigger.exchange || resolved.exchange || 'MCX';
+
+          const isLiveAllowed = process.env.ENABLE_LIVE_ORDERS === 'true';
+          const result = await kite.placeGTT(trigger, isLiveAllowed);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (gttErr) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: gttErr.message }));
+        }
+      });
+      return;
+    }
+
+    // 8a. Macroeconomic Events & Blackout Status API
+    if (req.method === 'GET' && pathname === '/api/macro-events') {
+      const symbol = query.symbol || 'all';
+      const blackout = macroEvents.checkMacroBlackout(symbol);
+      const upcoming = macroEvents.getUpcomingEvents();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ blackout, upcoming }));
+    }
+
+    // 8b. Daily Circuit Breaker Status API
+    if (req.method === 'GET' && pathname === '/api/circuit-breaker') {
+      try {
+        const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+        const status = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(status));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ tripped: false, dailyNetPnl: 0, consecutiveLosses: 0, message: 'Circuit breaker active' }));
+      }
     }
 
     // 9. Static File Serving (STRICT ALLOWLIST)

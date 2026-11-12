@@ -259,7 +259,7 @@ async function getLiveQuotes(instruments) {
 }
 
 async function placeOrder(order, isLiveAllowed = false) {
-  const sym = String(order.symbol || order.tradingsymbol || '').toUpperCase();
+  const sym = String(order.tradingsymbol || order.symbol || '').toUpperCase();
   const isCommodity = ['GOLD', 'SILVER', 'CRUDE', 'NATGAS', 'COPPER', 'ZINC', 'ALUM', 'COTTON'].some(c => sym.includes(c));
 
   // Intelligent Exchange & Product routing:
@@ -302,6 +302,69 @@ async function placeOrder(order, isLiveAllowed = false) {
   return kiteRequest(`/orders/${order.variety || 'regular'}`, 'POST', params.toString(), session.access_token);
 }
 
+async function placeGTT(trigger, isLiveAllowed = false) {
+  const sym = String(trigger.tradingsymbol || trigger.symbol || '').toUpperCase();
+  const isCommodity = ['GOLD', 'SILVER', 'CRUDE', 'NATGAS', 'COPPER', 'ZINC', 'ALUM', 'COTTON'].some(c => sym.includes(c));
+  const defaultExchange = isCommodity ? 'MCX' : 'NSE';
+  const defaultProduct = isCommodity ? 'NRML' : 'CNC';
+
+  if (!isLiveAllowed) {
+    return {
+      status: 'success',
+      simulated: true,
+      trigger_id: `GTT-SIM-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type: trigger.type || 'two-leg',
+      exchange: trigger.exchange || defaultExchange,
+      tradingsymbol: sym,
+      stoploss: Number(trigger.stoploss || 0),
+      target: Number(trigger.target || 0),
+      quantity: Number(trigger.quantity || 1),
+      product: trigger.product || defaultProduct,
+      message: 'Paper GTT OCO order simulated successfully. Active on virtual exchange server.'
+    };
+  }
+
+  const session = loadSession();
+  if (!session) throw new Error('No active Kite session. Please authenticate first.');
+
+  const transactionType = (trigger.transaction_type || trigger.side || 'SELL').toUpperCase();
+  const qty = Number(trigger.quantity || 1);
+  const prod = trigger.product || defaultProduct;
+  const ex = trigger.exchange || defaultExchange;
+
+  const condition = {
+    exchange: ex,
+    tradingsymbol: sym,
+    trigger_values: [Number(trigger.stoploss), Number(trigger.target)],
+    last_price: Number(trigger.last_price || trigger.entry || trigger.stoploss)
+  };
+
+  const orders = [
+    {
+      transaction_type: transactionType,
+      quantity: qty,
+      product: prod,
+      order_type: 'LIMIT',
+      price: Number(trigger.stoploss)
+    },
+    {
+      transaction_type: transactionType,
+      quantity: qty,
+      product: prod,
+      order_type: 'LIMIT',
+      price: Number(trigger.target)
+    }
+  ];
+
+  const params = new URLSearchParams({
+    type: 'two-leg',
+    condition: JSON.stringify(condition),
+    orders: JSON.stringify(orders)
+  });
+
+  return kiteRequest('/gtt/triggers', 'POST', params.toString(), session.access_token);
+}
+
 module.exports = {
   loadConfig,
   loadSession,
@@ -311,5 +374,6 @@ module.exports = {
   getMargins,
   getLiveQuotes,
   placeOrder,
+  placeGTT,
   isSessionValid
 };
