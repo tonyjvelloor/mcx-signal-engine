@@ -21,6 +21,9 @@ const ticker = require('./kite-ticker');
 const contractResolver = require('./shared/contract_resolver');
 const macroEvents = require('./shared/macro_events');
 const circuitBreaker = require('./shared/circuit_breaker');
+const geopoliticalHistory = require('./shared/geopolitical_history');
+const geopoliticalAnalogs = require('./shared/geopolitical_analogs');
+const patternEngine = require('./shared/pattern_engine');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -43,7 +46,9 @@ const ALLOWED_STATIC_FILES = {
   '/shared/contract_resolver.js': 'shared/contract_resolver.js',
   '/shared/macro_events.js': 'shared/macro_events.js',
   '/shared/circuit_breaker.js': 'shared/circuit_breaker.js',
-  '/shared/audio_alerts.js': 'shared/audio_alerts.js'
+  '/shared/audio_alerts.js': 'shared/audio_alerts.js',
+  '/shared/geopolitical_history.js': 'shared/geopolitical_history.js',
+  '/shared/pattern_engine.js': 'shared/pattern_engine.js'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
@@ -1546,6 +1551,56 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ tripped: false, dailyNetPnl: 0, consecutiveLosses: 0, message: 'Circuit breaker active' }));
       }
+    }
+
+    // 8c. Live Web Geopolitical & Historical Analog Intelligence API
+    if (req.method === 'GET' && pathname === '/api/geopolitical/live') {
+      try {
+        const force = query.force === '1' || query.force === 'true';
+        const intel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(force);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(intel));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
+    }
+
+    // 8d. Historical Geopolitical & Trade Shock Encyclopedia API
+    if (req.method === 'GET' && pathname === '/api/geopolitical/history') {
+      const q = String(query.q || '').trim();
+      const events = geopoliticalHistory.getAllEvents();
+      const dependencyGraph = geopoliticalHistory.getDependencyGraph();
+      const analogMatch = q ? geopoliticalHistory.matchHistoricalAnalog(q) : null;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ events, dependencyGraph, analogMatch }));
+    }
+
+    // 8e. Institutional SMC Pattern Recognition Scanner API
+    if (req.method === 'POST' && pathname === '/api/patterns/scan') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body || '{}');
+          let candles = payload.candles;
+
+          // If no candles passed, optionally load latest candles for symbol from SQLite
+          if ((!Array.isArray(candles) || candles.length === 0) && payload.symbol && db) {
+            const sym = String(payload.symbol).toUpperCase().replace('.NS', '');
+            const rows = db.prepare(`SELECT open, high, low, close, volume, time FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 120`).all(sym);
+            candles = rows.reverse();
+          }
+
+          const scan = patternEngine.scanPatterns(candles || payload);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify(scan));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
     }
 
     // 9. Static File Serving (STRICT ALLOWLIST)
