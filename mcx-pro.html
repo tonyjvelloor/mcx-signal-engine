@@ -737,8 +737,11 @@ function computeIndicators(c){
   const t1=direction==='BUY'?price+atr*c.t1_atr:price-atr*c.t1_atr;
   const t2=direction==='BUY'?price+atr*c.t2_atr:price-atr*c.t2_atr;
   const rr=c.t1_atr/c.sl_atr;
+  const smc = (window.PatternEngine && window.PatternEngine.scanPatterns)
+    ? window.PatternEngine.scanPatterns({ closes: cls, highs: his, lows: los, volumes: vls })
+    : null;
   return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,vwap,ich,mfi,e9,e21,e50,e200,
-    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,
+    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,
     prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
     _vols:vls};
 }
@@ -800,10 +803,18 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
   newsVerdict = newsVerdict || 'NEUTRAL'; // guard null/undefined
   const newsWeight = (newsScore >= 70 || newsScore <= 30) ? 0.35 : 0.20;
   const techWeight = 1 - newsWeight;
-  const combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+  let combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+  if (ind.smc && ind.smc.ok) {
+    combined = CLP(Math.round(combined * 0.85 + ind.smc.confluenceScore * 0.15), 5, 95);
+  }
   let action = 'WAIT';
   if(combined >= 62) action = 'BUY';
   else if(combined <= 38) action = 'SELL';
+  if (ind.smc && Array.isArray(ind.smc.sweeps) && ind.smc.sweeps.length > 0) {
+    const latestSweep = ind.smc.sweeps[ind.smc.sweeps.length - 1];
+    if (action === 'BUY' && latestSweep.type === 'BUY_SIDE_SWEEP') action = 'WAIT';
+    if (action === 'SELL' && latestSweep.type === 'SELL_SIDE_SWEEP') action = 'WAIT';
+  }
   const comObj = com || activeC; // use passed commodity, fall back to active
   const comId = comObj.id;
   const now = Date.now();
@@ -1329,12 +1340,37 @@ function renderProIndicators(sig){
 
 function renderProPatterns(sig){
   const el=document.getElementById('p-patterns');
-  if(!sig.patterns||!sig.patterns.length){
+  const smcItems = [];
+  const ld = liveData[activeC?.id];
+  if (window.PatternEngine && ld && Array.isArray(ld.closes) && ld.closes.length >= 10) {
+    const scan = window.PatternEngine.scanPatterns({ closes: ld.closes, highs: ld.highs, lows: ld.lows, volumes: ld.volumes });
+    (scan.sweeps || []).slice(-2).forEach(s => {
+      smcItems.push({ icon: '⚡', name: s.type.replace(/_/g, ' '), desc: s.desc, sig: s.sig });
+    });
+    (scan.orderBlocks || []).filter(o => !o.mitigated).slice(-2).forEach(o => {
+      smcItems.push({
+        icon: o.type === 'BULLISH_OB' ? '🧱' : '🔻',
+        name: `${o.type === 'BULLISH_OB' ? 'Bullish' : 'Bearish'} Order Block`,
+        desc: `Zone ₹${o.low}–₹${o.high} (EQ ₹${o.equilibrium})`,
+        sig: o.type === 'BULLISH_OB' ? 'BUY' : 'SELL'
+      });
+    });
+    (scan.fvgs || []).filter(f => !f.mitigated).slice(-2).forEach(f => {
+      smcItems.push({
+        icon: '◧',
+        name: `${f.type === 'BULLISH_FVG' ? 'Bullish' : 'Bearish'} FVG`,
+        desc: `Virgin imbalance ₹${f.bottom}–₹${f.top}`,
+        sig: f.type === 'BULLISH_FVG' ? 'BUY' : 'SELL'
+      });
+    });
+  }
+  const allPats = [...smcItems, ...(sig.patterns || [])];
+  if(!allPats.length){
     el.innerHTML='<div style="font-size:9px;color:var(--txm);font-family:var(--fm);padding:6px">No strong patterns</div>';
     document.getElementById('p-patAlert').textContent='';return;
   }
-  document.getElementById('p-patAlert').textContent='⚠ '+sig.patterns[0].name;
-  el.innerHTML=sig.patterns.map(p=>`<div class="ppattern"><span class="ppat-icon">${p.icon}</span><div><div class="ppat-name">${p.name}</div><div class="ppat-desc">${p.desc}</div></div><span class="ppat-sig pps-${p.sig}">${p.sig}</span></div>`).join('');
+  document.getElementById('p-patAlert').textContent='⚠ '+allPats[0].name;
+  el.innerHTML=allPats.map(p=>`<div class="ppattern"><span class="ppat-icon">${p.icon}</span><div><div class="ppat-name">${p.name}</div><div class="ppat-desc">${p.desc}</div></div><span class="ppat-sig pps-${p.sig}">${p.sig}</span></div>`).join('');
 }
 
 function renderProMTF(){

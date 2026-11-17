@@ -379,6 +379,7 @@
         <div style="display:flex;gap:6px;margin-top:auto">
           <button class="pjb pjb-buy" id="btn-paper-exec" onclick="executeManualTrade(false)" style="flex:1;padding:7px;font-size:10px;background:var(--bg4);border:1px solid var(--brl);color:var(--tx)">📝 Paper Execute</button>
           <button class="pjb" id="btn-kite-exec" onclick="executeManualTrade(true)" style="flex:1;padding:7px;font-size:10px;background:var(--goldbg);border:1px solid rgba(245,197,66,0.4);color:var(--gold)">⚡ Send to Kite</button>
+          <button class="pjb" id="btn-gtt-exec" onclick="executeGttOco()" title="Place broker-side two-leg GTT OCO Stop Loss + Target" style="flex:0.8;padding:7px;font-size:10px;background:var(--blubg);border:1px solid rgba(59,130,246,0.4);color:var(--blu)">🛡️ GTT OCO</button>
           <button class="pjb pjb-clr" onclick="clearJournal()" title="Clear journal" style="padding:7px 10px">⌫</button>
         </div>
       </div>
@@ -971,8 +972,11 @@ function computeIndicators(c){
   const t1=direction==='BUY'?price+atr*c.t1_atr:price-atr*c.t1_atr;
   const t2=direction==='BUY'?price+atr*c.t2_atr:price-atr*c.t2_atr;
   const rr=c.t1_atr/c.sl_atr;
+  const smc = (window.PatternEngine && window.PatternEngine.scanPatterns)
+    ? window.PatternEngine.scanPatterns({ closes: cls, highs: his, lows: los, volumes: vls })
+    : null;
   return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,vwap,ich,mfi,e9,e21,e50,e200,
-    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,
+    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,
     prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
     _vols:vls};
 }
@@ -1033,11 +1037,14 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
   }
   newsVerdict = newsVerdict || 'NEUTRAL'; // guard null/undefined
   
-  // 1. Dynamic Weighting: Strong news controls 50% of the signal
+  // 1. Dynamic Weighting: Strong news controls 50% of the signal; SMC structure adds 15% confirmation when available
   const isNewsStrong = (newsScore >= 70 || newsScore <= 30);
   const newsWeight = isNewsStrong ? 0.50 : 0.20; 
   const techWeight = 1 - newsWeight;
-  const combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+  let combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+  if (ind.smc && ind.smc.ok) {
+    combined = CLP(Math.round(combined * 0.85 + ind.smc.confluenceScore * 0.15), 5, 95);
+  }
   
   let action = 'WAIT';
   
@@ -1049,6 +1056,13 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
   // If technicals trigger a trade against strong fundamental news, we veto the trade.
   if (action === 'BUY' && newsScore < 40) action = 'WAIT'; 
   if (action === 'SELL' && newsScore > 60) action = 'WAIT';
+
+  // 3b. SMC Liquidity Sweep Guard (Avoid buying into a Buy-Side Stop Hunt or selling into a Sell-Side Stop Hunt)
+  if (ind.smc && Array.isArray(ind.smc.sweeps) && ind.smc.sweeps.length > 0) {
+    const latestSweep = ind.smc.sweeps[ind.smc.sweeps.length - 1];
+    if (action === 'BUY' && latestSweep.type === 'BUY_SIDE_SWEEP') action = 'WAIT';
+    if (action === 'SELL' && latestSweep.type === 'SELL_SIDE_SWEEP') action = 'WAIT';
+  }
 
   // 4. Strict Volume Confirmation
   // If volume is low, fake breakouts are common, so we demand extremely high combined conviction (>=75)
@@ -1350,17 +1364,14 @@ function updateSizingFeedback(){
   }
 
   // Disable execution buttons if blocked
+  const gttBtn = document.getElementById('btn-gtt-exec');
   const isBlocked = isBlackout || isCircuitTripped;
-  if (paperBtn) {
-    paperBtn.disabled = isBlocked;
-    paperBtn.style.opacity = isBlocked ? '0.35' : '1';
-    paperBtn.style.cursor = isBlocked ? 'not-allowed' : 'pointer';
-  }
-  if (kiteBtn) {
-    kiteBtn.disabled = isBlocked;
-    kiteBtn.style.opacity = isBlocked ? '0.35' : '1';
-    kiteBtn.style.cursor = isBlocked ? 'not-allowed' : 'pointer';
-  }
+  [paperBtn, kiteBtn, gttBtn].forEach(btn => {
+    if (!btn) return;
+    btn.disabled = isBlocked;
+    btn.style.opacity = isBlocked ? '0.35' : '1';
+    btn.style.cursor = isBlocked ? 'not-allowed' : 'pointer';
+  });
 
   if(!fb) return;
 
@@ -1562,6 +1573,53 @@ async function executeManualTrade(isKite = false){
     alert(`⚡ Order Dispatched Successfully!\nOrder ID: ${trade.orderId}\nMode: ${data.simulated ? 'Safe Paper Mode' : 'Live Zerodha Exchange'}\nSymbol: ${sym} ${side} @ ₹${ent}`);
   } catch(err){
     alert(`Network communication error: ${err.message}`);
+  }
+}
+
+async function executeGttOco(){
+  const side = document.getElementById('b-side')?.value || 'BUY';
+  const ent = parseFloat(document.getElementById('b-jEnt')?.value);
+  const sl = parseFloat(document.getElementById('b-jSL')?.value);
+  const tgt = parseFloat(document.getElementById('b-jTgt')?.value);
+  const qty = parseFloat(document.getElementById('b-jQty')?.value) || 1;
+  const prod = document.getElementById('b-prod')?.value || 'NRML';
+
+  if(!ent || !sl || !tgt || isNaN(ent) || isNaN(sl) || isNaN(tgt)){
+    alert('Please enter valid Entry, Stop Loss, and Target prices to place a two-leg GTT OCO.');
+    return;
+  }
+
+  const baseSym = getCommoditySymbol(activeC);
+  const resolved = (window.ContractResolver && window.ContractResolver.resolveContractExpiry)
+    ? window.ContractResolver.resolveContractExpiry(baseSym)
+    : { tradingsymbol: baseSym, exchange: 'MCX' };
+  const sym = resolved.tradingsymbol || baseSym;
+  const exitSide = side === 'BUY' ? 'SELL' : 'BUY';
+
+  try {
+    const resp = await fetch('/api/kite/gtt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: sym,
+        exchange: resolved.exchange || 'MCX',
+        side: exitSide,
+        entry: ent,
+        stoploss: sl,
+        target: tgt,
+        quantity: qty,
+        product: prod
+      })
+    });
+    const data = await resp.json();
+    if(!resp.ok || data.error){
+      alert(`❌ GTT OCO Rejected: ${data.error || 'Server error'}`);
+      return;
+    }
+    if (window.AudioAlerts) window.AudioAlerts.playSignalChime(side);
+    alert(`🛡️ GTT OCO Armed on ${data.simulated ? 'Virtual Broker' : 'Zerodha Server'}!\nTrigger ID: ${data.trigger_id || data.id}\nContract: ${data.tradingsymbol || sym}\nSL: ₹${sl} | Target: ₹${tgt}`);
+  } catch(err){
+    alert(`Network error placing GTT OCO: ${err.message}`);
   }
 }
 
@@ -1991,9 +2049,57 @@ function renderBeg(){
   renderBegPillars(sig);
   renderBegExplain(activeC,sig);
   renderSmcPatterns();
+  if (lastGeoIntel) renderGeopoliticalRadar(lastGeoIntel);
 }
 
 let lastGeoIntel = null;
+function renderGeopoliticalRadar(data) {
+  const box = document.getElementById('b-geo-radar');
+  const badge = document.getElementById('b-geo-risk-badge');
+  if (!box || !data) return;
+
+  if (badge) {
+    const col = data.threatLevel === 'CRITICAL' ? 'var(--red)' : data.threatLevel === 'HIGH' ? 'var(--amb)' : 'var(--grn)';
+    const bg = data.threatLevel === 'CRITICAL' ? 'var(--redbg)' : data.threatLevel === 'HIGH' ? 'var(--ambbg)' : 'var(--grnbg)';
+    badge.textContent = `${data.threatLevel} (${data.riskIndex}/100)`;
+    badge.style.color = col;
+    badge.style.background = bg;
+  }
+
+  const analog = data.closestAnalog || {};
+  const cId = activeC?.id || 'crude';
+  const comImpact = (data.commodityImpacts && (data.commodityImpacts[cId] || data.commodityImpacts.crude)) || {};
+  const stocks = Object.entries(data.stockImpacts || {}).slice(0, 4).map(([sym, info]) => {
+    const isBul = String(info.impact || '').includes('BULLISH');
+    const isBear = String(info.impact || '').includes('BEARISH');
+    const col = isBul ? 'var(--grn)' : isBear ? 'var(--red)' : 'var(--txd)';
+    return `<span style="background:var(--bg3);border:1px solid var(--br);border-radius:4px;padding:3px 6px;font-size:9px"><strong style="color:${col}">${sym}</strong> ${info.expMove || ''}</span>`;
+  }).join(' ');
+
+  const topHl = (data.topHeadlines && data.topHeadlines[0]) ? data.topHeadlines[0].title : 'Monitoring global wires...';
+  const playbook = (data.institutionalPlaybook && data.institutionalPlaybook[0]) || '';
+
+  box.innerHTML = `
+    <div style="margin-bottom:7px">
+      <span style="color:var(--txd);font-size:9px">CLOSEST HISTORICAL ANALOG (${analog.matchConfidence || 0}% MATCH)</span>
+      <div style="color:var(--gold);font-weight:700;font-size:11px">${analog.name || 'Baseline Regime'}</div>
+      <div style="color:var(--txd);font-size:9px;margin-top:2px">Live Catalyst: <span style="color:var(--tx)">${topHl}</span></div>
+    </div>
+    <div style="background:var(--bg3);border-radius:6px;padding:7px 9px;margin-bottom:7px;font-size:9px">
+      <strong>${activeC?.n || 'Commodity'} Analog Drift:</strong>
+      1D: <span style="color:var(--gold)">${comImpact.immediate || '—'}</span> ·
+      3D: <span style="color:var(--gold)">${comImpact.day3 || '—'}</span> ·
+      7D: <span style="color:var(--gold)">${comImpact.day7 || '—'}</span>
+      <div style="color:var(--txd);margin-top:3px">${comImpact.tendency || ''}</div>
+    </div>
+    <div style="margin-bottom:7px">
+      <div style="color:var(--txd);font-size:9px;margin-bottom:4px">PREDICTED NSE STOCK IMPACTS:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${stocks}</div>
+    </div>
+    ${playbook ? `<div style="border-left:2px solid var(--amb);padding-left:8px;color:var(--amb);font-size:9px">💡 <strong>Desk Playbook:</strong> ${playbook}</div>` : ''}
+  `;
+}
+
 async function fetchGeopoliticalRadar(force = false) {
   const box = document.getElementById('b-geo-radar');
   const badge = document.getElementById('b-geo-risk-badge');
@@ -2002,46 +2108,7 @@ async function fetchGeopoliticalRadar(force = false) {
     const res = await fetch('/api/geopolitical/live' + (force ? '?force=1' : ''));
     const data = await res.json();
     lastGeoIntel = data;
-    if (badge) {
-      const col = data.threatLevel === 'CRITICAL' ? 'var(--red)' : data.threatLevel === 'HIGH' ? 'var(--amb)' : 'var(--grn)';
-      const bg = data.threatLevel === 'CRITICAL' ? 'var(--redbg)' : data.threatLevel === 'HIGH' ? 'var(--ambbg)' : 'var(--grnbg)';
-      badge.textContent = `${data.threatLevel} (${data.riskIndex}/100)`;
-      badge.style.color = col;
-      badge.style.background = bg;
-    }
-
-    const analog = data.closestAnalog || {};
-    const cId = activeC?.id || 'crude';
-    const comImpact = (data.commodityImpacts && (data.commodityImpacts[cId] || data.commodityImpacts.crude)) || {};
-    const stocks = Object.entries(data.stockImpacts || {}).slice(0, 4).map(([sym, info]) => {
-      const isBul = String(info.impact || '').includes('BULLISH');
-      const isBear = String(info.impact || '').includes('BEARISH');
-      const col = isBul ? 'var(--grn)' : isBear ? 'var(--red)' : 'var(--txd)';
-      return `<span style="background:var(--bg3);border:1px solid var(--br);border-radius:4px;padding:3px 6px;font-size:9px"><strong style="color:${col}">${sym}</strong> ${info.expMove || ''}</span>`;
-    }).join(' ');
-
-    const topHl = (data.topHeadlines && data.topHeadlines[0]) ? data.topHeadlines[0].title : 'Monitoring global wires...';
-    const playbook = (data.institutionalPlaybook && data.institutionalPlaybook[0]) || '';
-
-    box.innerHTML = `
-      <div style="margin-bottom:7px">
-        <span style="color:var(--txd);font-size:9px">CLOSEST HISTORICAL ANALOG (${analog.matchConfidence || 0}% MATCH)</span>
-        <div style="color:var(--gold);font-weight:700;font-size:11px">${analog.name || 'Baseline Regime'}</div>
-        <div style="color:var(--txd);font-size:9px;margin-top:2px">Live Catalyst: <span style="color:var(--tx)">${topHl}</span></div>
-      </div>
-      <div style="background:var(--bg3);border-radius:6px;padding:7px 9px;margin-bottom:7px;font-size:9px">
-        <strong>${activeC?.n || 'Commodity'} Analog Drift:</strong>
-        1D: <span style="color:var(--gold)">${comImpact.immediate || '—'}</span> ·
-        3D: <span style="color:var(--gold)">${comImpact.day3 || '—'}</span> ·
-        7D: <span style="color:var(--gold)">${comImpact.day7 || '—'}</span>
-        <div style="color:var(--txd);margin-top:3px">${comImpact.tendency || ''}</div>
-      </div>
-      <div style="margin-bottom:7px">
-        <div style="color:var(--txd);font-size:9px;margin-bottom:4px">PREDICTED NSE STOCK IMPACTS:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">${stocks}</div>
-      </div>
-      ${playbook ? `<div style="border-left:2px solid var(--amb);padding-left:8px;color:var(--amb);font-size:9px">💡 <strong>Desk Playbook:</strong> ${playbook}</div>` : ''}
-    `;
+    renderGeopoliticalRadar(data);
   } catch (err) {
     if (badge) badge.textContent = 'OFFLINE';
     box.innerHTML = `<div style="color:var(--txd)">Geopolitical radar unavailable: ${err.message}</div>`;
