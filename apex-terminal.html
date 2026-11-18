@@ -714,21 +714,32 @@ function updateRightPanel() {
 // SMC INTERACTIVE CANVAS ENGINE
 // ─────────────────────────────────────────────────────────────
 let candles = [];
+let activeScan = null;
 
-function generateMockCandles(basePrice, count = 45) {
+const SYMBOL_QUOTE_MAP = {
+  NIFTY: '^NSEI',
+  BANKNIFTY: '^NSEBANK',
+  RELIANCE: 'RELIANCE.NS',
+  HDFCBANK: 'HDFCBANK.NS',
+  TATAMOTORS: 'TATAMOTORS.NS',
+  GOLDM: 'GC=F',
+  CRUDEOIL: 'CL=F',
+  SILVERM: 'SI=F'
+};
+
+function buildFallbackCandles(basePrice, count = 40) {
   let list = [];
-  let curr = basePrice * 0.985;
+  let curr = basePrice * 0.992;
   for (let i = 0; i < count; i++) {
-    const delta = (Math.random() - 0.47) * (basePrice * 0.007);
+    const step = (Math.sin(i * 0.45) * 0.002 + 0.0002) * basePrice;
     const open = curr;
-    const close = curr + delta;
-    const high = Math.max(open, close) + Math.random() * (basePrice * 0.003);
-    const low = Math.min(open, close) - Math.random() * (basePrice * 0.003);
-    list.push({ open, close, high, low, time: i });
+    const close = curr + step;
+    const high = Math.max(open, close) + basePrice * 0.0015;
+    const low = Math.min(open, close) - basePrice * 0.0015;
+    list.push({ open, close, high, low, volume: 1000, time: i });
     curr = close;
   }
-  // Ensure last close matches activeItem price
-  list[list.length - 1].close = activeItem.price;
+  list[list.length - 1].close = basePrice;
   return list;
 }
 
@@ -759,7 +770,7 @@ function drawChart() {
 
   const minP = Math.min(...candles.map(c => c.low)) * 0.998;
   const maxP = Math.max(...candles.map(c => c.high)) * 1.002;
-  const rangeP = maxP - minP;
+  const rangeP = maxP - minP || 1;
 
   const getY = (p) => h - 30 - ((p - minP) / rangeP) * (h - 60);
 
@@ -772,22 +783,34 @@ function drawChart() {
   ctx.setLineDash([]);
   ctx.fillStyle = '#f59e0b';
   ctx.font = '10px JetBrains Mono';
-  ctx.fillText('EQ 50%: ₹' + Math.round(eqPrice), w - 65, eqY + 3);
+  ctx.fillText('EQ 50%: ' + eqPrice.toFixed(2), w - 105, eqY - 4);
 
-  // 2. Draw Institutional Order Blocks (OB)
-  const obLow = activeItem.ob[0];
-  const obHigh = activeItem.ob[1];
-  const obY1 = getY(obHigh);
-  const obY2 = getY(obLow);
+  // 2. Draw Real Detected Order Blocks & Fair Value Gaps (or activeItem fallback)
+  const detectedOBs = (activeScan && Array.isArray(activeScan.orderBlocks) && activeScan.orderBlocks.length > 0)
+    ? activeScan.orderBlocks.slice(-2)
+    : [{ type: activeItem.zone === 'supply' ? 'BEARISH_OB' : 'BULLISH_OB', low: activeItem.ob[0], high: activeItem.ob[1] }];
 
-  ctx.fillStyle = activeItem.zone === 'supply' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-  ctx.strokeStyle = activeItem.zone === 'supply' ? '#ef4444' : '#10b981';
-  ctx.lineWidth = 1.5;
-  ctx.fillRect(w * 0.35, obY1, w * 0.55, obY2 - obY1);
-  ctx.strokeRect(w * 0.35, obY1, w * 0.55, obY2 - obY1);
+  detectedOBs.forEach(ob => {
+    const obY1 = getY(ob.high);
+    const obY2 = getY(ob.low);
+    const isSupply = ob.type === 'BEARISH_OB';
+    ctx.fillStyle = isSupply ? 'rgba(239, 68, 68, 0.18)' : 'rgba(16, 185, 129, 0.18)';
+    ctx.strokeStyle = isSupply ? '#ef4444' : '#10b981';
+    ctx.lineWidth = 1.2;
+    ctx.fillRect(w * 0.35, obY1, w * 0.55, Math.max(4, obY2 - obY1));
+    ctx.strokeRect(w * 0.35, obY1, w * 0.55, Math.max(4, obY2 - obY1));
+    ctx.fillStyle = isSupply ? '#ef4444' : '#10b981';
+    ctx.fillText(isSupply ? 'BEARISH OB' : 'BULLISH OB', w * 0.37, obY1 + 12);
+  });
 
-  ctx.fillStyle = activeItem.zone === 'supply' ? '#ef4444' : '#10b981';
-  ctx.fillText(activeItem.zone === 'supply' ? 'BEARISH SUPPLY OB' : 'BULLISH DEMAND OB', w * 0.37, obY1 + 14);
+  if (activeScan && Array.isArray(activeScan.fvgs)) {
+    activeScan.fvgs.filter(f => !f.mitigated).slice(-2).forEach(f => {
+      const fY1 = getY(f.top);
+      const fY2 = getY(f.bottom);
+      ctx.fillStyle = f.type === 'BULLISH_FVG' ? 'rgba(6, 182, 212, 0.14)' : 'rgba(139, 92, 246, 0.14)';
+      ctx.fillRect(w * 0.50, fY1, w * 0.40, Math.max(3, fY2 - fY1));
+    });
+  }
 
   // 3. Draw Candlesticks
   const candleW = Math.max(4, (w - 100) / candles.length - 3);
@@ -802,19 +825,58 @@ function drawChart() {
     ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
     ctx.fillStyle = isUp ? '#10b981' : '#ef4444';
 
-    // Wick
     ctx.beginPath();
     ctx.moveTo(x + candleW / 2, yHigh);
     ctx.lineTo(x + candleW / 2, yLow);
     ctx.stroke();
 
-    // Body
     ctx.fillRect(x, Math.min(yOpen, yClose), candleW, Math.max(2, Math.abs(yClose - yOpen)));
   });
 }
 
-function generateCandlesAndDraw() {
-  candles = generateMockCandles(activeItem.price, 40);
+async function generateCandlesAndDraw() {
+  const quoteSym = SYMBOL_QUOTE_MAP[activeItem.id] || 'GC=F';
+  try {
+    const qRes = await fetch(`/api/quote?symbol=${encodeURIComponent(quoteSym)}&interval=${encodeURIComponent(activeTF || '15m')}&range=5d`);
+    const qData = await qRes.json();
+    const closes = qData?.closes || qData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || [];
+    const opens = qData?.opens || qData?.chart?.result?.[0]?.indicators?.quote?.[0]?.open || [];
+    const highs = qData?.highs || qData?.chart?.result?.[0]?.indicators?.quote?.[0]?.high || [];
+    const lows = qData?.lows || qData?.chart?.result?.[0]?.indicators?.quote?.[0]?.low || [];
+    const vols = qData?.volumes || qData?.chart?.result?.[0]?.indicators?.quote?.[0]?.volume || [];
+
+    const parsed = [];
+    for (let i = 0; i < closes.length; i++) {
+      if (closes[i] == null || highs[i] == null || lows[i] == null) continue;
+      parsed.push({
+        open: opens[i] != null ? opens[i] : closes[i],
+        high: highs[i],
+        low: lows[i],
+        close: closes[i],
+        volume: vols[i] || 1,
+        time: i
+      });
+    }
+    candles = parsed.length >= 15 ? parsed.slice(-50) : buildFallbackCandles(activeItem.price, 40);
+
+    const scanRes = await fetch('/api/patterns/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candles })
+    });
+    activeScan = await scanRes.json();
+    if (activeScan && activeScan.ok && Array.isArray(activeScan.orderBlocks) && activeScan.orderBlocks.length > 0) {
+      const latestOB = activeScan.orderBlocks[activeScan.orderBlocks.length - 1];
+      activeItem.ob = [latestOB.low, latestOB.high];
+      activeItem.zone = latestOB.type === 'BEARISH_OB' ? 'supply' : 'demand';
+      activeItem.score = activeScan.confluenceScore;
+      activeItem.status = activeScan.summary;
+      updateRightPanel();
+    }
+  } catch (_) {
+    candles = buildFallbackCandles(activeItem.price, 40);
+    activeScan = null;
+  }
   drawChart();
 }
 
@@ -826,7 +888,7 @@ async function simulateOrder(side) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        symbol: activeItem.ticker,
+        symbol: activeItem.id,
         side: side,
         qty: 1,
         entryPrice: activeItem.price,

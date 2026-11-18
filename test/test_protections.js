@@ -35,7 +35,8 @@ console.log('✓ Test 3 Passed: Macro blackout shield blocks EIA inventory spike
 assert.strictEqual(circuitBreaker.evaluateCircuitBreaker({ trades: [{ pnl: -150 }, { pnl: 200 }], dailyLossLimit: 400 }).tripped, false);
 assert.strictEqual(circuitBreaker.evaluateCircuitBreaker({ trades: [{ pnl: -200 }, { pnl: -210 }], dailyLossLimit: 400 }).reason, 'DAILY_LOSS_LIMIT_REACHED');
 assert.strictEqual(circuitBreaker.evaluateCircuitBreaker({ trades: [{ pnl: -50 }, { pnl: -60 }], dailyLossLimit: 400, maxConsecutiveLosses: 2 }).reason, 'MAX_CONSECUTIVE_LOSSES_REACHED');
-console.log('✓ Test 4 Passed: Daily risk circuit breaker trips on ₹400 drawdown or 2 consecutive losses.');
+assert.strictEqual(circuitBreaker.evaluateCircuitBreaker({ trades: [{ net_pnl: -220 }, { net_pnl: -190 }], dailyLossLimit: 400 }).reason, 'DAILY_LOSS_LIMIT_REACHED');
+console.log('✓ Test 4 Passed: Daily risk circuit breaker trips on ₹400 drawdown or 2 consecutive losses (incl. SQLite net_pnl).');
 
 // 5. Geopolitical Historical Analog Matching tests
 const analogWar = geoHistory.matchHistoricalAnalog('Houthi missile strike on Red Sea oil tanker raises Hormuz tensions');

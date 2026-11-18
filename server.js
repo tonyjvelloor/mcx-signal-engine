@@ -24,6 +24,7 @@ const circuitBreaker = require('./shared/circuit_breaker');
 const geopoliticalHistory = require('./shared/geopolitical_history');
 const geopoliticalAnalogs = require('./shared/geopolitical_analogs');
 const patternEngine = require('./shared/pattern_engine');
+const nseHolidays = require('./shared/nse_holidays');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -988,7 +989,25 @@ const server = http.createServer(async (req, res) => {
 
             const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
             const segment = isComm ? 'commodity' : 'equity';
-            const lotMult = Number(data.lotMultiplier) || (symbol.includes('GOLD') ? 10 : (symbol.includes('CRUDE') ? 10 : 1));
+            const spec = riskEngine.getContractSpec ? riskEngine.getContractSpec(symbol) : { multiplier: 10 };
+            const lotMult = Number(data.lotMultiplier) || spec.multiplier || 1;
+            const maxLossBudget = Number(data.maxLossTotal) > 0 ? Number(data.maxLossTotal) : (isComm ? 200.0 : 50.0);
+
+            // Macro Blackout & Daily Circuit Breaker checks
+            const blackout = macroEvents.checkMacroBlackout(symbol);
+            if (blackout.isBlackout && !data.overrideBlackout) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: blackout.warningText }));
+            }
+            const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            if (circuit.tripped && !data.overrideCircuitBreaker) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: circuit.message }));
+            }
+
+            const resolved = isComm ? contractResolver.resolveContractExpiry(symbol) : { tradingsymbol: symbol };
+            const resolvedSymbol = resolved.tradingsymbol || symbol;
 
             // Sizing and Pre-Trade Risk Evaluation Gate
             const sized = riskEngine.sizeTrade({
@@ -998,7 +1017,7 @@ const server = http.createServer(async (req, res) => {
               target: target > 0 ? target : (side === 'BUY' ? entryPrice + (Math.abs(entryPrice - stopLoss) * 2) : entryPrice - (Math.abs(entryPrice - stopLoss) * 2)),
               lotMultiplier: lotMult,
               segment,
-              maxLossTotal: 50.0,
+              maxLossTotal: maxLossBudget,
               minNetRR: 1.2,
               atr: data.atr
             });
@@ -1009,10 +1028,10 @@ const server = http.createServer(async (req, res) => {
             }
 
             const plannedLoss = (Math.abs(entryPrice - stopLoss) * lotMult * rawQty) + sized.stopFees;
-            if (plannedLoss > 50.0) {
+            if (plannedLoss > maxLossBudget) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({
-                error: `RISK_VIOLATION: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹${sized.stopFees.toFixed(2)} Zerodha charges) exceeds strict ₹50 cap on ₹15,000 account.`
+                error: `RISK_VIOLATION: Planned loss of ₹${plannedLoss.toFixed(2)} (including ₹${sized.stopFees.toFixed(2)} Zerodha charges) exceeds ₹${maxLossBudget} risk cap.`
               }));
             }
 
@@ -1030,17 +1049,18 @@ const server = http.createServer(async (req, res) => {
               INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
             `);
-            const resDb = stmt.run(symbol, side, rawQty, entryPrice, new Date().toISOString(), stopLoss, target, brokerage, sttGst);
+            const resDb = stmt.run(resolvedSymbol, side, rawQty, entryPrice, new Date().toISOString(), stopLoss, target, brokerage, sttGst);
             res.writeHead(201, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
               success: true,
-              tradeId: resDb.lastInsertRowid,
-              symbol,
+              tradeId: Number(resDb.lastInsertRowid),
+              symbol: resolvedSymbol,
               side,
               qty: rawQty,
               entryPrice,
               stopLoss,
               target,
+              lotMultiplier: lotMult,
               plannedLoss: plannedLoss.toFixed(2),
               fees: feesAtEntry.totalFees,
               status: 'OPEN'
@@ -1087,7 +1107,8 @@ const server = http.createServer(async (req, res) => {
 
             const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => trade.symbol.includes(c));
             const segment = isComm ? 'commodity' : 'equity';
-            const lotMult = Number(trade.lot_multiplier) || (trade.symbol.includes('GOLD') ? 10 : (trade.symbol.includes('CRUDE') ? 10 : 1));
+            const spec = riskEngine.getContractSpec ? riskEngine.getContractSpec(trade.symbol) : { multiplier: 10 };
+            const lotMult = Number(data.lotMultiplier) || Number(trade.lot_multiplier) || spec.multiplier || 1;
 
             const actualFees = riskEngine.calculateZerodhaFees({
               segment,
@@ -1601,6 +1622,94 @@ const server = http.createServer(async (req, res) => {
         }
       });
       return;
+    }
+
+    // 8f. Pre-Market Daily Briefing API
+    if (req.method === 'GET' && pathname === '/api/briefing') {
+      try {
+        const kt = nseHolidays.getKolkataTime();
+        const isNseOpenDay = nseHolidays.isNseTradingDay(kt.dateStr);
+        const holidayReason = isNseOpenDay ? null : nseHolidays.getHolidayReason(kt.dateStr);
+        const contracts = ['CRUDEOILM', 'GOLDM', 'GOLDPETAL', 'SILVERMIC', 'NATGASM'].map(sym =>
+          contractResolver.resolveContractExpiry(sym)
+        );
+        const upcomingMacro = macroEvents.getUpcomingEvents();
+        const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false);
+
+        let circuit = { tripped: false, dailyNetPnl: 0, consecutiveLosses: 0, remainingLossBudget: 400 };
+        if (db) {
+          try {
+            const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+            circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+          } catch (_) {}
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          istDate: kt.dateStr,
+          nseSession: { isTradingDay: isNseOpenDay, holidayReason },
+          activeContracts: contracts,
+          upcomingMacro: upcomingMacro.slice(0, 4),
+          geopolitical: {
+            threatLevel: geoIntel.threatLevel,
+            riskIndex: geoIntel.riskIndex,
+            closestAnalog: geoIntel.closestAnalog,
+            topHeadline: geoIntel.topHeadlines?.[0]?.title || null,
+            playbook: geoIntel.institutionalPlaybook?.[0] || null
+          },
+          circuitBreaker: circuit
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
+    }
+
+    // 8g. Cross-Asset Geopolitical + SMC Screener API
+    if (req.method === 'GET' && pathname === '/api/cross-screener') {
+      try {
+        const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false);
+        const stockImpacts = geoIntel.stockImpacts || {};
+        const depGraph = geopoliticalHistory.getDependencyGraph();
+
+        const equityUniverse = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'SBIN', 'ITC', 'LT', 'KOTAKBANK', 'AXISBANK', 'MARUTI'];
+        const equityResults = [];
+        if (db) {
+          for (const sym of equityUniverse) {
+            const rows = db.prepare(`SELECT open, high, low, close, volume, time FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 120`).all(sym);
+            if (rows.length >= 10) {
+              const scan = patternEngine.scanPatterns(rows.reverse());
+              const lastClose = rows[rows.length - 1]?.close || 0;
+              equityResults.push({
+                symbol: sym,
+                lastClose,
+                structure: scan.structure?.state || 'RANGING',
+                bias: scan.structure?.bias || 'NEUTRAL',
+                smcScore: scan.confluenceScore,
+                action: scan.action,
+                freshOBs: (scan.orderBlocks || []).filter(o => !o.mitigated).length,
+                virginFVGs: (scan.fvgs || []).filter(f => !f.mitigated).length,
+                sweeps: (scan.sweeps || []).length
+              });
+            }
+          }
+        }
+        equityResults.sort((a, b) => Math.abs(b.smcScore - 50) - Math.abs(a.smcScore - 50));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          updatedAt: new Date().toISOString(),
+          threatLevel: geoIntel.threatLevel,
+          closestAnalog: geoIntel.closestAnalog?.name || null,
+          geopoliticalStockImpacts: stockImpacts,
+          dependencyGraph: depGraph,
+          nseSmcScreener: equityResults
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
     }
 
     // 9. Static File Serving (STRICT ALLOWLIST)

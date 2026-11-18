@@ -35,8 +35,10 @@
 
     // Filter closed trades executed today in IST
     const todayClosedTrades = trades.filter(t => {
-      if (t.pnl == null && t.netPnl == null) return false;
-      const tDate = t.date || (t.timestamp ? new Date(t.timestamp).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null);
+      const rawPnl = t.pnl ?? t.netPnl ?? t.net_pnl;
+      if (rawPnl == null) return false;
+      const rawTs = t.timestamp || t.exit_time || t.created_at;
+      const tDate = t.date || (rawTs ? new Date(rawTs).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null);
       if (!tDate) return true; // Include if date was omitted or caller pre-filtered
       return tDate === todayIST;
     });
@@ -47,7 +49,7 @@
     // Evaluate in chronological order
     const chrono = todayClosedTrades.slice().reverse();
     for (const t of chrono) {
-      const pnl = Number(t.pnl != null ? t.pnl : (t.netPnl || 0));
+      const pnl = Number(t.pnl ?? t.netPnl ?? t.net_pnl ?? 0);
       dailyNetPnl += pnl;
 
       if (pnl < 0) {
