@@ -7,6 +7,7 @@ const geoHistory = require('../shared/geopolitical_history');
 const geoAnalogs = require('../shared/geopolitical_analogs');
 const patternEngine = require('../shared/pattern_engine');
 const globalUsdMode = require('../shared/global_usd_mode');
+const signalEngine = require('../shared/signal_engine');
 const kite = require('../kite');
 
 console.log('🧪 Running Institutional Protection, Geopolitical & SMC Pattern Tests...\n');
@@ -100,5 +101,77 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   const gtt = await kite.placeGTT({ tradingsymbol: 'CRUDEOILM26NOVFUT', stoploss: 6100, target: 6300 });
   assert.strictEqual(gtt.type, 'two-leg');
   assert.strictEqual(gtt.simulated, true);
-  console.log('✓ Test 8 Passed: Kite simulated order & two-leg GTT OCO verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 8 Passed: Kite simulated order & two-leg GTT OCO verified.');
+
+  // 9. Canonical SignalEngine tests (Engulfing w/ opens, Wilder ADX, OBV 10-EMA, Regime & Fee Hurdle Gate)
+  const bullEngulf = signalEngine.detectPatterns(
+    [105, 102, 107],      // closes: red prev (104->102), green curr (101->107)
+    [106, 104.5, 108],    // highs
+    [101, 101.5, 100.5],  // lows
+    [104, 104, 101]       // real opens
+  );
+  assert.ok(bullEngulf.some(p => p.name === 'Bullish Engulfing'), 'Real opens should detect Bullish Engulfing');
+
+  const bearEngulf = signalEngine.detectPatterns(
+    [100, 104, 98],       // closes: green prev (101->104), red curr (105->98)
+    [102, 105, 105.5],    // highs
+    [99, 100.5, 97.5],    // lows
+    [101, 101, 105]       // real opens
+  );
+  assert.ok(bearEngulf.some(p => p.name === 'Bearish Engulfing'), 'Real opens should detect Bearish Engulfing');
+
+  // Sideways oscillating bars -> ADX isChop: true
+  const chopCls = Array.from({ length: 30 }, (_, i) => 100 + (i % 2 === 0 ? 1 : -1));
+  const chopHis = chopCls.map(c => c + 1);
+  const chopLos = chopCls.map(c => c - 1);
+  const adxChop = signalEngine.calcADX(chopCls, chopHis, chopLos);
+  assert.strictEqual(adxChop.isChop, true, `Sideways bars must set isChop=true (got adx=${adxChop.adx})`);
+
+  // Strong directional bars -> ADX isTrending: true
+  const trendCls = Array.from({ length: 30 }, (_, i) => 100 + i * 2);
+  const trendHis = trendCls.map(c => c + 0.5);
+  const trendLos = trendCls.map(c => c - 0.5);
+  const adxTrend = signalEngine.calcADX(trendCls, trendHis, trendLos);
+  assert.strictEqual(adxTrend.isTrending, true, `Strong trend bars must set isTrending=true (got adx=${adxTrend.adx})`);
+
+  // OBV cumulative positive but recently falling below 10-EMA -> SELL
+  const obvCls = Array.from({ length: 20 }, (_, i) => (i < 12 ? 100 + i : 112 - (i - 11)));
+  const obvVls = Array.from({ length: 20 }, (_, i) => (i < 12 ? 1000 : 1200));
+  const obvObj = signalEngine.calcOBV(obvCls, obvVls);
+  assert.ok(obvObj.value > 0, 'Cumulative OBV should still be positive');
+  assert.strictEqual(obvObj.trend, 'SELL', 'OBV falling below 10-bar EMA must signal SELL despite positive sign');
+
+  // Trending uptrend with overbought oscillators must NOT get penalized -> BUY, and small target -> feeVeto
+  const trendOnlySigs = {
+    ema_cross: 'BUY', ema200: 'BUY', ema50: 'BUY', adx: 'BUY', ich: 'BUY',
+    macd_hist: 'BUY', vwap: 'BUY', struct: 'BUY', obv: 'BUY', ema21: 'BUY', ema9: 'BUY',
+    rsi: 'SELL', stoch: 'SELL', cci: 'SELL', willr: 'SELL', mfi: 'SELL', bb: 'SELL' // overbought oscillators
+  };
+  const trendCleared = signalEngine.evaluateRegimeAndFeeGate({
+    sigs: trendOnlySigs,
+    adxObj: { adx: 30, isTrending: true, isChop: false },
+    newsScore: 55,
+    entry: 7800,
+    sl: 7700,
+    t1: 8000,
+    lotMultiplier: 10,
+    roundTripFee: 45
+  });
+  assert.strictEqual(trendCleared.regime, 'TRENDING');
+  assert.strictEqual(trendCleared.feeVeto, false);
+  assert.strictEqual(trendCleared.action, 'BUY', 'Overbought oscillators must not cancel a strong uptrend');
+
+  const feeBlocked = signalEngine.evaluateRegimeAndFeeGate({
+    sigs: trendOnlySigs,
+    adxObj: { adx: 30, isTrending: true, isChop: false },
+    newsScore: 55,
+    entry: 7800,
+    sl: 7750,
+    t1: 7890, // ₹90 gross target < 3.5 * ₹45 (₹157.50)
+    lotMultiplier: 1,
+    roundTripFee: 45
+  });
+  assert.strictEqual(feeBlocked.feeVeto, true, 'Sub-hurdle gross target must trip feeVeto');
+  assert.strictEqual(feeBlocked.action, 'WAIT', 'Fee veto must force action to WAIT');
+  console.log('✓ Test 9 Passed: SignalEngine math (Engulfing, Wilder ADX, OBV EMA, Regime & Fee Hurdle Gate) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

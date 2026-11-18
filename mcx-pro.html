@@ -14,6 +14,7 @@
 <script src="/shared/geopolitical_history.js"></script>
 <script src="/shared/pattern_engine.js"></script>
 <script src="/shared/global_usd_mode.js"></script>
+<script src="/shared/signal_engine.js"></script>
 <style>:root{--bg:#07070A;--bg2:#0E0E14;--bg3:#14141C;--bg4:#1A1A24;--bg5:#21212E;--br:rgba(255,255,255,0.06);--brl:rgba(255,255,255,0.11);--tx:#D8D6E8;--txd:#6A6880;--txm:#32314A;--grn:#22C55E;--grn2:#16A34A;--grnbg:rgba(34,197,94,0.08);--red:#EF4444;--red2:#DC2626;--redbg:rgba(239,68,68,0.08);--amb:#F59E0B;--ambbg:rgba(245,158,11,0.08);--blu:#3B82F6;--blubg:rgba(59,130,246,0.08);--cya:#06B6D4;--cyabg:rgba(6,182,212,0.08);--pur:#A855F7;--purbg:rgba(168,85,247,0.08);--gold:#F5C542;--goldbg:rgba(245,197,66,0.08);--fm:'IBM Plex Mono',monospace;--fd:'Syne',sans-serif}*{box-sizing:border-box;margin:0;padding:0}html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:100vh;font-size:13px}.gbar{background:var(--bg2);border-bottom:1px solid var(--br);height:46px;display:flex;align-items:center;padding:0 1rem;gap:0;position:sticky;top:0;z-index:200}.gbar-logo{font-family:var(--fm);font-size:14px;font-weight:500;color:var(--gold);letter-spacing:2px;padding-right:16px;border-right:1px solid var(--br);margin-right:14px;flex-shrink:0}.mode-tabs{display:flex;height:100%;gap:0;margin-right:16px;border-right:1px solid var(--br);padding-right:12px}.mode-tab{display:flex;align-items:center;gap:7px;padding:0 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--txd);transition:all .18s;border-bottom:2px solid transparent;white-space:nowrap}.mode-tab:hover{color:var(--tx)}.mode-tab.active{color:var(--tx);border-bottom-color:var(--gold)}.mode-tab .mt-icon{font-size:14px}.com-scroll{display:flex;height:100%;overflow-x:auto;flex:1;scrollbar-width:none}.com-scroll::-webkit-scrollbar{display:none}.com-tab{display:flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer;font-size:10px;font-family:var(--fm);color:var(--txd);border-right:1px solid var(--br);transition:all .15s;white-space:nowrap;flex-shrink:0;height:100%}.com-tab:hover{background:var(--bg3);color:var(--tx)}.com-tab.active{background:var(--bg3);color:var(--tx)}.ct-sig{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.cs-BUY{background:var(--grnbg);color:var(--grn)}.cs-SELL{background:var(--redbg);color:var(--red)}.cs-WAIT{background:var(--bg5);color:var(--txd)}.gbar-right{display:flex;align-items:center;gap:10px;padding-left:12px;border-left:1px solid var(--br);flex-shrink:0;margin-left:auto}.gs{font-size:10px;font-family:var(--fm);color:var(--txd);white-space:nowrap}.gs strong{color:var(--tx)}.rfbtn{font-size:10px;font-family:var(--fm);padding:4px 12px;border-radius:4px;border:1px solid var(--brl);background:transparent;color:var(--gold);cursor:pointer;transition:all .15s}.rfbtn:hover:not(:disabled){background:var(--goldbg)}.rfbtn:disabled{opacity:.4;cursor:not-allowed}.spin{animation:sp 1s linear infinite;display:inline-block}.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block}.dlive{background:var(--grn);animation:pl 1.5s infinite}.dwait{background:var(--amb)}.doff{background:var(--txd)}.view{display:none}.view.active{display:block}.bst{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--fm);color:var(--txd)}.bst strong{color:var(--tx)}.bl{border-radius:10px;padding:11px;text-align:center;border:1px solid var(--br)}.bfbg{background:linear-gradient(90deg,var(--grn2),var(--grn))}.bfbr{background:linear-gradient(90deg,var(--red2),var(--red))}.bfba{background:var(--amb)}.psb{display:flex;align-items:center;gap:4px;font-size:10px;font-family:var(--fm);color:var(--txd);flex-shrink:0}.psb strong{color:var(--tx)}.psb-div{width:1px;height:12px;background:var(--br);flex-shrink:0}.ppb{padding:9px 11px}.ic-BUY,.ic-OVERSOLD{color:var(--grn)}.ic-SELL,.ic-OVERBOUGHT{color:var(--red)}.ic-NEUTRAL{color:var(--txd)}.chart-canvas-wrap{position:relative;width:100%;height:100%;min-height:170px}.pps-BUY{background:var(--grnbg);color:var(--grn)}.pps-SELL{background:var(--redbg);color:var(--red)}.pt-lbl{color:var(--txd)}.pt-val{text-align:right;font-weight:500;color:var(--tx)}.pt-R{color:var(--red)}.pt-S{color:var(--grn)}.pt-P{color:var(--gold)}.risk-form{padding:9px 11px;display:flex;flex-direction:column;gap:5px}.jtbl{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:9px}.jtbl th{font-size:7px;color:var(--txd);text-transform:uppercase;letter-spacing:.4px;padding:5px 7px;border-bottom:1px solid var(--br);text-align:left;background:var(--bg3);position:sticky;top:0}.jtbl td{padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.025);color:var(--tx)}.jtbl tr:hover td{background:var(--bg3)}.j-empty{font-size:9px;color:var(--txm);text-align:center;padding:16px;font-family:var(--fm)}.inter-row{display:flex;align-items:center;justify-content:space-between;padding:5px 7px;background:var(--bg3);border-radius:3px;margin-bottom:3px}.ir-n{font-size:9px;font-family:var(--fm);color:var(--txd)}.ir-v{font-size:9px;font-family:var(--fm);color:var(--tx)}.ir-s{font-size:8px;font-family:var(--fm);font-weight:600}.ldg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:1.5rem}.ring{width:22px;height:22px;border:2px solid var(--br);border-top-color:var(--gold);border-radius:50%;animation:ring-sp .9s linear infinite;flex-shrink:0}.ring-sm{width:16px;height:16px;border-width:1.5px}.ldg p{font-size:10px;color:var(--txd);font-family:var(--fm);text-align:center}.ni{border-left:2px solid var(--txm);border-radius:0 5px 5px 0;padding:8px 10px;background:var(--bg3);margin-bottom:1px}.ni-B{border-left-color:var(--grn)}.ni-S{border-left-color:var(--red)}.ni-N{border-left-color:var(--txm)}.ni-hl{font-size:11px;color:var(--tx);line-height:1.4;margin-bottom:3px}.ni-why{font-size:10px;color:var(--txd);line-height:1.5;margin-bottom:4px}.ni-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ni-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.nb-B{background:var(--grnbg);color:var(--grn)}.nb-S{background:var(--redbg);color:var(--red)}.nb-N{background:var(--bg5);color:var(--txd)}.ni-src{font-size:9px;color:var(--txm);font-family:var(--fm)}.ni-imp{font-size:9px;font-family:var(--fm);font-weight:600}.ni-HIGH{color:var(--red)}.ni-MEDIUM{color:var(--amb)}.ni-LOW{color:var(--txd)}.pvt-tabs{display:flex;gap:2px}.pvt-tab{font-size:8px;font-family:var(--fm);padding:2px 6px;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--txd);cursor:pointer;transition:all .15s}.pvt-tab:hover{color:var(--tx)}.pvt-tab.active{background:var(--bg5);border-color:var(--brl);color:var(--tx)}.hdiv{height:1px;background:var(--br);margin:.9rem 0}.geo-row{padding:5px 0;border-bottom:1px solid var(--br);display:flex;align-items:flex-start;gap:6px;font-size:11px}.ic-red{color:var(--red);flex-shrink:0}.c-red{color:var(--red)}.c-txm{color:var(--txm)}.evb-HIGH{background:var(--redbg);color:var(--red)}.evb-MEDIUM{background:var(--ambbg);color:var(--amb)}.evb-LOW{background:var(--bg5);color:var(--txd)}.ev{background:var(--bg3);border-radius:3px;padding:5px 7px;display:flex;align-items:center;gap:6px;margin-bottom:3px}@keyframes sp{to{transform:rotate(360deg)}}@keyframes pl{0%,100%{opacity:1}50%{opacity:.2}}@keyframes ring-sp{to{transform:rotate(360deg)}}@media(max-width:1100px){.pro-grid{grid-template-columns:230px 1fr}.pro-col:last-child{display:none}}@media(max-width:780px){.gbar{height:auto;flex-wrap:wrap;padding:8px 10px;gap:8px}.gbar-logo{border-right:none;padding-right:0}.mode-tabs{width:100%;order:-1}.mode-tab{flex:1;justify-content:center;font-size:11px;padding:6px 0}.com-scroll{order:3;width:100%;border-top:1px solid var(--br);margin-top:4px}.gbar-right{width:100%;justify-content:space-between;padding-left:0;border-left:none;font-size:10px}.gs{font-size:9px}.beg{padding:0.75rem 0.6rem}.beg-header h2{font-size:18px}.beg-statusrow{gap:8px}.bst{font-size:9px}.tlight{padding:10px 12px;gap:8px}.tl-dot{width:22px;height:22px}.tl-label{font-size:13px}.b-pillars{grid-template-columns:1fr}.b-levels{grid-template-columns:1fr 1fr}.b-explain{grid-template-columns:1fr}.b-bottom{grid-template-columns:1fr}.bsig-card{padding:1.1rem}.bsc-price{font-size:22px}.bsc-title{font-size:16px}.bcap-stats{grid-template-columns:1fr 1fr}.pro-statusbar{display:none}.pro-grid{grid-template-columns:1fr;height:auto}.pro-col:first-child,.pro-col:last-child{display:none}.pro-col:nth-child(2){display:flex;height:auto}.chart-wrap-pro{min-height:200px;height:220px}.vol-wrap{height:40px}.ind-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:480px){.b-levels{grid-template-columns:1fr}.ind-grid{grid-template-columns:repeat(2,1fr)}.pmtf-grid{grid-template-columns:repeat(3,1fr)}.bsig-card{padding:0.9rem}}.pro-statusbar{background:var(--bg2);border-bottom:1px solid var(--br);padding:4px 1rem;display:flex;align-items:center;gap:12px;overflow-x:auto;scrollbar-width:none}.pro-statusbar::-webkit-scrollbar{display:none}.pro-grid{display:grid;grid-template-columns:250px 1fr 270px;min-height:calc(100vh - 90px)}.pro-col{border-right:1px solid var(--br);display:flex;flex-direction:column;overflow:hidden}.pro-col:last-child{border-right:none}.pro-scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bg5) transparent;flex:1;min-height:0}.pro-scroll::-webkit-scrollbar{width:2px}.pro-scroll::-webkit-scrollbar-thumb{background:var(--bg5)}.ppanel{border-bottom:1px solid var(--br)}.pph{padding:7px 11px;background:var(--bg3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--br)}.pph-t{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1.3px;color:var(--txd);font-family:var(--fm)}.pph-b{font-size:9px;font-family:var(--fm);padding:2px 6px;border-radius:3px}.pro-price{padding:12px 14px;border-bottom:1px solid var(--br)}.pp-name{font-size:9px;font-family:var(--fm);color:var(--txd);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}.pp-val{font-family:var(--fm);font-size:26px;font-weight:500;letter-spacing:-1px;line-height:1}.pp-chg{font-size:11px;font-family:var(--fm);margin-top:3px}.pp-meta{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}.ppm{background:var(--bg3);border-radius:3px;padding:5px 7px}.ppm-l{font-size:8px;color:var(--txd);font-family:var(--fm);margin-bottom:2px}.ppm-v{font-size:10px;font-family:var(--fm)}.pconf{padding:12px 14px;border-bottom:1px solid var(--br)}.pconf-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.pconf-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--fm);font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px}.pcb-BUY{background:var(--grnbg);color:var(--grn);border:1px solid rgba(34,197,94,.2)}.pcb-SELL{background:var(--redbg);color:var(--red);border:1px solid rgba(239,68,68,.2)}.pcb-WAIT{background:var(--bg5);color:var(--txd);border:1px solid var(--br)}.pconf-sub{font-size:9px;font-family:var(--fm);color:var(--txd)}.pconf-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.pcb-item label{font-size:9px;font-family:var(--fm);color:var(--txd);display:flex;justify-content:space-between;margin-bottom:3px}.pcb-track{height:3px;background:var(--bg5);border-radius:2px;overflow:hidden}.pcb-fill{height:100%;border-radius:2px;transition:width .9s ease}.pcbf-g{background:var(--grn)}.pcbf-r{background:var(--red)}.pcbf-a{background:var(--amb)}.psetup-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--br)}.psetup-cell{background:var(--bg2);padding:9px 10px}.psl{font-size:8px;font-family:var(--fm);color:var(--txd);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px}.psv{font-size:13px;font-family:var(--fm);font-weight:500}.psv-ent{color:var(--gold)}.psv-sl{color:var(--red)}.psv-t1{color:var(--grn)}.psv-t2{color:#4ADE80}.psv-rr{color:var(--blu)}.ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--br)}.ind-cell{background:var(--bg2);padding:7px 9px}.ind-n{font-size:8px;font-family:var(--fm);color:var(--txd);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}.ind-v{font-size:11px;font-family:var(--fm);font-weight:500}.ind-s{font-size:8px;font-family:var(--fm);margin-top:1px}.chart-controls{display:flex;align-items:center;gap:1px;padding:7px 10px;border-bottom:1px solid var(--br);background:var(--bg3);flex-shrink:0}.tf-btn{font-size:9px;font-family:var(--fm);padding:3px 8px;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--txd);cursor:pointer;transition:all .15s}.tf-btn:hover:not(.active){color:var(--tx)}.tf-btn.active{background:var(--bg5);border-color:var(--brl);color:var(--tx)}.chart-wrap-pro{flex:1;min-height:180px;padding:7px;background:var(--bg2)}.vol-wrap{height:48px;padding:5px 7px;border-top:1px solid var(--br);background:var(--bg2)}.ppattern{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:3px;background:var(--bg3);margin-bottom:3px}.ppat-icon{font-size:12px;flex-shrink:0}.ppat-name{font-size:10px;font-family:var(--fm);flex:1;color:var(--tx)}.ppat-desc{font-size:8px;font-family:var(--fm);color:var(--txd);margin-top:1px}.ppat-sig{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px}.pmtf-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--br)}.pmtf-cell{background:var(--bg2);padding:7px 5px;text-align:center}.pmtf-tf{font-size:8px;font-family:var(--fm);color:var(--txd);margin-bottom:3px}.pmtf-sig{font-size:10px;font-family:var(--fm);font-weight:700}.pmtf-cf{font-size:7px;font-family:var(--fm);color:var(--txd);margin-top:1px}.pivot-tbl{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:9px}.pivot-tbl td{padding:4px 7px;border-bottom:1px solid var(--br)}.pivot-tbl tr:last-child td{border-bottom:none}.fib-row{display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--fm);margin-bottom:3px}.fib-pct{color:var(--amb);width:36px;flex-shrink:0}.fib-val{color:var(--txd);flex:1}.fib-val.nearest{color:var(--gold);font-weight:500}.pro-news-feed{padding:7px;display:flex;flex-direction:column;gap:5px;flex:1;overflow-y:auto;min-height:0}.pro-news-feed::-webkit-scrollbar{width:2px}.pro-news-feed::-webkit-scrollbar-thumb{background:var(--bg5)}.pni{border-left:2px solid var(--txm);padding:7px 9px;background:var(--bg3);border-radius:0 4px 4px 0;margin-bottom:1px}.pni-BUL{border-left-color:var(--grn)}.pni-BEA{border-left-color:var(--red)}.pni-NEU{border-left-color:var(--txm)}.pni-hl{font-size:10px;color:var(--tx);line-height:1.4;margin-bottom:3px}.pni-an{font-size:9px;color:var(--txd);line-height:1.4;margin-bottom:3px}.pni-ef{font-size:8px;color:var(--amb);font-family:var(--fm);margin-bottom:3px}.pni-foot{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.pnb{font-size:7px;font-weight:700;padding:2px 4px;border-radius:3px;font-family:var(--fm)}.pnb-BUL{background:var(--grnbg);color:var(--grn)}.pnb-BEA{background:var(--redbg);color:var(--red)}.pnb-NEU{background:var(--bg5);color:var(--txd)}.pni-src{font-size:8px;color:var(--txm);font-family:var(--fm)}.pni-imp{font-size:8px;font-family:var(--fm);font-weight:600}.pnimp-HIGH{color:var(--red)}.pnimp-MEDIUM{color:var(--amb)}.pnimp-LOW{color:var(--txd)}.rf-row{display:flex;align-items:center;gap:5px}.rf-label{font-size:8px;font-family:var(--fm);color:var(--txd);width:80px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px}.rf-input{flex:1;background:var(--bg4);border:1px solid var(--br);border-radius:3px;color:var(--tx);font-family:var(--fm);font-size:10px;padding:4px 7px;outline:none}.rf-input:focus{border-color:var(--brl)}.rf-btn{background:var(--goldbg);border:1px solid rgba(245,197,66,.2);border-radius:3px;color:var(--gold);font-family:var(--fm);font-size:9px;padding:5px;cursor:pointer;width:100%;font-weight:600}.rf-res-row{display:flex;justify-content:space-between;font-size:9px;font-family:var(--fm);padding:2px 0}.rf-res-row span:first-child{color:var(--txd)}.pj-form{padding:7px 9px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--br)}.pji{background:var(--bg4);border:1px solid var(--br);border-radius:3px;color:var(--tx);font-family:var(--fm);font-size:9px;padding:4px 6px;outline:none;width:65px}.pji:focus{border-color:var(--brl)}.pjb{border-radius:3px;font-size:8px;font-weight:700;padding:4px 8px;cursor:pointer;border:1px solid;font-family:var(--fm)}.pjb-buy{background:var(--grnbg);border-color:rgba(34,197,94,.2);color:var(--grn)}.pjb-sell{background:var(--redbg);border-color:rgba(239,68,68,.2);color:var(--red)}.pjb-clr{background:transparent;border-color:var(--br);color:var(--txd)}.pj-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--br)}.pjst{background:var(--bg2);padding:6px 7px;text-align:center}.pjst-l{font-size:7px;font-family:var(--fm);color:var(--txd);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}.pjst-v{font-size:11px;font-family:var(--fm);font-weight:500}</style>
 </head>
 <body>
@@ -479,6 +480,7 @@ async function fetchCommodity(c){
       const hi = meta.regularMarketDayHigh || Math.max(...validRows.map(r => r.high));
       const lo = meta.regularMarketDayLow  || Math.min(...validRows.map(r => r.low));
       liveData[c.id] = {
+        opens:  validRows.map(r => c.conv(r.open, usdInr)),
         closes: validRows.map(r => c.conv(r.close, usdInr)),
         highs:  validRows.map(r => c.conv(r.high, usdInr)),
         lows:   validRows.map(r => c.conv(r.low, usdInr)),
@@ -501,6 +503,7 @@ async function fetchCommodity(c){
 function buildEstimated(c){
   const last = liveData[c.id]?.price || (c.conv ? c.conv(c.base, usdInr) : c.base);
   liveData[c.id] = {
+    opens: [],
     closes: [],
     highs: [],
     lows: [],
@@ -567,27 +570,8 @@ function calcStoch(cls,his,los,n=14,dPeriod=3){
   return{k:Math.round(latestK*10)/10,d:Math.round(avgD*10)/10};
 }
 function calcADX(cls,his,los,n=14){
-  const l=Math.min(cls.length,his.length,los.length);
-  if(l<n+2)return{adx:25,plus:25,minus:25};
-  const trArr=[],plusDM=[],minusDM=[];
-  for(let i=1;i<l;i++){
-    const h=his[i],lo=los[i],prevC=cls[i-1];
-    trArr.push(Math.max(h-lo,Math.abs(h-prevC),Math.abs(lo-prevC)));
-    const upMove=h-his[i-1];
-    const downMove=los[i-1]-lo;
-    plusDM.push(upMove>downMove&&upMove>0?upMove:0);
-    minusDM.push(downMove>upMove&&downMove>0?downMove:0);
-  }
-  const evalLen=Math.min(n,trArr.length);
-  const startIdx=trArr.length-evalLen;
-  let smTR=0,smP=0,smM=0;
-  for(let i=startIdx;i<trArr.length;i++){
-    smTR+=trArr[i];smP+=plusDM[i];smM+=minusDM[i];
-  }
-  const pDI=smTR?smP/smTR*100:0,mDI=smTR?smM/smTR*100:0;
-  const sumDI=pDI+mDI;
-  const dx=sumDI?Math.abs(pDI-mDI)/sumDI*100:0;
-  return{adx:CLP(Math.round(dx*10)/10,0,100),plus:CLP(Math.round(pDI*10)/10,0,100),minus:CLP(Math.round(mDI*10)/10,0,100)};
+  if(window.SignalEngine && window.SignalEngine.calcADX) return window.SignalEngine.calcADX(cls,his,los,n);
+  return{adx:25,plus:25,minus:25,isTrending:true,isChop:false};
 }
 function calcCCI(cls,his,los,n=20){
   const sl=cls.slice(-n),sh=his.slice(-n),slo=los.slice(-n);
@@ -603,10 +587,13 @@ function calcWR(cls,his,los,n=14){
   return hi===lo?-50:CLP((hi-sc[sc.length-1])/(hi-lo)*-100,-100,0);
 }
 function calcOBV(cls,vls){
-  let o=0;for(let i=1;i<Math.min(cls.length,vls.length);i++){cls[i]>cls[i-1]?o+=vls[i]:cls[i]<cls[i-1]?o-=vls[i]:null;}return o;
+  if(window.SignalEngine && window.SignalEngine.calcOBV) return window.SignalEngine.calcOBV(cls,vls);
+  let o=0;for(let i=1;i<Math.min(cls.length,vls.length);i++){cls[i]>cls[i-1]?o+=vls[i]:cls[i]<cls[i-1]?o-=vls[i]:null;}
+  return{value:o,ema10:0,trend:o>0?'BUY':o<0?'SELL':'NEUTRAL'};
 }
-function calcVWAP(cls,vls){
-  let tv=0,tpv=0;for(let i=0;i<Math.min(cls.length,vls.length);i++){tv+=vls[i];tpv+=cls[i]*vls[i];}return tv?tpv/tv:cls[cls.length-1]||0;
+function calcVWAP(cls,vls,his,los){
+  if(window.SignalEngine && window.SignalEngine.calcSessionVWAP) return window.SignalEngine.calcSessionVWAP(cls,his,los,vls,30);
+  let tv=0,tpv=0;for(let i=Math.max(0,cls.length-30);i<Math.min(cls.length,vls.length);i++){tv+=vls[i];tpv+=cls[i]*vls[i];}return tv?tpv/tv:cls[cls.length-1]||0;
 }
 function calcIch(cls,his,los){
   const n9h=his.length?Math.max(...his.slice(-9)):0,n9l=los.length?Math.min(...los.slice(-9)):0;
@@ -625,33 +612,9 @@ function calcMFI(cls,his,los,vls,n=14){
   }
   return neg?CLP(100-100/(1+pos/neg),0,100):100;
 }
-function detectPatterns(cls,his,los){
-  const pats=[],n=cls.length;if(n<3)return pats;
-  const L=n-1,P=n-2,P2=n-3;
-  const op=cls.map((p,i)=>i>0?cls[i-1]:p);
-  const bL=Math.abs(cls[L]-op[L]),rL=his[L]-los[L],bull=cls[L]>op[L],bear=cls[L]<op[L];
-  const bP=Math.abs(cls[P]-op[P]);
-  if(rL>0&&bL/rL<0.1)pats.push({name:'Doji',icon:'〤',sig:'WAIT',desc:'Market indecision — neither bulls nor bears winning'});
-  const lowerWick=Math.min(cls[L],op[L])-los[L];
-  const upperWick=his[L]-Math.max(cls[L],op[L]);
-  if(bL>0&&lowerWick>=2*bL&&upperWick<=bL)
-    pats.push({name:'Hammer',icon:'🔨',sig:'BUY',desc:'Buyers stepped in strongly at lows'});
-  if(bL>0&&upperWick>=2*bL&&lowerWick<=bL)
-    pats.push({name:'Shooting Star',icon:'⭐',sig:'SELL',desc:'Sellers rejected the high — bearish reversal'});
-  if(bull&&cls[P]<op[P]&&op[L]<cls[P]&&cls[L]>op[P])
-    pats.push({name:'Bullish Engulfing',icon:'🟢',sig:'BUY',desc:'Bulls completely engulfed bears — strong reversal'});
-  if(bear&&cls[P]>op[P]&&op[L]>cls[P]&&cls[L]<op[P])
-    pats.push({name:'Bearish Engulfing',icon:'🔴',sig:'SELL',desc:'Bears engulfed bulls — strong reversal'});
-  if(n>=3&&cls[P2]<op[P2]&&bP<bL*0.4&&cls[L]>op[L]&&cls[L]>cls[P2])
-    pats.push({name:'Morning Star',icon:'🌅',sig:'BUY',desc:'3-candle bullish reversal pattern'});
-  if(n>=3&&cls[P2]>op[P2]&&bP<bL*0.4&&cls[L]<op[L]&&cls[L]<cls[P2])
-    pats.push({name:'Evening Star',icon:'🌆',sig:'SELL',desc:'3-candle bearish reversal pattern'});
-  if(rL>0&&bL/rL>0.9)pats.push({name:bull?'Bull Marubozu':'Bear Marubozu',icon:bull?'📗':'📕',sig:bull?'BUY':'SELL',desc:bull?'Full bull control — no selling pressure':'Full bear control — no buying pressure'});
-  if(n>=3&&cls[L]>op[L]&&cls[P]>op[P]&&cls[P2]>op[P2]&&cls[L]>cls[P]&&cls[P]>cls[P2])
-    pats.push({name:'3 White Soldiers',icon:'🪖',sig:'BUY',desc:'Strong consecutive bullish candles'});
-  if(n>=3&&cls[L]<op[L]&&cls[P]<op[P]&&cls[P2]<op[P2]&&cls[L]<cls[P]&&cls[P]<cls[P2])
-    pats.push({name:'3 Black Crows',icon:'🐦',sig:'SELL',desc:'Strong consecutive bearish candles'});
-  return pats.slice(0,6);
+function detectPatterns(cls,his,los,ops){
+  if(window.SignalEngine && window.SignalEngine.detectPatterns) return window.SignalEngine.detectPatterns(cls,his,los,ops);
+  return [];
 }
 function calcPivots(h,l,c,type='classic'){
   const P=(h+l+c)/3;
@@ -694,7 +657,7 @@ function detectRSIDivergence(cls,his,los){
 }
 function computeIndicators(c){
   const ld=liveData[c.id];if(!ld||!ld.hasRealHistory||!ld.closes||ld.closes.length<10)return null;
-  const cls=ld.closes,his=ld.highs,los=ld.lows,vls=ld.vols||[];
+  const ops=ld.opens||[],cls=ld.closes,his=ld.highs,los=ld.lows,vls=ld.vols||[];
   const price=ld.price;
   const rsi=calcRSI(cls);
   const macd=calcMACD(cls);
@@ -704,13 +667,16 @@ function computeIndicators(c){
   const adx=calcADX(cls,his,los);
   const cci=calcCCI(cls,his,los);
   const willr=calcWR(cls,his,los);
-  const obv=calcOBV(cls,vls);
-  const vwap=calcVWAP(cls,vls);
+  const obvRaw=calcOBV(cls,vls);
+  const obvObj=(typeof obvRaw==='object'&&obvRaw!==null)?obvRaw:{value:obvRaw,ema10:0,trend:obvRaw>0?'BUY':obvRaw<0?'SELL':'NEUTRAL'};
+  const obv=obvObj.value;
+  const obvTrend=obvObj.trend;
+  const vwap=calcVWAP(cls,vls,his,los);
   const ich=calcIch(cls,his,los);
   const mfi=calcMFI(cls,his,los,vls);
   const e9=ema(cls,9),e21=ema(cls,21),e50=ema(cls,50),e200=ema(cls,200);
   const struct=detectStructure(cls);
-  const patterns=detectPatterns(cls,his,los);
+  const patterns=detectPatterns(cls,his,los,ops);
   const rsiDiv = detectRSIDivergence(cls,his,los);
   const pivots=calcPivots(ld.high||price,ld.low||price,ld.prevClose||price,pivotType);
   const fib=calcFib(ld.high||price,ld.low||price,price);
@@ -724,11 +690,11 @@ function computeIndicators(c){
     stoch:stoch.k<20?'BUY':stoch.k>80?'SELL':'NEUTRAL',
     cci:cci<-100?'BUY':cci>100?'SELL':'NEUTRAL',
     willr:willr<-80?'BUY':willr>-20?'SELL':'NEUTRAL',
-    adx:adx.plus>adx.minus?'BUY':'SELL',
+    adx:adx.adx<20?'NEUTRAL':(adx.plus>adx.minus?'BUY':'SELL'),
     ich:price>ich.senkouA&&price>ich.senkouB?'BUY':price<ich.senkouA&&price<ich.senkouB?'SELL':'NEUTRAL',
     vwap:price>vwap?'BUY':'SELL',
     struct:struct.trend==='BULLISH'?'BUY':struct.trend==='BEARISH'?'SELL':'NEUTRAL',
-    obv:obv>0?'BUY':'SELL',mfi:mfi<25?'BUY':mfi>75?'SELL':'NEUTRAL',
+    obv:obvTrend,mfi:mfi<25?'BUY':mfi>75?'SELL':'NEUTRAL',
   };
   const allV=Object.values(sigs).filter(v=>v!=='NEUTRAL');
   const buys=allV.filter(v=>v==='BUY').length;
@@ -740,9 +706,9 @@ function computeIndicators(c){
   const t2=direction==='BUY'?price+atr*c.t2_atr:price-atr*c.t2_atr;
   const rr=c.t1_atr/c.sl_atr;
   const smc = (window.PatternEngine && window.PatternEngine.scanPatterns)
-    ? window.PatternEngine.scanPatterns({ closes: cls, highs: his, lows: los, volumes: vls })
+    ? window.PatternEngine.scanPatterns({ opens: ops, closes: cls, highs: his, lows: los, volumes: vls })
     : null;
-  return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,vwap,ich,mfi,e9,e21,e50,e200,
+  return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,obvTrend,vwap,ich,mfi,e9,e21,e50,e200,
     sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,
     prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
     _vols:vls};
@@ -768,61 +734,56 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     };
   }
   const s = ind.sigs;
-  const weighted = {
-    ema_cross: s.ema_cross==='BUY'?3:s.ema_cross==='SELL'?-3:0,  // strongest trend signal
-    ema200:    s.ema200==='BUY'?2.5:s.ema200==='SELL'?-2.5:0,     // macro trend
-    ema50:     s.ema50==='BUY'?2:s.ema50==='SELL'?-2:0,
-    adx:       s.adx==='BUY'?2:s.adx==='SELL'?-2:0,
-    ich:       s.ich==='BUY'?2:s.ich==='SELL'?-2:0,               // Ichimoku cloud
-    macd_hist: s.macd_hist==='BUY'?1.5:s.macd_hist==='SELL'?-1.5:0,
-    vwap:      s.vwap==='BUY'?1.5:s.vwap==='SELL'?-1.5:0,
-    bb:        s.bb==='BUY'?1:s.bb==='SELL'?-1:0,
-    struct:    s.struct==='BUY'?1.5:s.struct==='SELL'?-1.5:0,     // market structure
-    ema21:     s.ema21==='BUY'?1:s.ema21==='SELL'?-1:0,
-    ema9:      s.ema9==='BUY'?0.5:s.ema9==='SELL'?-0.5:0,
-    rsi:       s.rsi==='BUY'?1:s.rsi==='SELL'?-1:0,               // oscillators get less weight
-    stoch:     s.stoch==='BUY'?0.8:s.stoch==='SELL'?-0.8:0,
-    cci:       s.cci==='BUY'?0.5:s.cci==='SELL'?-0.5:0,
-    willr:     s.willr==='BUY'?0.5:s.willr==='SELL'?-0.5:0,
-    mfi:       s.mfi==='BUY'?0.7:s.mfi==='SELL'?-0.7:0,
-    obv:       s.obv==='BUY'?0.8:s.obv==='SELL'?-0.8:0,
-  };
-  const maxScore = Object.values(weighted).reduce((a,v)=>a+Math.abs(v),0);
-  const rawScore = Object.values(weighted).reduce((a,v)=>a+v,0);
-  const techScore = CLP(Math.round(50 + (rawScore/maxScore)*50), 5, 95);
   const vols = ind._vols || [];
   let volScore = 55; // default neutral-positive
   let volLabel = 'Normal volume';
   let volConfirmed = true;
   if(vols.length >= 6){
-    const avgVol = vols.slice(0,-3).reduce((s,v)=>s+v,0) / Math.max(1,vols.length-3);
-    const recentVol = vols.slice(-3).reduce((s,v)=>s+v,0) / 3;
+    const avgVol = vols.slice(0,-3).reduce((sum,v)=>sum+v,0) / Math.max(1,vols.length-3);
+    const recentVol = vols.slice(-3).reduce((sum,v)=>sum+v,0) / 3;
     const ratio = recentVol / Math.max(1, avgVol);
     volScore = CLP(Math.round(ratio * 55), 5, 95);
     volConfirmed = ratio >= 0.85; // only flag when clearly low
     volLabel = ratio >= 1.3 ? 'High volume ✓' : ratio >= 0.85 ? 'Normal volume' : 'Low volume ⚠';
   }
   newsVerdict = newsVerdict || 'NEUTRAL'; // guard null/undefined
-  const newsWeight = (newsScore >= 70 || newsScore <= 30) ? 0.35 : 0.20;
-  const techWeight = 1 - newsWeight;
-  let combined = CLP(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
-  if (ind.smc && ind.smc.ok) {
-    combined = CLP(Math.round(combined * 0.85 + ind.smc.confluenceScore * 0.15), 5, 95);
-  }
-  let action = 'WAIT';
-  if(combined >= 62) action = 'BUY';
-  else if(combined <= 38) action = 'SELL';
-  if (ind.smc && Array.isArray(ind.smc.sweeps) && ind.smc.sweeps.length > 0) {
-    const latestSweep = ind.smc.sweeps[ind.smc.sweeps.length - 1];
-    if (action === 'BUY' && latestSweep.type === 'BUY_SIDE_SWEEP') action = 'WAIT';
-    if (action === 'SELL' && latestSweep.type === 'SELL_SIDE_SWEEP') action = 'WAIT';
-  }
+
   const comObj = com || activeC; // use passed commodity, fall back to active
   const comId = comObj.id;
+  const sym = typeof getCommoditySymbol === 'function' ? getCommoditySymbol(comObj) : 'GOLDM';
+  const lotMult = (window.RiskEngine && window.RiskEngine.getContractSpec)
+    ? (window.RiskEngine.getContractSpec(sym).multiplier || 1)
+    : 1;
+  const price = ind.price;
+  const atr = ind.atr || 0;
+  const slDist = atr * comObj.sl_atr;
+  const t1Dist = atr * comObj.t1_atr;
+
+  const gate = (window.SignalEngine && window.SignalEngine.evaluateRegimeAndFeeGate)
+    ? window.SignalEngine.evaluateRegimeAndFeeGate({
+        sigs: s,
+        adxObj: ind.adx,
+        smc: ind.smc,
+        newsScore,
+        volConfirmed,
+        entry: price,
+        sl: price - slDist,
+        t1: price + t1Dist,
+        lotMultiplier: lotMult,
+        roundTripFee: 45,
+        minGrossTargetMultiple: 3.5,
+        minNetRR: 1.35,
+        threshold: 65
+      })
+    : { regime: 'TRANSITIONAL', techScore: 50, combined: 50, action: 'WAIT', feeVeto: false, feeVetoReason: null, netRR: 0 };
+
+  const techScore = gate.techScore;
+  const combined = gate.combined;
+  let action = gate.action;
   const now = Date.now();
 
   try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2') || '[]'); } catch(_) {}
-  const openTrade = signalHistory.find(s => s.comId === comId && (s.status === 'OPEN' || s.status === 'RUNNING'));
+  const openTrade = signalHistory.find(st => st.comId === comId && (st.status === 'OPEN' || st.status === 'RUNNING'));
   if (openTrade) {
     action = openTrade.action;
     signalLocks[comId] = { action, lockedAt: now, confidence: combined };
@@ -831,7 +792,10 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     const LOCK_MS = 15 * 60 * 1000; // 15 minutes
 
     if (lock && (now - lock.lockedAt) < LOCK_MS) {
-      if (action !== lock.action && (action === 'BUY' ? combined > 70 : action === 'SELL' ? combined < 30 : false)) {
+      if (gate.feeVeto) {
+        action = 'WAIT';
+        delete signalLocks[comId];
+      } else if (action !== lock.action && (action === 'BUY' ? combined > 70 : action === 'SELL' ? combined < 30 : false)) {
         signalLocks[comId] = { action, lockedAt: now, confidence: combined };
       } else if (action === 'WAIT' && combined < 60 && combined > 40) {
         delete signalLocks[comId];
@@ -851,8 +815,6 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     const alignBonus  = (action==='BUY'&&newsVerdict==='BULLISH') || (action==='SELL'&&newsVerdict==='BEARISH') ? 5 : 0;
     conf = CLP(Math.round(techContrib + newsContrib + volContrib + alignBonus), 30, 94);
   }
-  const price = ind.price;
-  const atr = ind.atr || 0;
   const sl = action==='BUY' ? price - atr*comObj.sl_atr : price + atr*comObj.sl_atr;
   const t1 = action==='BUY' ? price + atr*comObj.t1_atr : price - atr*comObj.t1_atr;
   const t2 = action==='BUY' ? price + atr*comObj.t2_atr : price - atr*comObj.t2_atr;
@@ -865,10 +827,11 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
   const ldIntl = liveData[comId]?.intlPrice || 0;
   return {
     ...ind, action, confidence:conf, techScore, newsScore, combined,
+    regime: gate.regime, netRR: gate.netRR, feeVeto: gate.feeVeto, feeVetoReason: gate.feeVetoReason,
     intlPrice:ldIntl, volScore, volLabel, volConfirmed,
-    sl, t1, t2, rr: comObj.t1_atr/comObj.sl_atr,
-    pillar1:{label:'Technical Analysis',icon:'📈',verdict:p1v,score:techScore,
- detail:techScore>=62?`${ind.buys}/${ind.buys+ind.sells} indicators bullish — trend confirmed`:techScore<=38?`${ind.sells}/${ind.buys+ind.sells} indicators bearish — downtrend`:`Mixed — ${ind.buys} buy vs ${ind.sells} sell signals`},
+    sl, t1, t2, rr: gate.netRR > 0 ? gate.netRR : comObj.t1_atr/comObj.sl_atr,
+    pillar1:{label:`Technical Analysis (${gate.regime})`,icon:'📈',verdict:p1v,score:techScore,
+ detail:gate.feeVetoReason ? gate.feeVetoReason : (techScore>=62?`${ind.buys}/${ind.buys+ind.sells} indicators bullish — trend confirmed`:techScore<=38?`${ind.sells}/${ind.buys+ind.sells} indicators bearish — downtrend`:`Mixed — ${ind.buys} buy vs ${ind.sells} sell signals`)},
     pillar2:{label:'News & Geopolitics',icon:'📰',verdict:p2v,score:newsScore,
  detail:newsVerdict||'Analyzing news...'},
     pillar3:{label:"Today's Momentum",icon:'⚡',verdict:p3v,score:moScore,
@@ -1218,7 +1181,7 @@ function updateProSafetyAndSmc() {
   const smcPill = document.getElementById('p-smc-pill');
   const ld = liveData[activeC?.id];
   if (smcPill && window.PatternEngine && ld && Array.isArray(ld.closes) && ld.closes.length >= 10) {
-    const scan = window.PatternEngine.scanPatterns({ closes: ld.closes, highs: ld.highs, lows: ld.lows, volumes: ld.volumes });
+    const scan = window.PatternEngine.scanPatterns({ opens: ld.opens, closes: ld.closes, highs: ld.highs, lows: ld.lows, volumes: ld.vols || ld.volumes });
     smcPill.textContent = `${scan.structure?.state || '—'} (${scan.confluenceScore})`;
     smcPill.style.color = scan.action === 'BULLISH_SMC' ? 'var(--grn)' : scan.action === 'BEARISH_SMC' ? 'var(--red)' : 'var(--gold)';
   }
@@ -1354,7 +1317,7 @@ function renderProPatterns(sig){
   const smcItems = [];
   const ld = liveData[activeC?.id];
   if (window.PatternEngine && ld && Array.isArray(ld.closes) && ld.closes.length >= 10) {
-    const scan = window.PatternEngine.scanPatterns({ closes: ld.closes, highs: ld.highs, lows: ld.lows, volumes: ld.volumes });
+    const scan = window.PatternEngine.scanPatterns({ opens: ld.opens, closes: ld.closes, highs: ld.highs, lows: ld.lows, volumes: ld.vols || ld.volumes });
     (scan.sweeps || []).slice(-2).forEach(s => {
       smcItems.push({ icon: '⚡', name: s.type.replace(/_/g, ' '), desc: s.desc, sig: s.sig });
     });
@@ -1423,7 +1386,7 @@ function renderProOscillators(sig){
     {n:'Will %R', v:sig.willr.toFixed(1),  s:sig.willr<-80?'OVERSOLD':sig.willr>-20?'OVERBOUGHT':'NEUTRAL'},
     {n:'+DI',     v:sig.adx.plus.toFixed(1),s:sig.adx.plus>sig.adx.minus?'BUY':'SELL'},
     {n:'-DI',     v:sig.adx.minus.toFixed(1),s:sig.adx.plus<sig.adx.minus?'BUY':'SELL'},
-    {n:'OBV',     v:(sig.obv>0?'+':'')+Math.round(sig.obv/1000)+'K',s:sig.obv>0?'BUY':'SELL'},
+    {n:'OBV',     v:(sig.obv>0?'+':'')+Math.round(sig.obv/1000)+'K',s:sig.obvTrend||(sig.obv>0?'BUY':'SELL')},
     {n:'MFI',     v:sig.mfi.toFixed(0),    s:sig.mfi<25?'OVERSOLD':sig.mfi>75?'OVERBOUGHT':'NEUTRAL'},
   ];
   document.getElementById('p-oscGrid').innerHTML=oscs.map(o=>{const c=o.s==='BUY'||o.s==='OVERSOLD'?'var(--grn)':o.s==='SELL'||o.s==='OVERBOUGHT'?'var(--red)':'var(--txd)';return`<div class="ind-cell"><div class="ind-n">${o.n}</div><div class="ind-v" style="color:${c}">${o.v}</div><div class="ind-s" style="color:${c}">${o.s}</div></div>`;}).join('');
