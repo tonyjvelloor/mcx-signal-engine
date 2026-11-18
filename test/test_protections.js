@@ -6,6 +6,7 @@ const circuitBreaker = require('../shared/circuit_breaker');
 const geoHistory = require('../shared/geopolitical_history');
 const geoAnalogs = require('../shared/geopolitical_analogs');
 const patternEngine = require('../shared/pattern_engine');
+const globalUsdMode = require('../shared/global_usd_mode');
 const kite = require('../kite');
 
 console.log('🧪 Running Institutional Protection, Geopolitical & SMC Pattern Tests...\n');
@@ -73,7 +74,25 @@ assert.ok(smc.orderBlocks.some(o => o.type === 'BULLISH_OB'), 'Should detect Bul
 assert.ok(smc.fvgs.some(f => f.type === 'BULLISH_FVG'), 'Should detect Bullish Fair Value Gap');
 console.log('✓ Test 6 Passed: SMC Pattern Engine detects Order Blocks, FVGs & Market Structure.');
 
-// 7. Kite Paper Order & GTT OCO tests
+// 7. Global USD / Olymp Trade Mode tests
+const usdPlan = globalUsdMode.buildUsdTradePlan({
+  commodityId: 'gold',
+  sig: { action: 'BUY', confidence: 76, price: 78500, intlPrice: 2650, sl: 78100, t1: 79300, t2: 79700, rr: 2.0 },
+  usdBalance: 100
+});
+assert.strictEqual(usdPlan.ok, true);
+assert.strictEqual(usdPlan.pair, 'XAU/USD');
+assert.strictEqual(usdPlan.fttMode.direction, 'UP (CALL ▲)');
+assert.strictEqual(usdPlan.sizing.stake2Pct, 2);
+const usdBlocked = globalUsdMode.buildUsdTradePlan({
+  commodityId: 'crude',
+  sig: { action: 'BUY', confidence: 80, price: 6200, intlPrice: 70, sl: 6150, t1: 6300 },
+  isBlackout: true
+});
+assert.strictEqual(usdBlocked.action, 'WAIT');
+console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT guidance & blackout veto verified.');
+
+// 8. Kite Paper Order & GTT OCO tests
 (async () => {
   const ord = await kite.placeOrder({ tradingsymbol: 'GOLDPETAL26NOVFUT', side: 'BUY', price: 7800, triggerPrice: 7750 });
   assert.strictEqual(ord.tradingsymbol, 'GOLDPETAL26NOVFUT');
@@ -81,5 +100,5 @@ console.log('✓ Test 6 Passed: SMC Pattern Engine detects Order Blocks, FVGs & 
   const gtt = await kite.placeGTT({ tradingsymbol: 'CRUDEOILM26NOVFUT', stoploss: 6100, target: 6300 });
   assert.strictEqual(gtt.type, 'two-leg');
   assert.strictEqual(gtt.simulated, true);
-  console.log('✓ Test 7 Passed: Kite simulated order & two-leg GTT OCO verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 8 Passed: Kite simulated order & two-leg GTT OCO verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

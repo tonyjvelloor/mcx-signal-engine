@@ -49,7 +49,8 @@ const ALLOWED_STATIC_FILES = {
   '/shared/circuit_breaker.js': 'shared/circuit_breaker.js',
   '/shared/audio_alerts.js': 'shared/audio_alerts.js',
   '/shared/geopolitical_history.js': 'shared/geopolitical_history.js',
-  '/shared/pattern_engine.js': 'shared/pattern_engine.js'
+  '/shared/pattern_engine.js': 'shared/pattern_engine.js',
+  '/shared/global_usd_mode.js': 'shared/global_usd_mode.js'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
