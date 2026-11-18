@@ -30,7 +30,7 @@
   /**
    * Builds a Global USD / Olymp Trade signal & sizing plan from an active signal.
    */
-  function buildUsdTradePlan({ commodityId, sig, usdBalance = 100, payoutPct = 82, isBlackout = false, isCircuitTripped = false }) {
+  function buildUsdTradePlan({ commodityId, sig, usdBalance = 100, payoutPct = 82, isBlackout = false, isCircuitTripped = false, nowMs = Date.now() }) {
     const meta = USD_INSTRUMENTS[commodityId] || { pair: String(commodityId || 'XAU/USD').toUpperCase(), label: 'Global Commodity', decimals: 2 };
     const dec = meta.decimals;
 
@@ -50,10 +50,26 @@
     const t1Usd = (sig.t1 || sig.price * 1.01) * scale;
     const t2Usd = (sig.t2 || sig.price * 1.015) * scale;
     const riskDistUsd = Math.abs(entryUsd - slUsd);
-    const rr = sig.rr ? Number(sig.rr).toFixed(2) : (riskDistUsd > 0 ? (Math.abs(t1Usd - entryUsd) / riskDistUsd).toFixed(2) : '2.00');
+    const rrNum = sig.rr ? Number(sig.rr) : (riskDistUsd > 0 ? Math.abs(t1Usd - entryUsd) / riskDistUsd : 2.0);
+    const rr = rrNum.toFixed(2);
 
     const conf = Number(sig.confidence || 0);
     const action = (isBlackout || isCircuitTripped) ? 'WAIT' : (sig.action || 'WAIT');
+    const regime = String(sig.regime || '').toUpperCase();
+
+    // Best Olymp Trade Mode Selector
+    let recommendedMode = 'WAIT — DO NOT ENTER';
+    if (action === 'BUY' || action === 'SELL') {
+      if (regime === 'TRENDING' && conf >= 72) {
+        recommendedMode = 'FOREX / MULTIPLIER MODE';
+      } else if ((regime === 'RANGING' || regime === 'TRANSITIONAL') && conf >= 68) {
+        recommendedMode = 'FIXED-TIME (FTT) 15m–30m';
+      } else if (conf >= 72) {
+        recommendedMode = 'FOREX / MULTIPLIER MODE';
+      } else if (conf >= 68) {
+        recommendedMode = 'FIXED-TIME (FTT) 15m–30m';
+      }
+    }
 
     let fttExpiry = 'NO TRADE — WAIT';
     let fttDirection = 'HOLD';
@@ -74,12 +90,34 @@
     const stake2Pct = +(bal * 0.02).toFixed(2);
     const breakEvenWinRate = +((100 / (100 + Number(payoutPct || 82))) * 100).toFixed(1);
 
+    // Safe Olymp Trade Forex/CFD Multiplier Calculation
+    const stopFrac = (entryUsd > 0 && riskDistUsd > 0) ? (riskDistUsd / entryUsd) : 0.015;
+    const tpFrac = (entryUsd > 0 && Math.abs(t1Usd - entryUsd) > 0) ? (Math.abs(t1Usd - entryUsd) / entryUsd) : (stopFrac * 2);
+    const maxSafeMult = 0.50 / Math.max(0.001, stopFrac);
+    let multiplier = 20;
+    if (maxSafeMult >= 45) multiplier = 50;
+    else if (maxSafeMult >= 28) multiplier = 30;
+
+    const autoCloseSlPct = Math.min(50, Math.max(25, Math.round(multiplier * stopFrac * 100)));
+    const rawTpPct = Math.round(multiplier * tpFrac * 100);
+    const autoCloseTpPct = Math.min(150, Math.max(85, rawTpPct));
+
+    // Candle Entry Countdown to next 5m boundary
+    const nowSec = Math.floor((Number(nowMs) || Date.now()) / 1000);
+    const next5mCandleSecs = 300 - (nowSec % 300);
+    const remM = Math.floor(next5mCandleSecs / 60);
+    const remS = String(next5mCandleSecs % 60).padStart(2, '0');
+    const instruction = (action === 'BUY' || action === 'SELL')
+      ? `Enter ${action} on next 5m candle open (${remM}m ${remS}s) or pullback near $${entryUsd.toFixed(dec)}`
+      : `Wait for alignment before next 5m candle (${remM}m ${remS}s)`;
+
     return {
       ok: true,
       pair: meta.pair,
       label: meta.label,
       action,
       confidence: conf,
+      recommendedMode,
       forexMode: {
         entry: +entryUsd.toFixed(dec),
         sl: +slUsd.toFixed(dec),
@@ -88,11 +126,24 @@
         slDistance: +riskDistUsd.toFixed(dec),
         rr
       },
+      olympMultiplier: {
+        multiplier,
+        stakeUsd: stake2Pct,
+        autoCloseSlPct,
+        autoCloseTpPct,
+        stopDistancePct: +(stopFrac * 100).toFixed(2),
+        summary: `$${stake2Pct} × ${multiplier}x · Auto-SL -${autoCloseSlPct}% · Auto-TP +${autoCloseTpPct}%`
+      },
       fttMode: {
         direction: fttDirection,
         recommendedExpiry: fttExpiry,
         payoutPct: Number(payoutPct || 82),
         breakEvenWinRate
+      },
+      entryTiming: {
+        next5mCandleSecs,
+        countdownFormatted: `${remM}m ${remS}s`,
+        instruction
       },
       sizing: {
         usdBalance: bal,

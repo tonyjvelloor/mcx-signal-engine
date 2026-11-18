@@ -143,18 +143,39 @@ try {
     );
     CREATE TABLE IF NOT EXISTS account_settings (
       id INTEGER PRIMARY KEY,
-      capital REAL DEFAULT 15000,
-      max_risk_per_trade REAL DEFAULT 50,
-      daily_loss_limit REAL DEFAULT 150,
-      pilot_drawdown_limit REAL DEFAULT 750,
+      capital REAL DEFAULT 10000,
+      max_risk_per_trade REAL DEFAULT 125,
+      daily_loss_limit REAL DEFAULT 300,
+      pilot_drawdown_limit REAL DEFAULT 600,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     INSERT OR IGNORE INTO account_settings (id, capital, max_risk_per_trade, daily_loss_limit, pilot_drawdown_limit)
-    VALUES (1, 15000, 50, 150, 750);
+    VALUES (1, 10000, 125, 300, 600);
+    UPDATE account_settings
+    SET capital = 10000, max_risk_per_trade = 125, daily_loss_limit = 300, pilot_drawdown_limit = 600, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1 AND capital = 15000 AND max_risk_per_trade = 50;
   `);
   console.log('📦 SQLite database initialized: market_data.db');
 } catch (e) {
   console.warn('⚠️ SQLite initialization warning:', e.message);
+}
+
+function getAccountProfile() {
+  const defaults = { capital: 10000, maxRiskPerTrade: 125, dailyLossLimit: 300, pilotDrawdownLimit: 600, currency: 'INR' };
+  if (!db) return defaults;
+  try {
+    const row = db.prepare('SELECT * FROM account_settings WHERE id = 1').get();
+    if (row) {
+      return {
+        capital: Number(row.capital) || defaults.capital,
+        maxRiskPerTrade: Number(row.max_risk_per_trade) || defaults.maxRiskPerTrade,
+        dailyLossLimit: Number(row.daily_loss_limit) || defaults.dailyLossLimit,
+        pilotDrawdownLimit: Number(row.pilot_drawdown_limit) || defaults.pilotDrawdownLimit,
+        currency: 'INR'
+      };
+    }
+  } catch (_) {}
+  return defaults;
 }
 
 function getAnthropicKey() {
@@ -859,17 +880,42 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(macroData));
     }
 
-    // 1d. Capital Profile & Risk Policy (₹15,000 Capital, ₹50 Risk Cap)
+    // 1d. Capital Profile & Risk Policy (₹10,000 Capital, ₹125 Risk Cap, ₹300 Daily Circuit Breaker)
     if (pathname === '/api/account') {
-      let profile = { capital: 15000, maxRiskPerTrade: 50, dailyLossLimit: 150, pilotDrawdownLimit: 750, currency: 'INR' };
-      if (db) {
-        try {
-          const row = db.prepare('SELECT * FROM account_settings WHERE id = 1').get();
-          if (row) profile = { ...profile, capital: row.capital, maxRiskPerTrade: row.max_risk_per_trade, dailyLossLimit: row.daily_loss_limit, pilotDrawdownLimit: row.pilot_drawdown_limit };
-        } catch (_) {}
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const payload = JSON.parse(body || '{}');
+            const cur = getAccountProfile();
+            const capital = Math.max(1000, Number(payload.capital) || cur.capital);
+            const maxRiskPerTrade = Math.max(25, Number(payload.maxRiskPerTrade) || cur.maxRiskPerTrade);
+            const dailyLossLimit = Math.max(50, Number(payload.dailyLossLimit) || cur.dailyLossLimit);
+            const pilotDrawdownLimit = Math.max(100, Number(payload.pilotDrawdownLimit) || cur.pilotDrawdownLimit);
+            if (db) {
+              db.prepare(`
+                INSERT INTO account_settings (id, capital, max_risk_per_trade, daily_loss_limit, pilot_drawdown_limit, updated_at)
+                VALUES (1, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(id) DO UPDATE SET
+                  capital = excluded.capital,
+                  max_risk_per_trade = excluded.max_risk_per_trade,
+                  daily_loss_limit = excluded.daily_loss_limit,
+                  pilot_drawdown_limit = excluded.pilot_drawdown_limit,
+                  updated_at = CURRENT_TIMESTAMP
+              `).run(capital, maxRiskPerTrade, dailyLossLimit, pilotDrawdownLimit);
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(getAccountProfile()));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: e.message }));
+          }
+        });
+        return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(profile));
+      return res.end(JSON.stringify(getAccountProfile()));
     }
 
     // 1d2. Dynamic Institutional Backtest Statistics (Zero-Drift UI Feed)
@@ -989,11 +1035,12 @@ const server = http.createServer(async (req, res) => {
               }
             }
 
-            const isComm = ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
+            const spec = riskEngine.getContractSpec ? riskEngine.getContractSpec(symbol) : { multiplier: 10, segment: 'commodity' };
+            const isComm = spec.segment === 'commodity';
             const segment = isComm ? 'commodity' : 'equity';
-            const spec = riskEngine.getContractSpec ? riskEngine.getContractSpec(symbol) : { multiplier: 10 };
             const lotMult = Number(data.lotMultiplier) || spec.multiplier || 1;
-            const maxLossBudget = Number(data.maxLossTotal) > 0 ? Number(data.maxLossTotal) : (isComm ? 200.0 : 50.0);
+            const accProfile = getAccountProfile();
+            const maxLossBudget = Number(data.maxLossTotal) > 0 ? Number(data.maxLossTotal) : accProfile.maxRiskPerTrade;
 
             // Macro Blackout & Daily Circuit Breaker checks
             const blackout = macroEvents.checkMacroBlackout(symbol);
@@ -1002,7 +1049,7 @@ const server = http.createServer(async (req, res) => {
               return res.end(JSON.stringify({ error: blackout.warningText }));
             }
             const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
-            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: accProfile.dailyLossLimit });
             if (circuit.tripped && !data.overrideCircuitBreaker) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ error: circuit.message }));
@@ -1205,9 +1252,11 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(404, { 'Content-Type': 'application/json' });
                 return res.end(JSON.stringify({ error: 'Trade not found' }));
               }
+              const spec = riskEngine.getContractSpec ? riskEngine.getContractSpec(trade.symbol) : { multiplier: 1 };
+              const lotMult = Number(data.lotMultiplier) || spec.multiplier || 1;
               const grossPnl = trade.side === 'BUY'
-                ? (exitPrice - trade.entry_price) * trade.qty
-                : (trade.entry_price - exitPrice) * trade.qty;
+                ? (exitPrice - trade.entry_price) * trade.qty * lotMult
+                : (trade.entry_price - exitPrice) * trade.qty * lotMult;
               const netPnl = grossPnl - (trade.brokerage || 40.0) - (trade.stt_gst || 5.0);
               const status = exitReason === 'SL_HIT' ? 'SL HIT' : (exitReason === 'T1_HIT' ? 'T1 HIT' : (netPnl >= 0 ? 'WIN' : 'LOSS'));
 
@@ -1406,6 +1455,83 @@ const server = http.createServer(async (req, res) => {
 
     // ─── END TICKER ENDPOINTS ────────────────────────────────────────────────
 
+    // 7d. Live Zerodha Broker Position / Order / Margin Reconciliation & ₹10K Routes
+    if (pathname === '/api/kite/reconcile' && req.method === 'GET') {
+      try {
+        const accProfile = getAccountProfile();
+        const session = kite.loadSession();
+        let todayTrades = [];
+        if (db) {
+          try {
+            todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+          } catch (_) {}
+        }
+
+        let connected = false;
+        let margins = null;
+        let positions = [];
+        let orders = [];
+        let liveMtmPnl = 0;
+
+        if (session) {
+          connected = true;
+          const [mRes, pRes, oRes] = await Promise.all([
+            kite.getMargins().catch(e => ({ error: e.message })),
+            kite.getPositions().catch(e => ({ error: e.message })),
+            kite.getOrders().catch(e => ({ error: e.message }))
+          ]);
+          if (mRes && mRes.data) margins = mRes.data;
+          if (pRes && pRes.data) {
+            positions = pRes.data.net || pRes.data.day || [];
+            liveMtmPnl = positions.reduce((sum, p) => sum + Number(p.m2m ?? p.pnl ?? ((p.realised || 0) + (p.unrealised || 0))), 0);
+            liveMtmPnl = Math.round(liveMtmPnl * 100) / 100;
+          }
+          if (oRes && Array.isArray(oRes.data)) {
+            orders = oRes.data;
+          }
+        }
+
+        const combinedTrades = (connected && liveMtmPnl !== 0)
+          ? [{ pnl: liveMtmPnl, timestamp: new Date().toISOString(), source: 'KITE_LIVE' }, ...todayTrades]
+          : todayTrades;
+
+        const circuit = circuitBreaker.evaluateCircuitBreaker({
+          trades: combinedTrades,
+          dailyLossLimit: accProfile.dailyLossLimit
+        });
+
+        const tenKRoutes = {};
+        if (typeof riskEngine.getTenKExecutionRoute === 'function') {
+          for (const cid of ['gold', 'silver', 'crude', 'natgas', 'copper', 'zinc', 'alum']) {
+            tenKRoutes[cid] = riskEngine.getTenKExecutionRoute({
+              commodityId: cid,
+              capital: accProfile.capital,
+              riskBudget: accProfile.maxRiskPerTrade
+            });
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          ok: true,
+          connected,
+          liveOrdersEnabled: process.env.ENABLE_LIVE_ORDERS === 'true',
+          account: accProfile,
+          liveMtmPnl,
+          margins,
+          positions,
+          ordersCount: orders.length,
+          openOrders: orders.filter(o => o.status === 'OPEN' || o.status === 'TRIGGER PENDING'),
+          circuitBreaker: circuit,
+          tickerStatus: ticker.getStatus(),
+          tenKRoutes
+        }));
+      } catch (recErr) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: recErr.message }));
+      }
+    }
+
     // 8. Order Placement (Protected with Safety Controls)
     if (pathname === '/api/kite/order' && req.method === 'POST') {
       let body = '';
@@ -1439,9 +1565,10 @@ const server = http.createServer(async (req, res) => {
 
           const symbol = String(order.tradingsymbol || order.symbol || '').toUpperCase();
           const spec = riskEngine.getContractSpec(symbol);
-          const isComm = spec.segment === 'commodity' || ['GOLD','SILVER','CRUDE','NATGAS','COPPER','ZINC','ALUM','COTTON'].some(c => symbol.includes(c));
+          const isComm = spec.segment === 'commodity';
           const segment = isComm ? 'commodity' : 'equity';
-          const lotMult = Number(order.lotMultiplier) || spec.multiplier;
+          const lotMult = Number(order.lotMultiplier) || spec.multiplier || 1;
+          const accProfile = getAccountProfile();
 
           // 1. Check Macroeconomic Event Blackout
           const blackout = macroEvents.checkMacroBlackout(symbol);
@@ -1453,7 +1580,7 @@ const server = http.createServer(async (req, res) => {
           // 2. Check Daily Circuit Breaker
           try {
             const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
-            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: accProfile.dailyLossLimit });
             if (circuit.tripped && !order.overrideCircuitBreaker) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ error: circuit.message }));
@@ -1461,14 +1588,13 @@ const server = http.createServer(async (req, res) => {
           } catch (_) {}
 
           // 3. Resolve Exact Exchange Contract Expiry Symbol
-          const resolved = contractResolver.resolveContractExpiry(symbol);
+          const resolved = isComm ? contractResolver.resolveContractExpiry(symbol) : { tradingsymbol: symbol, exchange: spec.exchange || 'NSE' };
           order.tradingsymbol = resolved.tradingsymbol || symbol;
           order.symbol = order.tradingsymbol;
           order.exchange = order.exchange || resolved.exchange || (isComm ? 'MCX' : 'NSE');
 
-          // Adaptive Risk Cap: ₹50 for equity micro-orders; ₹200 for MCX Commodity Minis (or user-specified order.maxLossTotal)
-          const defaultMaxLoss = isComm ? 200.0 : 50.0;
-          const maxLossBudget = Number(order.maxLossTotal) > 0 ? Number(order.maxLossTotal) : defaultMaxLoss;
+          // Adaptive Risk Cap: ₹125 default from account profile (₹10,000 capital) unless explicitly specified
+          const maxLossBudget = Number(order.maxLossTotal) > 0 ? Number(order.maxLossTotal) : accProfile.maxRiskPerTrade;
 
           const sized = riskEngine.sizeTrade({
             side: txType,
@@ -1518,6 +1644,9 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: 'Missing required GTT parameters (symbol, stoploss, target).' }));
           }
+          const spec = riskEngine.getContractSpec(symbol);
+          const isComm = spec.segment === 'commodity';
+          const accProfile = getAccountProfile();
 
           // 1. Check Macroeconomic Event Blackout
           const blackout = macroEvents.checkMacroBlackout(symbol);
@@ -1529,7 +1658,7 @@ const server = http.createServer(async (req, res) => {
           // 2. Check Daily Circuit Breaker
           try {
             const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
-            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            const circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: accProfile.dailyLossLimit });
             if (circuit.tripped && !trigger.overrideCircuitBreaker) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ error: circuit.message }));
@@ -1537,10 +1666,10 @@ const server = http.createServer(async (req, res) => {
           } catch (_) {}
 
           // 3. Resolve Exact Exchange Contract Expiry Symbol
-          const resolved = contractResolver.resolveContractExpiry(symbol);
+          const resolved = isComm ? contractResolver.resolveContractExpiry(symbol) : { tradingsymbol: symbol, exchange: spec.exchange || 'NSE' };
           trigger.tradingsymbol = resolved.tradingsymbol || symbol;
           trigger.symbol = trigger.tradingsymbol;
-          trigger.exchange = trigger.exchange || resolved.exchange || 'MCX';
+          trigger.exchange = trigger.exchange || resolved.exchange || (isComm ? 'MCX' : 'NSE');
 
           const isLiveAllowed = process.env.ENABLE_LIVE_ORDERS === 'true';
           const result = await kite.placeGTT(trigger, isLiveAllowed);
@@ -1566,8 +1695,9 @@ const server = http.createServer(async (req, res) => {
     // 8b. Daily Circuit Breaker Status API
     if (req.method === 'GET' && pathname === '/api/circuit-breaker') {
       try {
+        const accProfile = getAccountProfile();
         const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
-        const status = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+        const status = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: accProfile.dailyLossLimit });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(status));
       } catch (err) {
@@ -1638,11 +1768,12 @@ const server = http.createServer(async (req, res) => {
         const upcomingMacro = macroEvents.getUpcomingEvents();
         const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false);
 
-        let circuit = { tripped: false, dailyNetPnl: 0, consecutiveLosses: 0, remainingLossBudget: 400 };
+        const accProfile = getAccountProfile();
+        let circuit = { tripped: false, dailyNetPnl: 0, consecutiveLosses: 0, remainingLossBudget: accProfile.dailyLossLimit };
         if (db) {
           try {
             const todayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
-            circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: 400.0 });
+            circuit = circuitBreaker.evaluateCircuitBreaker({ trades: todayTrades, dailyLossLimit: accProfile.dailyLossLimit });
           } catch (_) {}
         }
 
@@ -1650,6 +1781,7 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({
           generatedAt: new Date().toISOString(),
           istDate: kt.dateStr,
+          account: accProfile,
           nseSession: { isTradingDay: isNseOpenDay, holidayReason },
           activeContracts: contracts,
           upcomingMacro: upcomingMacro.slice(0, 4),

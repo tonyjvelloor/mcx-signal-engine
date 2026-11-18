@@ -258,34 +258,220 @@
     };
   }
 
-  // MCX Commodity Specifications & Sizing Multipliers
+  // MCX Commodity Specifications, Multipliers & Estimated Zerodha SPAN+Exposure Margins
   const MCX_SPECS = {
-    'GOLDPETAL': { name: 'Gold Petal', multiplier: 1, unit: '₹/g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'GOLDM':     { name: 'Gold Mini', multiplier: 10, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'GOLD':      { name: 'Gold Mega', multiplier: 100, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'SILVERMIC': { name: 'Silver Micro', multiplier: 1, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'SILVERM':   { name: 'Silver Mini', multiplier: 5, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'SILVER':    { name: 'Silver Mega', multiplier: 30, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'CRUDEOILM': { name: 'Crude Oil Mini', multiplier: 10, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'CRUDEOIL':  { name: 'Crude Oil Mega', multiplier: 100, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'NATGASM':   { name: 'Natural Gas Mini', multiplier: 250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'NATGAS':    { name: 'Natural Gas Mega', multiplier: 1250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1 },
-    'COPPER':    { name: 'Copper', multiplier: 2500, unit: '₹/kg', tickSize: 0.05, exchange: 'MCX', segment: 'commodity', baseLot: 1 }
+    'GOLDPETAL': { name: 'Gold Petal', multiplier: 1, unit: '₹/g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 1750 },
+    'GOLDM':     { name: 'Gold Mini', multiplier: 10, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 16500 },
+    'GOLD':      { name: 'Gold Mega', multiplier: 100, unit: '₹/10g', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 165000 },
+    'SILVERMIC': { name: 'Silver Micro', multiplier: 1, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 26000 },
+    'SILVERM':   { name: 'Silver Mini', multiplier: 5, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 130000 },
+    'SILVER':    { name: 'Silver Mega', multiplier: 30, unit: '₹/kg', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 780000 },
+    'CRUDEOILM': { name: 'Crude Oil Mini', multiplier: 10, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 15500 },
+    'CRUDEOIL':  { name: 'Crude Oil Mega', multiplier: 100, unit: '₹/bbl', tickSize: 1.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 155000 },
+    'NATGASM':   { name: 'Natural Gas Mini', multiplier: 250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 16000 },
+    'NATGAS':    { name: 'Natural Gas Mega', multiplier: 1250, unit: '₹/MMBtu', tickSize: 0.10, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 80000 },
+    'COPPER':    { name: 'Copper', multiplier: 2500, unit: '₹/kg', tickSize: 0.05, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 38000 },
+    'ZINC':      { name: 'Zinc', multiplier: 5000, unit: '₹/kg', tickSize: 0.05, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 45000 },
+    'ALUM':      { name: 'Aluminium', multiplier: 5000, unit: '₹/kg', tickSize: 0.05, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 42000 },
+    'COTTON':    { name: 'Cotton Candy', multiplier: 48, unit: '₹/bale', tickSize: 10.0, exchange: 'MCX', segment: 'commodity', baseLot: 1, estMargin: 28000 }
+  };
+
+  // NSE MIS (5x Intraday) / ETF Proxies compatible with ₹10,000 Zerodha capital
+  const NSE_PROXY_SPECS = {
+    'GOLDBEES':   { name: 'Nippon Gold ETF', multiplier: 1, unit: '₹/unit', tickSize: 0.01, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 72 },
+    'SILVERBEES': { name: 'Nippon Silver ETF', multiplier: 1, unit: '₹/unit', tickSize: 0.01, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 95 },
+    'ONGC':       { name: 'ONGC (Crude Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 260 },
+    'GAIL':       { name: 'GAIL India (Gas Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 200 },
+    'HINDCOPPER': { name: 'Hindustan Copper (Copper Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 290 },
+    'NATIONALUM': { name: 'NALCO (Aluminium Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 240 },
+    'VEDL':       { name: 'Vedanta (Zinc/Metals Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 450 },
+    'WELSPUNLIV': { name: 'Welspun Living (Cotton Proxy)', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1, misLeverage: 5, refPrice: 160 }
   };
 
   function getContractSpec(symbol) {
     if (!symbol) return { name: 'Default Equity', multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1 };
-    const clean = symbol.toUpperCase().replace('.NS', '').replace('.BO', '');
-    for (const [key, spec] of Object.entries(MCX_SPECS)) {
-      if (clean === key || clean.startsWith(key)) return spec;
+    const clean = symbol.toUpperCase().replace('NSE:', '').replace('MCX:', '').replace('.NS', '').replace('.BO', '');
+    if (NSE_PROXY_SPECS[clean]) return NSE_PROXY_SPECS[clean];
+    for (const key of Object.keys(NSE_PROXY_SPECS)) {
+      if (clean.startsWith(key)) return NSE_PROXY_SPECS[key];
+    }
+    const sortedMcxKeys = Object.keys(MCX_SPECS).sort((a, b) => b.length - a.length);
+    for (const key of sortedMcxKeys) {
+      if (clean === key || clean.startsWith(key)) return MCX_SPECS[key];
     }
     return { name: clean, multiplier: 1, unit: '₹/share', tickSize: 0.05, exchange: 'NSE', segment: 'equity', baseLot: 1 };
+  }
+
+  /**
+   * Smart ₹10,000 Margin & Instrument Router for Zerodha
+   * Checks if a commodity's primary MCX Mini contract fits within user capital (default ₹10,000),
+   * and routes to MCX:GOLDPETAL or NSE MIS 5x liquid proxies when MCX margin exceeds capital.
+   */
+  function getTenKExecutionRoute({ commodityId = '', symbol = '', capital = 10000, price = 0, riskBudget = 125 } = {}) {
+    const cap = Math.max(1000, Number(capital) || 10000);
+    const budget = Math.max(25, Number(riskBudget) || 125);
+    const symUpper = String(symbol || '').toUpperCase();
+
+    let cid = String(commodityId || '').toLowerCase().trim();
+    if (!cid) {
+      if (symUpper.includes('GOLD')) cid = 'gold';
+      else if (symUpper.includes('SILVER')) cid = 'silver';
+      else if (symUpper.includes('CRUDE')) cid = 'crude';
+      else if (symUpper.includes('NATGAS')) cid = 'natgas';
+      else if (symUpper.includes('COPPER')) cid = 'copper';
+      else if (symUpper.includes('ZINC')) cid = 'zinc';
+      else if (symUpper.includes('ALUM')) cid = 'alum';
+      else if (symUpper.includes('COTTON')) cid = 'cotton';
+      else cid = 'gold';
+    }
+
+    const defaultMcxMap = {
+      gold: 'GOLDM',
+      silver: 'SILVERMIC',
+      crude: 'CRUDEOILM',
+      natgas: 'NATGASM',
+      copper: 'COPPER',
+      zinc: 'ZINC',
+      alum: 'ALUM',
+      cotton: 'COTTON'
+    };
+
+    const proxyMap = {
+      gold: 'GOLDBEES',
+      silver: 'SILVERBEES',
+      crude: 'ONGC',
+      natgas: 'GAIL',
+      copper: 'HINDCOPPER',
+      alum: 'NATIONALUM',
+      zinc: 'VEDL',
+      cotton: 'WELSPUNLIV'
+    };
+
+    const mcxKey = symUpper.includes('GOLDPETAL') ? 'GOLDPETAL' : (defaultMcxMap[cid] || 'GOLDM');
+    const mcxSpec = MCX_SPECS[mcxKey] || MCX_SPECS.GOLDM;
+    const mcxMargin = mcxSpec.estMargin || 16500;
+    const mcxFits = cap >= mcxMargin;
+
+    const mcxContract = {
+      symbol: mcxKey,
+      exchange: 'MCX',
+      name: mcxSpec.name,
+      multiplier: mcxSpec.multiplier,
+      unit: mcxSpec.unit,
+      product: 'NRML',
+      estMargin: mcxMargin,
+      fitsCapital: mcxFits,
+      marginWarning: !mcxFits,
+      shortfall: Math.max(0, Math.round(mcxMargin - cap)),
+      maxLots: mcxFits ? Math.max(1, Math.floor(cap / mcxMargin)) : 0
+    };
+
+    const proxySym = proxyMap[cid] || 'GOLDBEES';
+    const proxySpec = NSE_PROXY_SPECS[proxySym];
+    const proxyRefPrice = proxySpec.refPrice || 100;
+    const misLeverage = proxySpec.misLeverage || 5; // 20% intraday margin
+    const proxyMarginPerShare = +(proxyRefPrice / misLeverage).toFixed(2);
+    const estStopPts = Math.max(0.5, proxyRefPrice * 0.015);
+    const estFees = 15;
+    const maxQtyByRisk = Math.max(1, Math.floor(Math.max(1, budget - estFees) / estStopPts));
+    const maxQtyByMargin = Math.max(1, Math.floor((cap * 0.85) / Math.max(1, proxyMarginPerShare)));
+    const proxyRecQty = Math.min(maxQtyByRisk, maxQtyByMargin);
+
+    const secondaryProxy = {
+      symbol: proxySym,
+      tradingsymbol: proxySym,
+      exchange: 'NSE',
+      name: proxySpec.name,
+      product: 'MIS',
+      segment: 'equity',
+      multiplier: 1,
+      misLeverage,
+      estPrice: proxyRefPrice,
+      marginPerUnit: proxyMarginPerShare,
+      recommendedQty: proxyRecQty,
+      estMarginUsed: +(proxyRecQty * proxyMarginPerShare).toFixed(2),
+      riskBudget: budget,
+      estStopDist: +estStopPts.toFixed(2),
+      fitsCapital: proxyMarginPerShare <= cap,
+      correlationNote: `Liquid 5x MIS NSE proxy tracking ${cid.toUpperCase()} direction`
+    };
+
+    let tenKRoute;
+    if (cid === 'gold') {
+      const petalSpec = MCX_SPECS.GOLDPETAL;
+      const petalMargin = petalSpec.estMargin; // ~₹1,750 per 1g lot
+      const petalPrice = price > 25000 ? price / 10 : (price > 0 ? price : 7800);
+      const safeMaxLots = Math.min(4, Math.max(1, Math.floor(cap / petalMargin)));
+      const petalFees = 28;
+      const safeStopDist = Math.max(25, +(budget - petalFees).toFixed(2));
+      tenKRoute = {
+        symbol: 'GOLDPETAL',
+        tradingsymbol: 'GOLDPETAL',
+        exchange: 'MCX',
+        name: petalSpec.name,
+        product: 'NRML',
+        segment: 'commodity',
+        multiplier: petalSpec.multiplier,
+        unit: petalSpec.unit,
+        estPrice: Math.round(petalPrice * 100) / 100,
+        marginPerUnit: petalMargin,
+        recommendedQty: 1,
+        maxLotsWithinCapital: safeMaxLots,
+        estMarginUsed: petalMargin,
+        riskBudget: budget,
+        maxSafeStopPts: safeStopDist,
+        fitsCapital: cap >= petalMargin,
+        isDirectMcx: true,
+        secondaryProxy,
+        reason: `Primary ₹10K MCX contract: GOLDPETAL (~₹${petalMargin.toLocaleString('en-IN')}/lot fits up to ${safeMaxLots} lots safely). Secondary: NSE:${proxySym}.`
+      };
+    } else if (mcxFits) {
+      tenKRoute = {
+        symbol: mcxKey,
+        tradingsymbol: mcxKey,
+        exchange: 'MCX',
+        name: mcxSpec.name,
+        product: 'NRML',
+        segment: 'commodity',
+        multiplier: mcxSpec.multiplier,
+        unit: mcxSpec.unit,
+        estPrice: price > 0 ? price : 0,
+        marginPerUnit: mcxMargin,
+        recommendedQty: 1,
+        maxLotsWithinCapital: mcxContract.maxLots,
+        estMarginUsed: mcxMargin,
+        riskBudget: budget,
+        fitsCapital: true,
+        isDirectMcx: true,
+        secondaryProxy,
+        reason: `MCX:${mcxKey} fits your ₹${cap.toLocaleString('en-IN')} capital (~₹${mcxMargin.toLocaleString('en-IN')}/lot).`
+      };
+    } else {
+      tenKRoute = {
+        ...secondaryProxy,
+        isDirectMcx: false,
+        secondaryProxy,
+        reason: `MCX:${mcxKey} requires ~₹${mcxMargin.toLocaleString('en-IN')} margin (> ₹${cap.toLocaleString('en-IN')} capital). Routed to NSE:${proxySym} (MIS 5x, ~₹${secondaryProxy.estMarginUsed.toLocaleString('en-IN')} margin for ${proxyRecQty} shares).`
+      };
+    }
+
+    return {
+      ok: true,
+      commodityId: cid,
+      capital: cap,
+      riskBudget: budget,
+      mcxContract,
+      tenKRoute,
+      secondaryRoute: secondaryProxy
+    };
   }
 
   return {
     calculateZerodhaFees,
     sizeTrade,
     getContractSpec,
-    MCX_SPECS
+    getTenKExecutionRoute,
+    MCX_SPECS,
+    NSE_PROXY_SPECS
   };
 }));

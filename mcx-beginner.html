@@ -99,7 +99,7 @@
       <div>
         <div style="font-weight:700;font-size:12px;margin-bottom:2px;letter-spacing:0.3px;">UNVALIDATED SIGNALS — RESEARCH SANDBOX ONLY (NOT INVESTMENT ADVICE)</div>
         <div id="b-warn-body">
-          The algorithmic signals shown in this interface are experimental quantitative hypotheses undergoing walk-forward validation. Multi-symbol walk-forward backtests of the <span id="b-warn-model-name">Pro Multi-Factor Model</span> across <span id="b-warn-syms">12 NSE large-caps</span> (<span id="b-warn-trades">322 OOS trades</span>, <span id="b-warn-range">Aug 07 – Nov 02, 2026</span>) demonstrate <strong>no statistical edge over random chance (<span id="b-warn-pval">p = 0.977</span>)</strong>. Statutory transaction costs and slippage create a <strong id="b-warn-hurdle">~₹9.75 / trade cost hurdle</strong>. All trades are simulated on a ₹15,000 / ₹50 risk-cap paper ledger. Not registered with SEBI as an investment advisor or research analyst. <span id="b-warn-stale" style="display:none;color:#ef4444;font-weight:bold;">[STALE STATS]</span>
+          The algorithmic signals shown in this interface are experimental quantitative hypotheses undergoing walk-forward validation. Multi-symbol walk-forward backtests of the <span id="b-warn-model-name">Pro Multi-Factor Model</span> across <span id="b-warn-syms">12 NSE large-caps</span> (<span id="b-warn-trades">322 OOS trades</span>, <span id="b-warn-range">Aug 07 – Nov 02, 2026</span>) demonstrate <strong>no statistical edge over random chance (<span id="b-warn-pval">p = 0.977</span>)</strong>. Statutory transaction costs and slippage create a <strong id="b-warn-hurdle">~₹9.75 / trade cost hurdle</strong>. Configured for your ₹10,000 capital / ₹125 risk-cap desk (MCX Micro &amp; NSE 5x Proxies + Olymp Trade USD). Not registered with SEBI as an investment advisor or research analyst. <span id="b-warn-stale" style="display:none;color:#ef4444;font-weight:bold;">[STALE STATS]</span>
         </div>
       </div>
     </div>
@@ -116,7 +116,7 @@
         <div>Stop: <span id="tf-stop" style="color:var(--red)">₹—</span></div>
         <div>Target 1: <span id="tf-t1" style="color:var(--tx)">₹—</span> <span id="tf-p1" style="color:var(--txm); font-size: 10px">(1:2 R:R)</span></div>
         <div>Target 2: <span id="tf-t2" style="color:var(--tx)">₹—</span> <span id="tf-p2" style="color:var(--txm); font-size: 10px">(1:3 R:R)</span></div>
-        <div style="grid-column: 1 / -1; margin-top: 4px;">Risk Cap: <span id="tf-risk" style="color:var(--amb)">₹50.00 max</span></div>
+        <div style="grid-column: 1 / -1; margin-top: 4px;">Risk Cap: <span id="tf-risk" style="color:var(--amb)">₹125.00 max</span></div>
       </div>
       <div style="border-top: 1px solid var(--bdr); margin-bottom: 8px;"></div>
       <div style="font-size: 10px; color: var(--txm);">Signal active since: <span id="tf-time">—</span></div>
@@ -244,11 +244,11 @@
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
       <div>
         <div style="font-size:14px;font-weight:800;font-family:var(--fd)">💰 P&amp;L Simulator</div>
-        <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-top:3px">What ₹15,000 would have become following every signal</div>
+        <div style="font-size:10px;color:var(--txd);font-family:var(--fm);margin-top:3px">What ₹10,000 would have become following every signal</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <label style="font-size:10px;color:var(--txd);font-family:var(--fm)">Capital ₹</label>
-        <input id="sim-capital" type="number" value="15000" step="1000" style="width:100px;background:var(--bg3);border:1px solid var(--br);color:var(--tx);padding:5px 8px;border-radius:5px;font-family:var(--fm);font-size:11px" onchange="renderSimulator()">
+        <input id="sim-capital" type="number" value="10000" step="1000" style="width:100px;background:var(--bg3);border:1px solid var(--br);color:var(--tx);padding:5px 8px;border-radius:5px;font-family:var(--fm);font-size:11px" onchange="renderSimulator()">
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
@@ -334,7 +334,7 @@
           <span style="font-size:9px;font-family:var(--fm);color:var(--txd)">Zerodha MCX: <strong style="color:var(--gold)">₹20 Flat</strong></span>
         </div>
         <div class="bcap-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:10px">
-          <div class="bcs"><div class="bcs-l">Capital</div><div class="bcs-v" id="b-cap" style="color:var(--gold)">₹15,000</div></div>
+          <div class="bcs"><div class="bcs-l">Capital</div><div class="bcs-v" id="b-cap" style="color:var(--gold)">₹10,000</div></div>
           <div class="bcs"><div class="bcs-l">Net P&amp;L</div><div class="bcs-v" id="b-pnl" style="color:var(--txd)">₹0</div></div>
           <div class="bcs"><div class="bcs-l">Trades</div><div class="bcs-v" id="b-trades">0</div></div>
           <div class="bcs"><div class="bcs-l">Win Rate</div><div class="bcs-v" id="b-wr" style="color:var(--txd)">—</div></div>
@@ -343,10 +343,14 @@
         <div id="b-contract-spec" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div><span style="color:var(--txd)">Symbol:</span> <strong id="spec-sym" style="color:var(--tx)">GOLDM</strong> (<span id="spec-name" style="color:var(--gold)">Gold Mini</span>)</div>
           <div><span style="color:var(--txd)">Multiplier:</span> <strong id="spec-mult" style="color:var(--tx)">10</strong> <span id="spec-unit" style="color:var(--txd)">₹/10g</span></div>
-          <div><span style="color:var(--txd)">Exchange:</span> <span style="color:var(--cya)">MCX</span></div>
+          <div><span style="color:var(--txd)">Exchange:</span> <span id="spec-exch" style="color:var(--cya)">MCX</span></div>
+        </div>
+        <!-- ₹10,000 Smart Margin & Instrument Router Box -->
+        <div id="b-10k-route-box" style="background:var(--bg3);border:1px solid var(--brl);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;line-height:1.5">
+          <span style="color:var(--txd)">Evaluating ₹10,000 Zerodha margin route...</span>
         </div>
         <div style="padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:10px;font-family:var(--fm);color:var(--txd);line-height:1.6">
-          🛡️ <strong>Risk Guardrails</strong>: Max risk per trade: <span style="color:var(--gold)">₹200</span> (1.33% of ₹15k) · Min Net R:R: <span style="color:var(--grn)">1:1.5</span> · Overnight margin: <span style="color:var(--tx)">NRML</span> · Intraday: <span style="color:var(--tx)">MIS</span>
+          🛡️ <strong>Risk Guardrails</strong>: Max risk/trade: <span style="color:var(--gold)">₹125</span> (1.25% of ₹10k) · Daily Circuit Breaker: <span style="color:var(--red)">₹300</span> (3%) · Min Net R:R: <span style="color:var(--grn)">1:1.5</span> · Overnight: <span style="color:var(--tx)">NRML</span> · Intraday 5x: <span style="color:var(--tx)">MIS</span>
         </div>
       </div>
 
@@ -394,7 +398,7 @@
           </div>
           <div>
             <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">MAX RISK (₹)</label>
-            <input class="pji" id="b-jBudget" type="number" value="200" step="25" oninput="updateSizingFeedback()" style="width:100%">
+            <input class="pji" id="b-jBudget" type="number" value="125" step="25" oninput="updateSizingFeedback()" style="width:100%">
           </div>
         </div>
 
@@ -494,6 +498,13 @@ let lastSignalChange = window.lastSignalChange;
 let lastAction       = window.lastAction;
 let newsData   = null;
 let journal    = [];
+let olympJournal = [];
+try { olympJournal = JSON.parse(localStorage.getItem('mcx_olymp_v1') || '[]'); } catch(_) { olympJournal = []; }
+window.userCapital = 10000;
+window.maxRiskPerTrade = 125;
+window.dailyLossLimit = 300;
+window.activeRouteOverride = null;
+window.kiteTicks = {};
 let isBusy     = false;
 let countdown  = 30;
 let cdTimer    = null;
@@ -744,6 +755,7 @@ async function fetchCommodity(c){
         closes: validRows.map(r => c.conv(r.close, usdInr)),
         highs:  validRows.map(r => c.conv(r.high, usdInr)),
         lows:   validRows.map(r => c.conv(r.low, usdInr)),
+        intlCloses: validRows.map(r => r.close),
         vols:   validRows.map(r => r.volume),
         timestamps: validRows.map(r => r.time),
         price:  c.conv(intl, usdInr),
@@ -974,8 +986,19 @@ function computeIndicators(c){
   const openingGuard = (window.SignalEngine && window.SignalEngine.checkOpeningRangeGuard)
     ? window.SignalEngine.checkOpeningRangeGuard(ld.timestamps, 'commodity')
     : null;
+  const dualFeed = (window.SignalEngine && window.SignalEngine.computeDualFeedParityAndOrderflow)
+    ? window.SignalEngine.computeDualFeedParityAndOrderflow({
+        intlCloses: ld.intlCloses || [],
+        mcxCloses: cls,
+        intlPrice: ld.intlPrice || 0,
+        mcxPrice: ld.kiteLtp || price,
+        fairValuePrice: c.conv ? c.conv(ld.intlPrice || 0, usdInr) : price,
+        kiteTick: ld.kiteTick || null,
+        timestamps: ld.timestamps
+      })
+    : null;
   return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,obvTrend,vwap,ich,mfi,e9,e21,e50,e200,
-    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,htfTrend,openingGuard,
+    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,htfTrend,openingGuard,dualFeed,
     prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
     _vols:vls};
 }
@@ -1047,7 +1070,8 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
         threshold: 65,
         htfTrend: ind.htfTrend,
         openingRangeGuard: ind.openingGuard,
-        isOverextended: preLevels.isOverextended
+        isOverextended: preLevels.isOverextended,
+        dualFeed: ind.dualFeed
       })
     : { regime: 'TRANSITIONAL', techScore: 50, combined: 50, action: 'WAIT', feeVeto: false, feeVetoReason: null, vetoReason: null, netRR: 0 };
 
@@ -1110,6 +1134,7 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     ...ind, action, confidence:conf, techScore, newsScore, combined,
     regime: gate.regime, netRR: gate.netRR, feeVeto: gate.feeVeto, feeVetoReason: gate.feeVetoReason, vetoReason: gate.vetoReason,
     breakevenTrigger: finalLevels.breakevenTrigger,
+    dualFeed: ind.dualFeed,
     intlPrice:ldIntl, volScore, volLabel, volConfirmed,
     sl, t1, t2, rr: gate.netRR > 0 ? gate.netRR : comObj.t1_atr/comObj.sl_atr,
     pillar1:{label:`Technical Analysis (${gate.regime}${ind.htfTrend ? ' · 1H ' + ind.htfTrend.bias : ''})`,icon:'📈',verdict:p1v,score:techScore,
@@ -1136,6 +1161,7 @@ function renderComTabs(){
 }
 function switchCom(id){
   activeC=COMMS.find(c=>c.id===id);
+  window.activeRouteOverride = null;
   renderComTabs();
   updateTopbarUSD();
   updateContractSpecDisplay();
@@ -1249,7 +1275,10 @@ function getCommoditySymbol(c){
   return map[c?.id] || (c?.n ? (c.n + 'M') : 'GOLDM');
 }
 
-function updateContractSpecDisplay(){
+function getEffectiveExecutionSpec(){
+  if (window.activeRouteOverride && window.activeRouteOverride.comId === activeC?.id) {
+    return window.activeRouteOverride;
+  }
   const baseSym = getCommoditySymbol(activeC);
   const resolved = (window.ContractResolver && window.ContractResolver.resolveContractExpiry)
     ? window.ContractResolver.resolveContractExpiry(baseSym)
@@ -1257,28 +1286,172 @@ function updateContractSpecDisplay(){
   const sym = resolved.tradingsymbol || baseSym;
   const spec = (window.RiskEngine && window.RiskEngine.getContractSpec)
     ? window.RiskEngine.getContractSpec(baseSym)
-    : { name: activeC.n, multiplier: 10, unit: activeC.unit, exchange: 'MCX' };
+    : { name: activeC.n, multiplier: 10, unit: activeC.unit, exchange: 'MCX', segment: 'commodity' };
+  return {
+    comId: activeC?.id,
+    baseSym,
+    tradingsymbol: sym,
+    name: spec.name + (resolved.expiryFormatted ? ` (${resolved.expiryFormatted})` : ''),
+    multiplier: spec.multiplier || 1,
+    unit: spec.unit || activeC.unit,
+    exchange: resolved.exchange || spec.exchange || 'MCX',
+    segment: spec.segment || 'commodity',
+    isOverride: false
+  };
+}
+
+function renderTenKRouteBox(){
+  const box = document.getElementById('b-10k-route-box');
+  if (!box || !window.RiskEngine || !window.RiskEngine.getTenKExecutionRoute) return;
+  const capital = window.userCapital || 10000;
+  const budget = parseFloat(document.getElementById('b-jBudget')?.value) || window.maxRiskPerTrade || 125;
+  const curPrice = (liveData[activeC.id]?.price) || priceCache[activeC.id] || (activeC.base || 0);
+  const routeInfo = window.RiskEngine.getTenKExecutionRoute({
+    commodityId: activeC.id,
+    symbol: getCommoditySymbol(activeC),
+    capital,
+    price: curPrice,
+    riskBudget: budget
+  });
+  window.lastTenKRouteInfo = routeInfo;
+
+  const mcx = routeInfo.mcxContract;
+  const rec = routeInfo.tenKRoute;
+  const isOverridden = Boolean(window.activeRouteOverride && window.activeRouteOverride.comId === activeC.id);
+
+  const mcxStatus = mcx.marginWarning
+    ? `<span style="color:var(--amb)">⚠ MCX ${mcx.symbol} requires ~₹${mcx.estMargin.toLocaleString('en-IN')} (&gt; ₹${capital.toLocaleString('en-IN')})</span>`
+    : `<span style="color:var(--grn)">✔ MCX ${mcx.symbol} fits ₹${capital.toLocaleString('en-IN')} (~₹${mcx.estMargin.toLocaleString('en-IN')})</span>`;
+
+  const actionControls = isOverridden
+    ? `<span style="color:var(--grn);font-weight:700">✔ Using ${window.activeRouteOverride.exchange}:${window.activeRouteOverride.tradingsymbol} (${window.activeRouteOverride.product})</span> <button onclick="resetTenKRoute()" style="margin-left:6px;background:var(--bg4);border:1px solid var(--br);color:var(--txd);border-radius:4px;padding:2px 7px;font-size:9px;cursor:pointer">Reset</button>`
+    : `<button onclick="applyTenKRoute(false)" style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.4);color:var(--grn);border-radius:4px;padding:3px 8px;font-size:9px;font-family:var(--fm);font-weight:700;cursor:pointer">🎯 Use ₹10K Route: ${rec.exchange}:${rec.symbol}</button>`;
+
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+      <div>${mcxStatus}</div>
+      <div>${actionControls}</div>
+    </div>
+    <div style="color:var(--txd)">${rec.reason}</div>
+  `;
+}
+
+async function applyTenKRoute(useSecondary = false){
+  const routeInfo = window.lastTenKRouteInfo || (window.RiskEngine?.getTenKExecutionRoute?.({
+    commodityId: activeC.id,
+    symbol: getCommoditySymbol(activeC),
+    capital: window.userCapital || 10000,
+    price: liveData[activeC.id]?.price || activeC.base || 0,
+    riskBudget: window.maxRiskPerTrade || 125
+  }));
+  if (!routeInfo) return;
+  const route = useSecondary && routeInfo.secondaryRoute ? routeInfo.secondaryRoute : routeInfo.tenKRoute;
+  const isMcx = route.exchange === 'MCX';
+  let resolvedSym = route.symbol;
+  if (isMcx && window.ContractResolver?.resolveContractExpiry) {
+    resolvedSym = window.ContractResolver.resolveContractExpiry(route.symbol).tradingsymbol || route.symbol;
+  }
+
+  window.activeRouteOverride = {
+    comId: activeC.id,
+    baseSym: route.symbol,
+    tradingsymbol: resolvedSym,
+    name: route.name + (isMcx ? ' (₹10K MCX)' : ' (₹10K 5x MIS Proxy)'),
+    multiplier: route.multiplier || 1,
+    unit: isMcx ? (route.unit || '₹/g') : '₹/share',
+    exchange: route.exchange,
+    segment: route.segment || (isMcx ? 'commodity' : 'equity'),
+    product: route.product || (isMcx ? 'NRML' : 'MIS'),
+    isOverride: true
+  };
+
+  const sig = allSigs[activeC.id];
+  const side = (sig && (sig.action === 'BUY' || sig.action === 'SELL')) ? sig.action : 'BUY';
+  const curCommPx = (liveData[activeC.id]?.price) || priceCache[activeC.id] || (activeC.base || 0);
+  const sigSlPct = (sig && curCommPx > 0 && sig.sl) ? Math.min(0.025, Math.max(0.004, Math.abs(curCommPx - sig.sl) / curCommPx)) : 0.008;
+  const sigTpPct = (sig && curCommPx > 0 && sig.t1) ? Math.min(0.05, Math.max(0.012, Math.abs(sig.t1 - curCommPx) / curCommPx)) : (sigSlPct * 2);
+
+  let entPx = route.estPrice || curCommPx;
+  let qty = route.recommendedQty || 1;
+  if (isMcx) {
+    if (route.symbol === 'GOLDPETAL' && curCommPx > 25000) entPx = curCommPx / 10;
+    else entPx = curCommPx;
+  } else {
+    try {
+      const qRes = await fetch(`/api/quote?symbol=${encodeURIComponent(route.symbol + '.NS')}&interval=15m&range=5d`);
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        if (qData && qData.regularMarketPrice > 0) entPx = qData.regularMarketPrice;
+      }
+    } catch (_) {}
+    const budget = window.maxRiskPerTrade || 125;
+    const stopPts = Math.max(0.5, entPx * sigSlPct);
+    const misMarginPerSh = entPx / (route.misLeverage || 5);
+    const maxByRisk = Math.max(1, Math.floor((budget - 15) / stopPts));
+    const maxByMargin = Math.max(1, Math.floor(((window.userCapital || 10000) * 0.85) / Math.max(1, misMarginPerSh)));
+    qty = Math.min(maxByRisk, maxByMargin);
+  }
+
+  const slPx = side === 'BUY' ? entPx * (1 - sigSlPct) : entPx * (1 + sigSlPct);
+  const tgtPx = side === 'BUY' ? entPx * (1 + sigTpPct) : entPx * (1 - sigTpPct);
+
+  const sideEl = document.getElementById('b-side');
+  const prodEl = document.getElementById('b-prod');
+  const entEl = document.getElementById('b-jEnt');
+  const slEl = document.getElementById('b-jSL');
+  const tgtEl = document.getElementById('b-jTgt');
+  const qtyEl = document.getElementById('b-jQty');
+  const budEl = document.getElementById('b-jBudget');
+
+  if (sideEl) sideEl.value = side;
+  if (prodEl) prodEl.value = window.activeRouteOverride.product;
+  if (entEl) entEl.value = entPx.toFixed(2);
+  if (slEl) slEl.value = slPx.toFixed(2);
+  if (tgtEl) tgtEl.value = tgtPx.toFixed(2);
+  if (qtyEl) qtyEl.value = String(qty);
+  if (budEl) budEl.value = String(window.maxRiskPerTrade || 125);
+
+  updateContractSpecDisplay();
+}
+
+function resetTenKRoute(){
+  window.activeRouteOverride = null;
+  updateContractSpecDisplay();
+}
+
+function updateContractSpecDisplay(){
+  const eff = getEffectiveExecutionSpec();
 
   const sSym = document.getElementById('spec-sym');
   const sName = document.getElementById('spec-name');
   const sMult = document.getElementById('spec-mult');
   const sUnit = document.getElementById('spec-unit');
+  const sExch = document.getElementById('spec-exch');
 
-  if(sSym) sSym.textContent = sym;
-  if(sName) sName.textContent = spec.name + (resolved.expiryFormatted ? ` (${resolved.expiryFormatted})` : '');
-  if(sMult) sMult.textContent = spec.multiplier;
-  if(sUnit) sUnit.textContent = spec.unit;
+  if(sSym) sSym.textContent = eff.tradingsymbol;
+  if(sName) sName.textContent = eff.name;
+  if(sMult) sMult.textContent = eff.multiplier;
+  if(sUnit) sUnit.textContent = eff.unit;
+  if(sExch) sExch.textContent = eff.exchange;
 
+  renderTenKRouteBox();
   updateSizingFeedback();
 }
 
 function copyActiveSignalToPanel(){
   const sig = allSigs[activeC.id];
+  const eff = getEffectiveExecutionSpec();
   const sideEl = document.getElementById('b-side');
   const entEl = document.getElementById('b-jEnt');
   const slEl = document.getElementById('b-jSL');
   const tgtEl = document.getElementById('b-jTgt');
   const qtyEl = document.getElementById('b-jQty');
+  const budEl = document.getElementById('b-jBudget');
+
+  if (eff.isOverride) {
+    applyTenKRoute(false);
+    return;
+  }
 
   const curPrice = (liveData[activeC.id]?.price) || priceCache[activeC.id] || (activeC.base || 0);
 
@@ -1294,6 +1467,7 @@ function copyActiveSignalToPanel(){
     if(tgtEl) tgtEl.value = (curPrice * 1.01).toFixed(2);
   }
   if(qtyEl) qtyEl.value = '1';
+  if(budEl && !budEl.value) budEl.value = String(window.maxRiskPerTrade || 125);
 
   updateSizingFeedback();
 }
@@ -1340,7 +1514,7 @@ function updateSizingFeedback(){
   let isCircuitTripped = false;
   const circuitBanner = document.getElementById('circuit-breaker-banner');
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
-    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: 400.0, maxConsecutiveLosses: 2 });
+    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: window.dailyLossLimit || 300.0, maxConsecutiveLosses: 2 });
     if (cb && cb.tripped) {
       isCircuitTripped = true;
       if (circuitBanner) {
@@ -1372,23 +1546,21 @@ function updateSizingFeedback(){
   const sl = parseFloat(slEl?.value);
   const tgt = parseFloat(tgtEl?.value) || null;
   const qty = parseFloat(qtyEl?.value) || 1;
-  const budget = parseFloat(budgetEl?.value) || 200;
+  const budget = parseFloat(budgetEl?.value) || window.maxRiskPerTrade || 125;
 
   if(!ent || !sl || isNaN(ent) || isNaN(sl) || ent <= 0 || sl <= 0){
-    fb.innerHTML = '<span style="color:var(--txd)">Enter Entry &amp; Stop Loss or click "Copy Active Signal" to verify net risk and fees.</span>';
+    fb.innerHTML = '<span style="color:var(--txd)">Enter Entry &amp; Stop Loss or click "Copy Active Signal" / "Use ₹10K Route" to verify net risk and fees.</span>';
     return;
   }
 
-  const sym = getCommoditySymbol(activeC);
-  const spec = (window.RiskEngine && window.RiskEngine.getContractSpec)
-    ? window.RiskEngine.getContractSpec(sym)
-    : { multiplier: 10, segment: 'commodity' };
-  const mult = spec.multiplier;
+  const eff = getEffectiveExecutionSpec();
+  const mult = eff.multiplier;
+  const seg = eff.segment || 'commodity';
 
   const ptRisk = Math.abs(ent - sl);
   const grossLoss = ptRisk * mult * qty;
   const feesAtSL = (window.RiskEngine && window.RiskEngine.calculateZerodhaFees)
-    ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: sl, quantity: qty, lotMultiplier: mult, segment: 'commodity' })
+    ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: sl, quantity: qty, lotMultiplier: mult, segment: seg })
     : { total: 45.0, brokerage: 40.0, taxes: 5.0 };
   const totalNetLoss = grossLoss + feesAtSL.total;
 
@@ -1397,7 +1569,7 @@ function updateSizingFeedback(){
     const ptReward = Math.abs(tgt - ent);
     const grossReward = ptReward * mult * qty;
     const feesAtTgt = (window.RiskEngine && window.RiskEngine.calculateZerodhaFees)
-      ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: tgt, quantity: qty, lotMultiplier: mult, segment: 'commodity' })
+      ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: tgt, quantity: qty, lotMultiplier: mult, segment: seg })
       : { total: 45.0 };
     const netReward = grossReward - feesAtTgt.total;
     const netRR = totalNetLoss > 0 ? (netReward / totalNetLoss).toFixed(2) : '0';
@@ -1410,7 +1582,7 @@ function updateSizingFeedback(){
 
   fb.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-      <span style="font-weight:700;color:${badgeCls}">${badgeTxt}</span>
+      <span style="font-weight:700;color:${badgeCls}">${badgeTxt} (${eff.exchange}:${eff.tradingsymbol})</span>
       <span style="color:var(--txd)">Budget: ₹${budget.toFixed(2)}</span>
     </div>
     <div>
@@ -1439,7 +1611,7 @@ async function executeManualTrade(isKite = false){
   const sl = parseFloat(document.getElementById('b-jSL')?.value);
   const tgt = parseFloat(document.getElementById('b-jTgt')?.value) || null;
   const qty = parseFloat(document.getElementById('b-jQty')?.value) || 1;
-  const budget = parseFloat(document.getElementById('b-jBudget')?.value) || 200;
+  const budget = parseFloat(document.getElementById('b-jBudget')?.value) || window.maxRiskPerTrade || 125;
   const prod = document.getElementById('b-prod')?.value || 'NRML';
 
   if(!ent || !sl || isNaN(ent) || isNaN(sl)){
@@ -1458,28 +1630,22 @@ async function executeManualTrade(isKite = false){
 
   // 2. Check Daily Risk Circuit Breaker
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
-    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: 400.0, maxConsecutiveLosses: 2 });
+    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: window.dailyLossLimit || 300.0, maxConsecutiveLosses: 2 });
     if (cb && cb.tripped) {
       alert(`🛑 ORDER BLOCKED BY DAILY CIRCUIT BREAKER:\n${cb.message}`);
       return;
     }
   }
 
-  const baseSym = getCommoditySymbol(activeC);
-  const resolved = (window.ContractResolver && window.ContractResolver.resolveContractExpiry)
-    ? window.ContractResolver.resolveContractExpiry(baseSym)
-    : { tradingsymbol: baseSym, exchange: 'MCX' };
-  const sym = resolved.tradingsymbol || baseSym;
-
-  const spec = (window.RiskEngine && window.RiskEngine.getContractSpec)
-    ? window.RiskEngine.getContractSpec(baseSym)
-    : { multiplier: 10, segment: 'commodity' };
-  const mult = spec.multiplier;
+  const eff = getEffectiveExecutionSpec();
+  const sym = eff.tradingsymbol;
+  const mult = eff.multiplier;
+  const seg = eff.segment || 'commodity';
 
   const ptRisk = Math.abs(ent - sl);
   const grossLoss = ptRisk * mult * qty;
   const feesAtSL = (window.RiskEngine && window.RiskEngine.calculateZerodhaFees)
-    ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: sl, quantity: qty, lotMultiplier: mult, segment: 'commodity' })
+    ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: sl, quantity: qty, lotMultiplier: mult, segment: seg })
     : { total: 45.0 };
   const totalNetLoss = grossLoss + feesAtSL.total;
 
@@ -1518,6 +1684,7 @@ async function executeManualTrade(isKite = false){
       id: journal.length + 1,
       dbId,
       comId: activeC.id,
+      segment: seg,
       time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
       date: new Date().toLocaleDateString('en-IN'),
       com: sym,
@@ -1536,7 +1703,7 @@ async function executeManualTrade(isKite = false){
     renderJournal();
     updateSizingFeedback();
     if (window.AudioAlerts) window.AudioAlerts.playSignalChime(side);
-    alert(`📝 Paper Trade Opened:\n${sym} ${side} @ ₹${ent.toLocaleString('en-IN')}\nLots: ${qty} | Max Risk: ₹${totalNetLoss.toFixed(2)}\nSynced to SQLite & Journal.`);
+    alert(`📝 Paper Trade Opened:\n${sym} ${side} @ ₹${ent.toLocaleString('en-IN')}\nQty: ${qty} | Max Risk: ₹${totalNetLoss.toFixed(2)}\nSynced to SQLite & Journal.`);
     return;
   }
 
@@ -1544,7 +1711,7 @@ async function executeManualTrade(isKite = false){
   try {
     const payload = {
       symbol: sym,
-      exchange: resolved.exchange || 'MCX',
+      exchange: eff.exchange || 'MCX',
       side: side,
       type: 'LIMIT',
       price: ent,
@@ -1552,7 +1719,7 @@ async function executeManualTrade(isKite = false){
       target: tgt,
       quantity: qty,
       lotMultiplier: mult,
-      product: prod,
+      product: eff.isOverride ? (eff.product || prod) : prod,
       maxLossTotal: budget
     };
 
@@ -1570,6 +1737,7 @@ async function executeManualTrade(isKite = false){
 
     const trade = {
       id: journal.length + 1,
+      segment: seg,
       time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
       date: new Date().toLocaleDateString('en-IN'),
       com: sym,
@@ -1608,11 +1776,8 @@ async function executeGttOco(){
     return;
   }
 
-  const baseSym = getCommoditySymbol(activeC);
-  const resolved = (window.ContractResolver && window.ContractResolver.resolveContractExpiry)
-    ? window.ContractResolver.resolveContractExpiry(baseSym)
-    : { tradingsymbol: baseSym, exchange: 'MCX' };
-  const sym = resolved.tradingsymbol || baseSym;
+  const eff = getEffectiveExecutionSpec();
+  const sym = eff.tradingsymbol;
   const exitSide = side === 'BUY' ? 'SELL' : 'BUY';
 
   try {
@@ -1621,13 +1786,13 @@ async function executeGttOco(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         symbol: sym,
-        exchange: resolved.exchange || 'MCX',
+        exchange: eff.exchange || 'MCX',
         side: exitSide,
         entry: ent,
         stoploss: sl,
         target: tgt,
         quantity: qty,
-        product: prod
+        product: eff.isOverride ? (eff.product || prod) : prod
       })
     });
     const data = await resp.json();
@@ -1647,7 +1812,7 @@ async function finalizeJournalClose(t, exitPrice, exitReason = 'MANUAL_CLOSE'){
 
   const grossPnl = (t.type === 'BUY' ? exitPrice - t.ent : t.ent - exitPrice) * t.mult * t.qty;
   const fees = (window.RiskEngine && window.RiskEngine.calculateZerodhaFees)
-    ? window.RiskEngine.calculateZerodhaFees({ side: t.type, entry: t.ent, exit: exitPrice, quantity: t.qty, lotMultiplier: t.mult, segment: 'commodity' }).total
+    ? window.RiskEngine.calculateZerodhaFees({ side: t.type, entry: t.ent, exit: exitPrice, quantity: t.qty, lotMultiplier: t.mult, segment: t.segment || 'commodity' }).total
     : 45.0;
   const netPnl = Math.round(grossPnl - fees);
 
@@ -1764,7 +1929,7 @@ async function openBriefingModal(){
         <div style="background:var(--bg3);padding:10px;border-radius:8px;border:1px solid var(--br)">
           <div style="color:var(--txd);font-size:9px">SESSION &amp; RISK BUDGET (${b.istDate})</div>
           <div style="margin-top:4px">NSE Status: <strong style="color:${b.nseSession?.isTradingDay ? 'var(--grn)' : 'var(--red)'}">${b.nseSession?.isTradingDay ? 'TRADING DAY' : (b.nseSession?.holidayReason || 'CLOSED')}</strong></div>
-          <div>Daily Circuit Budget: <strong style="color:${b.circuitBreaker?.tripped ? 'var(--red)' : 'var(--grn)'}">₹${b.circuitBreaker?.remainingLossBudget ?? 400} remaining</strong></div>
+          <div>Daily Circuit Budget: <strong style="color:${b.circuitBreaker?.tripped ? 'var(--red)' : 'var(--grn)'}">₹${b.circuitBreaker?.remainingLossBudget ?? (window.dailyLossLimit || 300)} remaining</strong></div>
         </div>
         <div style="background:var(--bg3);padding:10px;border-radius:8px;border:1px solid var(--br)">
           <div style="color:var(--txd);font-size:9px">GEOPOLITICAL REGIME</div>
@@ -1799,8 +1964,9 @@ function clearJournal(){
 }
 
 function renderJournal(){
+  const baseCap = window.userCapital || 10000;
   const closed = journal.filter(t => t.pnl != null);
-  let cap = 15000;
+  let cap = baseCap;
   closed.slice().reverse().forEach(t => { cap += t.pnl; });
   const wins = closed.filter(t => t.pnl > 0).length;
   const wr = closed.length ? Math.round(wins / closed.length * 100) : 0;
@@ -1809,7 +1975,7 @@ function renderJournal(){
   const bCap = document.getElementById('b-cap');
   if(bCap){
     bCap.textContent = '₹' + Math.round(cap).toLocaleString('en-IN');
-    bCap.style.color = cap >= 15000 ? 'var(--grn)' : 'var(--red)';
+    bCap.style.color = cap >= baseCap ? 'var(--grn)' : 'var(--red)';
   }
   const bPnl = document.getElementById('b-pnl');
   if(bPnl){
@@ -1827,7 +1993,7 @@ function renderJournal(){
   const pCap = document.getElementById('p-jCap');
   if(pCap){
     pCap.textContent = '₹' + Math.round(cap / 1000 * 10) / 10 + 'K';
-    pCap.style.color = cap >= 15000 ? 'var(--grn)' : 'var(--red)';
+    pCap.style.color = cap >= baseCap ? 'var(--grn)' : 'var(--red)';
   }
   const pPnl = document.getElementById('p-jPnl');
   if(pPnl){
@@ -2191,12 +2357,83 @@ function renderBeg(){
   if (lastGeoIntel) renderGeopoliticalRadar(lastGeoIntel);
 }
 
+function evaluateUsdCircuitBreaker(usdBal) {
+  const todayIST = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const todayTrades = olympJournal.filter(t => t.date === todayIST);
+  let netUsd = 0;
+  let consecLosses = 0;
+  for (const t of todayTrades.slice().reverse()) {
+    const p = Number(t.pnlUsd || 0);
+    netUsd += p;
+    if (p < 0) consecLosses++;
+    else if (p > 0) consecLosses = 0;
+  }
+  const maxLossUsd = +(Math.max(10, Number(usdBal) || 100) * 0.04).toFixed(2);
+  const tripped = (netUsd <= -maxLossUsd) || (consecLosses >= 2);
+  return {
+    tripped,
+    netUsd: +netUsd.toFixed(2),
+    consecLosses,
+    maxLossUsd,
+    todayCount: todayTrades.length,
+    reason: netUsd <= -maxLossUsd
+      ? `USD daily loss cap (-$${Math.abs(netUsd).toFixed(2)} / -$${maxLossUsd}) reached`
+      : consecLosses >= 2
+        ? `2 consecutive Olymp Trade losses today — session locked`
+        : null
+  };
+}
+
+function logOlympTrade(outcome) {
+  const sig = allSigs[activeC?.id];
+  const usdBal = parseFloat(document.getElementById('b-usd-bal')?.value) || 100;
+  const cb = evaluateUsdCircuitBreaker(usdBal);
+  if (cb.tripped) {
+    alert(`🛑 OLYMP TRADE SESSION LOCKED: ${cb.reason}`);
+    return;
+  }
+  const plan = window.GlobalUsdMode?.buildUsdTradePlan?.({ commodityId: activeC?.id, sig, usdBalance: usdBal, nowMs: Date.now() });
+  const stake = plan?.olympMultiplier?.stakeUsd || +(usdBal * 0.02).toFixed(2);
+  const mode = (plan?.recommendedMode || '').includes('MULTIPLIER') ? 'MULTIPLIER' : 'FTT';
+  let pnlUsd = 0;
+  if (outcome === 'WIN') {
+    pnlUsd = mode === 'MULTIPLIER'
+      ? +(stake * ((plan?.olympMultiplier?.autoCloseTpPct || 90) / 100)).toFixed(2)
+      : +(stake * 0.82).toFixed(2);
+  } else {
+    pnlUsd = mode === 'MULTIPLIER'
+      ? -(+(stake * ((plan?.olympMultiplier?.autoCloseSlPct || 50) / 100)).toFixed(2))
+      : -stake;
+  }
+  olympJournal.unshift({
+    id: Date.now(),
+    date: new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
+    pair: plan?.pair || activeC?.n || 'XAU/USD',
+    direction: sig?.action || 'BUY',
+    mode,
+    stake,
+    pnlUsd
+  });
+  if (olympJournal.length > 50) olympJournal = olympJournal.slice(0, 50);
+  try { localStorage.setItem('mcx_olymp_v1', JSON.stringify(olympJournal)); } catch (_) {}
+  if (allSigs[activeC?.id]) renderGlobalUsdCard(allSigs[activeC.id]);
+}
+
+function clearOlympJournal() {
+  olympJournal = [];
+  try { localStorage.setItem('mcx_olymp_v1', '[]'); } catch (_) {}
+  if (allSigs[activeC?.id]) renderGlobalUsdCard(allSigs[activeC.id]);
+}
+
 function renderGlobalUsdCard(sig) {
   const box = document.getElementById('b-usd-mode-body');
   if (!box || !window.GlobalUsdMode) return;
   const usdBal = parseFloat(document.getElementById('b-usd-bal')?.value) || 100;
   const isBlackout = Boolean(window.MacroEvents?.checkMacroBlackout?.(activeC?.id)?.isBlackout);
-  const isCircuitTripped = Boolean(window.CircuitBreaker?.evaluateCircuitBreaker?.({ trades: journal, dailyLossLimit: 400.0 })?.tripped);
+  const isInrTripped = Boolean(window.CircuitBreaker?.evaluateCircuitBreaker?.({ trades: journal, dailyLossLimit: window.dailyLossLimit || 300.0 })?.tripped);
+  const usdCb = evaluateUsdCircuitBreaker(usdBal);
+  const isCircuitTripped = isInrTripped || usdCb.tripped;
 
   const plan = window.GlobalUsdMode.buildUsdTradePlan({
     commodityId: activeC?.id,
@@ -2204,7 +2441,8 @@ function renderGlobalUsdCard(sig) {
     usdBalance: usdBal,
     payoutPct: 82,
     isBlackout,
-    isCircuitTripped
+    isCircuitTripped,
+    nowMs: Date.now()
   });
 
   if (!plan.ok) {
@@ -2213,13 +2451,20 @@ function renderGlobalUsdCard(sig) {
   }
 
   const actCol = plan.action === 'BUY' ? 'var(--grn)' : plan.action === 'SELL' ? 'var(--red)' : 'var(--txd)';
+  const modeCol = plan.recommendedMode.includes('MULTIPLIER') ? 'var(--grn)' : plan.recommendedMode.includes('FIXED-TIME') ? 'var(--cya)' : 'var(--txd)';
+  const usdBlockMsg = usdCb.reason || plan.blockedReason || 'Stop for day after 2 losses or -4%';
+
   box.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;background:var(--bg3);border-radius:7px;padding:7px 10px;border:1px solid var(--br);margin-bottom:8px">
+      <div>Recommended Mode: <strong style="color:${modeCol}">${plan.recommendedMode}</strong></div>
+      <div style="color:var(--amb)">⏱ Next 5m Candle: <strong>${plan.entryTiming.countdownFormatted}</strong> <span style="color:var(--txd)">(${plan.entryTiming.instruction})</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px">
       <div style="background:var(--bg3);border-radius:7px;padding:9px 11px;border:1px solid var(--br)">
-        <div style="color:var(--txd);font-size:9px;margin-bottom:3px">FOREX / CFD MODE (${plan.pair})</div>
+        <div style="color:var(--txd);font-size:9px;margin-bottom:3px">OLYMP MULTIPLIER (${plan.pair})</div>
         <div>Action: <strong style="color:${actCol}">${plan.action}</strong> (${plan.confidence}% conf)</div>
-        <div>Entry: <strong style="color:var(--gold)">$${plan.forexMode.entry}</strong></div>
-        <div>SL: <strong style="color:var(--red)">$${plan.forexMode.sl}</strong> · TP1: <strong style="color:var(--grn)">$${plan.forexMode.t1}</strong> (1:${plan.forexMode.rr})</div>
+        <div>Entry: <strong style="color:var(--gold)">$${plan.forexMode.entry}</strong> · SL: <strong style="color:var(--red)">$${plan.forexMode.sl}</strong></div>
+        <div style="color:var(--cya);margin-top:2px"><strong>${plan.olympMultiplier.summary}</strong></div>
       </div>
       <div style="background:var(--bg3);border-radius:7px;padding:9px 11px;border:1px solid var(--br)">
         <div style="color:var(--txd);font-size:9px;margin-bottom:3px">FIXED-TIME (FTT) GUIDANCE</div>
@@ -2229,9 +2474,17 @@ function renderGlobalUsdCard(sig) {
       </div>
       <div style="background:var(--bg3);border-radius:7px;padding:9px 11px;border:1px solid var(--br)">
         <div style="color:var(--txd);font-size:9px;margin-bottom:3px">USD RISK SIZING (1%–2% CAP)</div>
-        <div>Max Stake / Trade: <strong style="color:var(--grn)">$${plan.sizing.stake1Pct} – $${plan.sizing.stake2Pct}</strong></div>
-        <div>Daily Loss Cap (4%): <strong style="color:var(--amb)">$${plan.sizing.maxDailyLossUsd}</strong></div>
-        <div style="color:var(--txd);font-size:9px;margin-top:2px">${plan.blockedReason || 'Stop for the day after 2 consecutive losses'}</div>
+        <div>Max Stake: <strong style="color:var(--grn)">$${plan.sizing.stake1Pct} – $${plan.sizing.stake2Pct}</strong> (Today: <strong style="color:${usdCb.netUsd >= 0 ? 'var(--grn)' : 'var(--red)'}">${usdCb.netUsd >= 0 ? '+' : '-'}$${Math.abs(usdCb.netUsd)}</strong>)</div>
+        <div>Daily Cap (4%): <strong style="color:var(--amb)">$${plan.sizing.maxDailyLossUsd}</strong> · Losses: <strong>${usdCb.consecLosses}/2</strong></div>
+        <div style="color:${usdCb.tripped ? 'var(--red)' : 'var(--txd)'};font-size:9px;margin-top:2px">${usdBlockMsg}</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;background:var(--bg3);padding:6px 10px;border-radius:6px;border:1px solid var(--br)">
+      <div style="color:var(--txd)">🌐 Quick Log Olymp Trade ($${plan.sizing.stake2Pct} stake · ${usdCb.todayCount} trades today):</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="logOlympTrade('WIN')" ${isCircuitTripped ? 'disabled' : ''} style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.4);color:var(--grn);border-radius:4px;padding:3px 9px;font-size:9px;font-family:var(--fm);font-weight:700;cursor:pointer;opacity:${isCircuitTripped ? '0.4' : '1'}">✓ Log WIN</button>
+        <button onclick="logOlympTrade('LOSS')" ${isCircuitTripped ? 'disabled' : ''} style="background:var(--redbg);border:1px solid rgba(239,68,68,0.4);color:var(--red);border-radius:4px;padding:3px 9px;font-size:9px;font-family:var(--fm);font-weight:700;cursor:pointer;opacity:${isCircuitTripped ? '0.4' : '1'}">✗ Log LOSS</button>
+        ${olympJournal.length ? `<button onclick="clearOlympJournal()" style="background:transparent;border:1px solid var(--br);color:var(--txd);border-radius:4px;padding:3px 7px;font-size:9px;font-family:var(--fm);cursor:pointer">Clear</button>` : ''}
       </div>
     </div>
   `;
@@ -2377,7 +2630,7 @@ function renderBegSignal(sig){
   let levelsHTML='';
   if(sig.action!=='WAIT'){
     levelsHTML=`<div class="hdiv"></div><div style="font-size:11px;color:var(--txd);margin-bottom:9px;font-family:var(--fm)">📋 Your trade plan — set these BEFORE you enter</div><div class="b-levels"><div class="bl bl-ent"><div class="bl-label">Entry Price</div><div class="bl-val bval-ent">${fmt(entry)}</div><div class="bl-hint" style="font-size:9px">${fmtUSD(sig.intlPrice,activeC)}</div></div><div class="bl bl-sl"><div class="bl-label">Stop Loss ⚠</div><div class="bl-val bval-sl">${fmt(sl)}</div><div class="bl-hint">Exit immediately here — limits loss to ~${fmt(Math.abs(price-sl))}</div></div><div class="bl bl-t1"><div class="bl-label">Target 1 ✓</div><div class="bl-val bval-t1">${fmt(t1)}</div><div class="bl-hint">Take 50% profit here</div></div><div class="bl bl-t2"><div class="bl-label">Target 2 ✓✓</div><div class="bl-val bval-t2">${fmt(t2)}</div><div class="bl-hint">Take rest of profit here</div></div></div><div style="font-size:11px;color:var(--txd);margin-top:10px;padding:9px;background:var(--bg3);border-radius:7px;line-height:1.7">
-  📊 Risk/Reward = 1:${rr} &nbsp;·&nbsp; On ₹15,000 capital: max risk ₹50 → potential profit ₹${Math.round(50*parseFloat(rr)).toLocaleString('en-IN')} (₹45 fees included)
+  📊 Net Risk/Reward = 1:${rr} &nbsp;·&nbsp; On ₹${(window.userCapital||10000).toLocaleString('en-IN')} capital: max risk ₹${window.maxRiskPerTrade||125} → potential profit ₹${Math.round((window.maxRiskPerTrade||125)*parseFloat(rr)).toLocaleString('en-IN')} (+1R Breakeven trail armed)
  </div>`;
   }else{
     const rsiDivMsg=sig.rsiDiv?.type!=='NONE'?`<div style="margin-top:8px;padding:7px 10px;background:var(--ambbg);border-left:2px solid var(--amb);border-radius:0 6px 6px 0;font-size:11px;color:var(--amb)">⚡ ${sig.rsiDiv.label}</div>`:'';
@@ -2394,10 +2647,10 @@ function renderBegSignal(sig){
   const tlLabel=document.getElementById('tl-label');if(tlLabel){tlLabel.textContent=tlCfg.label;tlLabel.style.color=tlCfg.col;}
   const tlSub=document.getElementById('tl-sub');if(tlSub)tlSub.textContent=tlCfg.sub;
   document.getElementById('b-signalCard').innerHTML=`<div class="bsig-card bsc-${sig.action}"><div class="bsc-top"><div><div class="bsc-badge bb-${sig.action}">🔬 RESEARCH SETUP: ${sig.action} [UNVALIDATED PAPER MODEL]</div><div class="bsc-title">${titles[sig.action]}</div><div class="bsc-reason">${reasons[sig.action]}</div><div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap"><span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--gold)">
-   ⚖️ Cost Hurdle: ~₹8.76/trade (Fees + Slippage)
+   ⚖️ Cost Hurdle: 3.5x Fees / 1.35 Net R:R Gate
  </span><span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--txd)">
    ${sig.buys||0}↑ ${sig.sells||0}↓ indicators
- </span></div></div><div style="text-align:right;flex-shrink:0"><div class="bsc-price" style="color:${activeC.color}">${fmt(price)}</div><div style="font-size:13px;font-family:var(--fm);color:var(--txd);margin-top:2px">${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-chg" style="color:${ch>=0?'var(--grn)':'var(--red)'}">${fmtD(ch)} (${pctStr})</div><div style="font-size:10px;font-family:var(--fm);color:var(--txd);margin-top:2px">USD ${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-src">Updated ${now} · ${sig.src||'—'} · Signal since ${(window.lastSignalChange && activeC && window.lastSignalChange[activeC.id]) ? new Date(window.lastSignalChange[activeC.id]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</div></div></div>
+ </span>${sig.dualFeed ? `<span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--cya)">⚖️ ${sig.dualFeed.summary}</span>` : ''}</div></div><div style="text-align:right;flex-shrink:0"><div class="bsc-price" style="color:${activeC.color}">${fmt(price)}</div><div style="font-size:13px;font-family:var(--fm);color:var(--txd);margin-top:2px">${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-chg" style="color:${ch>=0?'var(--grn)':'var(--red)'}">${fmtD(ch)} (${pctStr})</div><div style="font-size:10px;font-family:var(--fm);color:var(--txd);margin-top:2px">USD ${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-src">Updated ${now} · ${sig.src||'—'} · Signal since ${(window.lastSignalChange && activeC && window.lastSignalChange[activeC.id]) ? new Date(window.lastSignalChange[activeC.id]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</div></div></div>
  ${levelsHTML}
     </div>`;
 }
@@ -2545,7 +2798,7 @@ function updatePerfTab(hist){
 // ═══════════════════════════════════════════
 function renderSimulator(){
   try { signalHistory = JSON.parse(localStorage.getItem('mcx_signals_v2')||'[]'); } catch(_) {}
-  const capital = parseFloat(document.getElementById('sim-capital')?.value||'15000');
+  const capital = parseFloat(document.getElementById('sim-capital')?.value || String(window.userCapital || 10000));
   const closed = signalHistory.filter(s=>{
     const st=s.status||s.result||'';
     const isWin = st === 'T1 HIT' || st === 'T2 HIT' || (st.startsWith('T') && !st.includes('SL'));
@@ -2878,6 +3131,71 @@ function renderStockCard(d) {
 // ═══════════════════════════════════════════
 // ZERODHA KITE CONNECT CLIENT INTEGRATION
 // ═══════════════════════════════════════════
+async function loadAccountProfile() {
+  try {
+    const res = await fetch('/api/account');
+    if (res.ok) {
+      const acc = await res.json();
+      if (acc.capital) window.userCapital = Number(acc.capital);
+      if (acc.maxRiskPerTrade) window.maxRiskPerTrade = Number(acc.maxRiskPerTrade);
+      if (acc.dailyLossLimit) window.dailyLossLimit = Number(acc.dailyLossLimit);
+      const budEl = document.getElementById('b-jBudget');
+      if (budEl) budEl.value = String(window.maxRiskPerTrade);
+      const simEl = document.getElementById('sim-capital');
+      if (simEl) simEl.value = String(window.userCapital);
+      renderTenKRouteBox();
+      renderJournal();
+      updateSizingFeedback();
+    }
+  } catch (_) {}
+}
+
+async function reconcileKiteDesk() {
+  try {
+    const res = await fetch('/api/kite/reconcile');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d.account) {
+      window.userCapital = Number(d.account.capital || window.userCapital || 10000);
+      window.maxRiskPerTrade = Number(d.account.maxRiskPerTrade || window.maxRiskPerTrade || 125);
+      window.dailyLossLimit = Number(d.account.dailyLossLimit || window.dailyLossLimit || 300);
+    }
+    if (d.circuitBreaker?.tripped) {
+      const circuitBanner = document.getElementById('circuit-breaker-banner');
+      if (circuitBanner) {
+        circuitBanner.style.display = 'block';
+        circuitBanner.style.background = 'var(--redbg)';
+        circuitBanner.style.borderColor = 'var(--red)';
+        circuitBanner.style.color = 'var(--red)';
+        circuitBanner.innerHTML = `🛑 <strong>RECONCILED CIRCUIT BREAKER TRIPPED</strong>: ${d.circuitBreaker.message}`;
+      }
+    }
+    if (d.connected && Array.isArray(d.positions)) {
+      window.liveKitePositions = d.positions;
+    }
+  } catch (_) {}
+}
+
+function initKiteTickerStream() {
+  if (typeof EventSource === 'undefined' || window._kiteEs) return;
+  try {
+    const es = new EventSource('/api/kite/ticker/stream');
+    window._kiteEs = es;
+    es.addEventListener('tick', (evt) => {
+      try {
+        const ticks = JSON.parse(evt.data);
+        if (Array.isArray(ticks)) {
+          for (const tk of ticks) {
+            if (tk && tk.instrument_token) {
+              window.kiteTicks[tk.instrument_token] = tk;
+            }
+          }
+        }
+      } catch (_) {}
+    });
+  } catch (_) {}
+}
+
 async function checkKiteStatus() {
   const urlParams = new URLSearchParams(window.location.search);
   const reqToken = urlParams.get('request_token');
@@ -2900,8 +3218,10 @@ async function checkKiteStatus() {
         txt.innerText = `Kite: ${d.user}${cash}`;
         txt.style.color = 'var(--grn)';
       }
+      initKiteTickerStream();
     }
   } catch(e) {}
+  reconcileKiteDesk();
 }
 
 async function handleKiteConnect() {
@@ -2947,15 +3267,17 @@ async function loadBacktestStatsBeg() {
   } catch (err) {
     const body = document.getElementById('b-warn-body');
     if (body) {
-      body.innerHTML = 'The algorithmic models shown here are unvalidated experimental prototypes. Multi-symbol walk-forward backtests show no proven edge over random chance. Strictly simulated paper trading with ₹50 max risk cap. Not investment advice.';
+      body.innerHTML = 'The algorithmic models shown here are unvalidated experimental prototypes. Multi-symbol walk-forward backtests show no proven edge over random chance. Configured for ₹10,000 capital / ₹125 max risk cap paper & live desk. Not investment advice.';
     }
   }
 }
 
 function _boot(){
   loadBacktestStatsBeg();
+  loadAccountProfile();
   updateSession();
   setInterval(updateSession, 10000);
+  setInterval(reconcileKiteDesk, 15000);
   const params = new URLSearchParams(window.location.search);
   const targetCom = params.get('com');
   if (targetCom && COMMS.some(c => c.id === targetCom)) {

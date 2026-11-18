@@ -249,6 +249,24 @@ async function getMargins() {
   return kiteRequest('/user/margins', 'GET', null, session.access_token);
 }
 
+async function getPositions() {
+  const session = loadSession();
+  if (!session) throw new Error('No active Kite session. Please authenticate first.');
+  return kiteRequest('/portfolio/positions', 'GET', null, session.access_token);
+}
+
+async function getOrders() {
+  const session = loadSession();
+  if (!session) throw new Error('No active Kite session. Please authenticate first.');
+  return kiteRequest('/orders', 'GET', null, session.access_token);
+}
+
+async function getGTTs() {
+  const session = loadSession();
+  if (!session) throw new Error('No active Kite session. Please authenticate first.');
+  return kiteRequest('/gtt/triggers', 'GET', null, session.access_token);
+}
+
 async function getLiveQuotes(instruments) {
   const session = loadSession();
   if (!session) throw new Error('No active Kite session. Please authenticate first.');
@@ -258,14 +276,22 @@ async function getLiveQuotes(instruments) {
   return kiteRequest(`/quote?i=${instStr}`, 'GET', null, session.access_token);
 }
 
+function isMcxSymbol(sym, explicitExchange) {
+  if (explicitExchange) return String(explicitExchange).toUpperCase() === 'MCX';
+  if (['BEES', 'HINDCOPPER', 'NATIONALUM', 'ONGC', 'GAIL', 'VEDL', 'WELSPUN'].some(e => sym.includes(e))) {
+    return false;
+  }
+  return ['GOLD', 'SILVER', 'CRUDE', 'NATGAS', 'COPPER', 'ZINC', 'ALUM', 'COTTON'].some(c => sym.includes(c));
+}
+
 async function placeOrder(order, isLiveAllowed = false) {
   const sym = String(order.tradingsymbol || order.symbol || '').toUpperCase();
-  const isCommodity = ['GOLD', 'SILVER', 'CRUDE', 'NATGAS', 'COPPER', 'ZINC', 'ALUM', 'COTTON'].some(c => sym.includes(c));
+  const isCommodity = isMcxSymbol(sym, order.exchange);
 
   // Intelligent Exchange & Product routing:
   // Commodities must trade on MCX with NRML (carry-forward) or MIS (intraday); CNC is invalid on MCX.
   const defaultExchange = isCommodity ? 'MCX' : 'NSE';
-  const defaultProduct = isCommodity ? 'NRML' : 'CNC';
+  const defaultProduct = isCommodity ? 'NRML' : 'MIS';
 
   if (!isLiveAllowed) {
     return {
@@ -304,9 +330,9 @@ async function placeOrder(order, isLiveAllowed = false) {
 
 async function placeGTT(trigger, isLiveAllowed = false) {
   const sym = String(trigger.tradingsymbol || trigger.symbol || '').toUpperCase();
-  const isCommodity = ['GOLD', 'SILVER', 'CRUDE', 'NATGAS', 'COPPER', 'ZINC', 'ALUM', 'COTTON'].some(c => sym.includes(c));
+  const isCommodity = isMcxSymbol(sym, trigger.exchange);
   const defaultExchange = isCommodity ? 'MCX' : 'NSE';
-  const defaultProduct = isCommodity ? 'NRML' : 'CNC';
+  const defaultProduct = isCommodity ? 'NRML' : 'MIS';
 
   if (!isLiveAllowed) {
     return {
@@ -372,6 +398,9 @@ module.exports = {
   generateSession,
   getProfile,
   getMargins,
+  getPositions,
+  getOrders,
+  getGTTs,
   getLiveQuotes,
   placeOrder,
   placeGTT,

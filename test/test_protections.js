@@ -210,5 +210,68 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     isOverextended: overext.isOverextended
   });
   assert.strictEqual(chasedVeto.action, 'WAIT', 'Overextended chase entry must be vetoed to WAIT');
-  console.log('✓ Test 10 Passed: HTF alignment, 15m Opening Range Guard & overextension pullback gate verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 10 Passed: HTF alignment, 15m Opening Range Guard & overextension pullback gate verified.');
+
+  // 11. Nov 20th Dual-Desk Upgrades: ₹10K Margin Router, Dual-Feed Parity/OI (H4) & Olymp Trade Assistant
+  const goldRoute = riskEngine.getTenKExecutionRoute({ commodityId: 'gold', capital: 10000, price: 78500, riskBudget: 125 });
+  assert.strictEqual(goldRoute.tenKRoute.symbol, 'GOLDPETAL', '₹10k Gold must route to MCX:GOLDPETAL');
+  assert.strictEqual(goldRoute.tenKRoute.exchange, 'MCX');
+  assert.strictEqual(goldRoute.secondaryRoute.symbol, 'GOLDBEES');
+  assert.strictEqual(goldRoute.mcxContract.marginWarning, true, 'GOLDM exceeds ₹10k margin');
+
+  const crudeRoute = riskEngine.getTenKExecutionRoute({ commodityId: 'crude', capital: 10000, riskBudget: 125 });
+  assert.strictEqual(crudeRoute.mcxContract.symbol, 'CRUDEOILM');
+  assert.strictEqual(crudeRoute.mcxContract.marginWarning, true, 'CRUDEOILM exceeds ₹10k margin');
+  assert.strictEqual(crudeRoute.tenKRoute.symbol, 'ONGC', 'Crude on ₹10k must route to NSE:ONGC MIS proxy');
+  assert.strictEqual(crudeRoute.tenKRoute.product, 'MIS');
+  assert.ok(crudeRoute.tenKRoute.recommendedQty >= 1);
+
+  const dualBull = signalEngine.computeDualFeedParityAndOrderflow({
+    intlCloses: [2640, 2642, 2644, 2650], // +0.378% ROC > +0.15%
+    mcxCloses: [78000, 78010, 78020, 78040], // +0.051% ROC (lagging > 0.08%)
+    intlPrice: 2650,
+    mcxPrice: 78040,
+    fairValuePrice: 78250,
+    kiteTick: {
+      last_price: 78040,
+      net_change: 40,
+      oi: 12000,
+      oi_day_high: 12000,
+      depth: {
+        buy: [{ quantity: 50 }, { quantity: 40 }, { quantity: 30 }, { quantity: 20 }, { quantity: 10 }],
+        sell: [{ quantity: 15 }, { quantity: 15 }, { quantity: 10 }, { quantity: 10 }, { quantity: 10 }]
+      }
+    },
+    timestamps: [Date.parse('2026-11-18T14:00:00Z')] // 19:30 IST -> PRIME_US_OVERLAP
+  });
+  assert.strictEqual(dualBull.paritySignal, 'BULLISH_LAG');
+  assert.strictEqual(dualBull.oiRegime, 'LONG_BUILDUP');
+  assert.strictEqual(dualBull.sessionWindow, 'PRIME_US_OVERLAP');
+  assert.ok(dualBull.domRatio > 2.0 && dualBull.microstructureScore >= 75);
+
+  const dualShortCover = signalEngine.computeDualFeedParityAndOrderflow({
+    kiteTick: { last_price: 78100, net_change: 50, oi: 10000, oi_day_high: 11500 },
+    timestamps: [Date.parse('2026-11-18T08:30:00Z')] // 14:00 IST -> LONDON_OPEN
+  });
+  assert.strictEqual(dualShortCover.oiRegime, 'SHORT_COVERING');
+  assert.strictEqual(dualShortCover.sessionWindow, 'LONDON_OPEN');
+
+  const olympTrendPlan = globalUsdMode.buildUsdTradePlan({
+    commodityId: 'gold',
+    sig: { action: 'BUY', confidence: 76, regime: 'TRENDING', price: 78500, intlPrice: 2650, sl: 78100, t1: 79300, rr: 2.0 },
+    usdBalance: 100,
+    nowMs: Date.parse('2026-11-18T14:02:00Z')
+  });
+  assert.strictEqual(olympTrendPlan.recommendedMode, 'FOREX / MULTIPLIER MODE');
+  assert.ok([20, 30, 50].includes(olympTrendPlan.olympMultiplier.multiplier));
+  assert.ok(olympTrendPlan.olympMultiplier.autoCloseSlPct <= 50 && olympTrendPlan.olympMultiplier.autoCloseTpPct >= 85);
+  assert.strictEqual(olympTrendPlan.entryTiming.next5mCandleSecs, 180);
+
+  const olympRangePlan = globalUsdMode.buildUsdTradePlan({
+    commodityId: 'crude',
+    sig: { action: 'SELL', confidence: 70, regime: 'RANGING', price: 6200, intlPrice: 70, sl: 6260, t1: 6080, rr: 2.0 },
+    usdBalance: 100
+  });
+  assert.strictEqual(olympRangePlan.recommendedMode, 'FIXED-TIME (FTT) 15m–30m');
+  console.log('✓ Test 11 Passed: ₹10K Margin Router, Dual-Feed Parity/OI (H4) & Olymp Trade Multiplier/FTT Assistant verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

@@ -352,7 +352,142 @@
   }
 
   /**
-   * Evaluates Regime-Conditional Technical Score + HTF / Opening / Fee Hurdle Gates.
+   * Computes Dual-Feed Lead-Lag Parity (International USD vs Domestic MCX) +
+   * Live Kite WebSocket Orderflow / Open Interest (OI) & Session Window Microstructure (Hypothesis H4).
+   */
+  function computeDualFeedParityAndOrderflow({
+    intlCloses = [],
+    mcxCloses = [],
+    intlPrice = 0,
+    mcxPrice = 0,
+    fairValuePrice = 0,
+    kiteTick = null,
+    timestamps = []
+  } = {}) {
+    const safeRoc = (arr) => {
+      if (!Array.isArray(arr) || arr.length < 4) return null;
+      const base = Number(arr[arr.length - 4]);
+      const curr = Number(arr[arr.length - 1]);
+      if (!isFinite(base) || base <= 0 || !isFinite(curr)) return null;
+      return ((curr - base) / base) * 100;
+    };
+
+    const intlRoc = safeRoc(intlCloses);
+    const mcxRoc = safeRoc(mcxCloses);
+    const intlRocPct = intlRoc != null ? Math.round(intlRoc * 1000) / 1000 : 0;
+    const mcxRocPct = mcxRoc != null ? Math.round(mcxRoc * 1000) / 1000 : intlRocPct;
+
+    const liveMcx = (kiteTick && kiteTick.last_price > 0) ? Number(kiteTick.last_price) : Number(mcxPrice || 0);
+    const fv = Number(fairValuePrice || 0);
+    const rawParitySpread = (liveMcx > 0 && fv > 0) ? ((fv - liveMcx) / liveMcx) * 100 : 0;
+    const paritySpreadPct = Math.round(rawParitySpread * 1000) / 1000;
+    const rocLag = intlRoc != null && mcxRoc != null ? (intlRoc - mcxRoc) : 0;
+
+    let paritySignal = 'NEUTRAL';
+    if ((intlRocPct > 0.15 && (rocLag > 0.08 || paritySpreadPct > 0.08)) || paritySpreadPct > 0.15) {
+      paritySignal = 'BULLISH_LAG';
+    } else if ((intlRocPct < -0.15 && (rocLag < -0.08 || paritySpreadPct < -0.08)) || paritySpreadPct < -0.15) {
+      paritySignal = 'BEARISH_LAG';
+    }
+
+    // Kite WebSocket 5-level DOM imbalance & Open Interest regime classification
+    let domRatio = null;
+    let oiRegime = 'UNAVAILABLE';
+    if (kiteTick && typeof kiteTick === 'object') {
+      if (kiteTick.depth && Array.isArray(kiteTick.depth.buy) && Array.isArray(kiteTick.depth.sell)) {
+        const totalBuyDepth = kiteTick.depth.buy.reduce((s, b) => s + (Number(b?.quantity) || 0), 0);
+        const totalSellDepth = kiteTick.depth.sell.reduce((s, a) => s + (Number(a?.quantity) || 0), 0);
+        if (totalBuyDepth > 0 || totalSellDepth > 0) {
+          domRatio = totalSellDepth > 0
+            ? Math.round((totalBuyDepth / totalSellDepth) * 100) / 100
+            : 5.0;
+        }
+      } else if (kiteTick.total_buy_quantity > 0 || kiteTick.total_sell_quantity > 0) {
+        const tb = Number(kiteTick.total_buy_quantity) || 0;
+        const ts = Number(kiteTick.total_sell_quantity) || 0;
+        domRatio = ts > 0 ? Math.round((tb / ts) * 100) / 100 : 5.0;
+      }
+
+      const oi = Number(kiteTick.oi || 0);
+      const oiHigh = Number(kiteTick.oi_day_high || 0);
+      const netChg = (kiteTick.net_change != null && kiteTick.net_change !== 0)
+        ? Number(kiteTick.net_change)
+        : ((kiteTick.ohlc && kiteTick.ohlc.close > 0 && kiteTick.last_price > 0)
+          ? (Number(kiteTick.last_price) - Number(kiteTick.ohlc.close))
+          : 0);
+
+      if (oi > 0) {
+        if (oiHigh > oi) {
+          if (netChg > 0) oiRegime = 'SHORT_COVERING';
+          else if (netChg < 0) oiRegime = 'LONG_UNWINDING';
+          else oiRegime = 'OI_UNWINDING';
+        } else {
+          if (netChg > 0) oiRegime = 'LONG_BUILDUP';
+          else if (netChg < 0) oiRegime = 'SHORT_BUILDUP';
+          else oiRegime = 'NEUTRAL_OI';
+        }
+      }
+    }
+
+    // IST Session Window Quality
+    let refMs = Date.now();
+    if (Array.isArray(timestamps) && timestamps.length > 0) {
+      const rawTs = Number(timestamps[timestamps.length - 1]);
+      if (isFinite(rawTs) && rawTs > 0) {
+        refMs = rawTs < 1e12 ? rawTs * 1000 : rawTs;
+      }
+    }
+    const ist = new Date(refMs + 5.5 * 3600 * 1000);
+    const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    let sessionWindow = 'MIDDAY_LULL';
+    if (mins >= 18 * 60 && mins <= 21 * 60 + 30) {
+      sessionWindow = 'PRIME_US_OVERLAP';
+    } else if (mins >= 13 * 60 + 30 && mins < 16 * 60) {
+      sessionWindow = 'LONDON_OPEN';
+    } else if (mins >= 9 * 60 + 15 && mins < 11 * 60 + 30) {
+      sessionWindow = 'ASIA_MORNING';
+    }
+
+    // Microstructure Score (50 = neutral)
+    let microScore = 50;
+    if (paritySignal === 'BULLISH_LAG') microScore += 18;
+    else if (paritySignal === 'BEARISH_LAG') microScore -= 18;
+
+    if (oiRegime === 'LONG_BUILDUP') microScore += 12;
+    else if (oiRegime === 'SHORT_COVERING') microScore += 8;
+    else if (oiRegime === 'SHORT_BUILDUP') microScore -= 12;
+    else if (oiRegime === 'LONG_UNWINDING') microScore -= 8;
+
+    if (domRatio != null) {
+      if (domRatio >= 1.4) microScore += 15;
+      else if (domRatio >= 1.15) microScore += 8;
+      else if (domRatio <= 0.7) microScore -= 15;
+      else if (domRatio <= 0.87) microScore -= 8;
+    }
+
+    const microstructureScore = clamp(Math.round(microScore), 5, 95);
+    const parts = [`Parity: ${paritySignal} (${paritySpreadPct >= 0 ? '+' : ''}${paritySpreadPct.toFixed(2)}%)`];
+    if (oiRegime !== 'UNAVAILABLE') parts.push(`OI: ${oiRegime}`);
+    if (domRatio != null) parts.push(`DOM: ${domRatio}x`);
+    parts.push(`Window: ${sessionWindow}`);
+
+    return {
+      paritySignal,
+      paritySpreadPct,
+      intlRocPct,
+      mcxRocPct,
+      oiRegime,
+      domRatio,
+      sessionWindow,
+      microstructureScore,
+      intlPrice: Number(intlPrice || 0),
+      mcxPrice: liveMcx,
+      summary: parts.join(' · ')
+    };
+  }
+
+  /**
+   * Evaluates Regime-Conditional Technical Score + HTF / Opening / Dual-Feed / Fee Hurdle Gates.
    */
   function evaluateRegimeAndFeeGate({
     sigs = {},
@@ -370,7 +505,8 @@
     threshold = 65,
     htfTrend = null,
     openingRangeGuard = null,
-    isOverextended = false
+    isOverextended = false,
+    dualFeed = null
   }) {
     const val = (k) => (sigs[k] === 'BUY' ? 1 : sigs[k] === 'SELL' ? -1 : 0);
 
@@ -437,7 +573,18 @@
     const isNewsStrong = (newsScore >= 70 || newsScore <= 30);
     const newsWeight = isNewsStrong ? 0.45 : 0.20;
     const techWeight = 1 - newsWeight;
-    const combined = clamp(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+    let combined = clamp(Math.round(techScore * techWeight + newsScore * newsWeight), 5, 95);
+
+    if (dualFeed && typeof dualFeed.microstructureScore === 'number') {
+      const mScore = dualFeed.microstructureScore;
+      if (mScore >= 65 || mScore <= 35) {
+        combined = clamp(Math.round(combined * 0.85 + mScore * 0.15), 5, 95);
+      }
+      if (dualFeed.sessionWindow === 'PRIME_US_OVERLAP' || dualFeed.sessionWindow === 'LONDON_OPEN') {
+        if (trendBias === 'BUY' && mScore >= 50) combined = clamp(combined + 5, 5, 95);
+        else if (trendBias === 'SELL' && mScore <= 50) combined = clamp(combined - 5, 5, 95);
+      }
+    }
 
     const lowThreshold = 100 - threshold;
     let action = 'WAIT';
@@ -461,8 +608,19 @@
       if (action === 'SELL' && latestSweep.type === 'SELL_SIDE_SWEEP') action = 'WAIT';
     }
 
-    // Opening Range, Overextension Chasing & 1H HTF Alignment Gates
+    // Opening Range, Overextension Chasing, Dual-Feed Orderflow & 1H HTF Alignment Gates
     let vetoReason = null;
+    if (action !== 'WAIT' && dualFeed) {
+      if (action === 'BUY' && dualFeed.domRatio != null && dualFeed.domRatio < 0.55 &&
+          (dualFeed.paritySignal === 'BEARISH_LAG' || dualFeed.oiRegime === 'SHORT_BUILDUP')) {
+        action = 'WAIT';
+        vetoReason = 'Orderflow veto: Ask wall (DOM < 0.55) + Bearish parity/OI opposes BUY';
+      } else if (action === 'SELL' && dualFeed.domRatio != null && dualFeed.domRatio > 1.8 &&
+          (dualFeed.paritySignal === 'BULLISH_LAG' || dualFeed.oiRegime === 'LONG_BUILDUP')) {
+        action = 'WAIT';
+        vetoReason = 'Orderflow veto: Bid wall (DOM > 1.8) + Bullish parity/OI opposes SELL';
+      }
+    }
     if (action !== 'WAIT' && openingRangeGuard && openingRangeGuard.isOpeningNoise) {
       action = 'WAIT';
       vetoReason = openingRangeGuard.reason;
@@ -530,6 +688,7 @@
     computeHTFTrend,
     checkOpeningRangeGuard,
     computeStructuralLevels,
+    computeDualFeedParityAndOrderflow,
     evaluateRegimeAndFeeGate
   };
 
