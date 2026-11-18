@@ -3176,9 +3176,73 @@ async function reconcileKiteDesk() {
   } catch (_) {}
 }
 
-function initKiteTickerStream() {
+async function hydrateJournalFromSqlite() {
+  try {
+    const res = await fetch('/api/paper-trades');
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    const existingDbIds = new Set(journal.filter(t => t.dbId != null).map(t => Number(t.dbId)));
+    const mapped = rows.map(r => {
+      const spec = (window.RiskEngine && window.RiskEngine.getContractSpec)
+        ? window.RiskEngine.getContractSpec(r.symbol)
+        : { multiplier: 1, segment: 'commodity' };
+      const symU = String(r.symbol || '').toUpperCase();
+      let cid = 'gold';
+      if (symU.includes('SILVER')) cid = 'silver';
+      else if (symU.includes('CRUDE') || symU.includes('ONGC')) cid = 'crude';
+      else if (symU.includes('NATGAS') || symU.includes('GAIL')) cid = 'natgas';
+      else if (symU.includes('COPPER')) cid = 'copper';
+      else if (symU.includes('ZINC') || symU.includes('VEDL')) cid = 'zinc';
+      else if (symU.includes('ALUM')) cid = 'alum';
+
+      const dt = new Date(r.exit_time || r.created_at || Date.now());
+      return {
+        id: r.id,
+        dbId: r.id,
+        comId: cid,
+        segment: spec.segment || 'commodity',
+        time: dt.toLocaleTimeString('en-IN', { hour12: false }),
+        date: dt.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        timestamp: r.exit_time || r.created_at,
+        com: r.symbol,
+        type: r.side,
+        ent: Number(r.entry_price),
+        sl: Number(r.stop_loss),
+        tgt: Number(r.target || 0),
+        ex: r.exit_price != null ? Number(r.exit_price) : null,
+        qty: Number(r.qty || 1),
+        mult: spec.multiplier || 1,
+        fees: Number(r.brokerage || 0) + Number(r.stt_gst || 0),
+        pnl: r.net_pnl != null ? Math.round(Number(r.net_pnl)) : null,
+        status: r.status === 'OPEN' ? 'OPEN' : 'CLOSED',
+        exitReason: r.exit_reason || null
+      };
+    });
+
+    // Keep any non-SQLite local entries and merge SQLite authoritative rows
+    const localOnly = journal.filter(t => t.dbId == null);
+    journal = [...mapped, ...localOnly];
+    try { localStorage.setItem('mcx_v4', JSON.stringify(journal)); } catch (_) {}
+    renderJournal();
+    updateSizingFeedback();
+  } catch (_) {}
+}
+
+async function initKiteTickerStream() {
   if (typeof EventSource === 'undefined' || window._kiteEs) return;
   try {
+    try {
+      const subRes = await fetch('/api/kite/ticker/auto-subscribe', { method: 'POST' });
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        if (subData && subData.tokenMap) {
+          window.kiteTokenToComId = subData.tokenMap;
+        }
+      }
+    } catch (_) {}
+
     const es = new EventSource('/api/kite/ticker/stream');
     window._kiteEs = es;
     es.addEventListener('tick', (evt) => {
@@ -3188,6 +3252,11 @@ function initKiteTickerStream() {
           for (const tk of ticks) {
             if (tk && tk.instrument_token) {
               window.kiteTicks[tk.instrument_token] = tk;
+              const cid = window.kiteTokenToComId?.[tk.instrument_token];
+              if (cid && liveData[cid]) {
+                liveData[cid].kiteTick = tk;
+                liveData[cid].kiteLtp = tk.last_price;
+              }
             }
           }
         }
@@ -3275,6 +3344,7 @@ async function loadBacktestStatsBeg() {
 function _boot(){
   loadBacktestStatsBeg();
   loadAccountProfile();
+  hydrateJournalFromSqlite();
   updateSession();
   setInterval(updateSession, 10000);
   setInterval(reconcileKiteDesk, 15000);

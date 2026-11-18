@@ -1453,6 +1453,62 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(ticker.getStatus()));
     }
 
+    // 8e. Auto-resolve & subscribe active MCX + ₹10K NSE proxy instruments in MODE_FULL
+    //     POST /api/kite/ticker/auto-subscribe
+    if (pathname === '/api/kite/ticker/auto-subscribe' && req.method === 'POST') {
+      try {
+        const session = kite.loadSession();
+        if (!session) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, error: 'No active Kite session.' }));
+        }
+        const mcxTargets = [
+          { cid: 'gold', base: 'GOLDPETAL' },
+          { cid: 'silver', base: 'SILVERMIC' },
+          { cid: 'crude', base: 'CRUDEOILM' },
+          { cid: 'natgas', base: 'NATGASM' }
+        ];
+        const instToCid = {};
+        const instruments = [];
+        for (const item of mcxTargets) {
+          const r = contractResolver.resolveContractExpiry(item.base);
+          const key = `MCX:${r.tradingsymbol}`;
+          instruments.push(key);
+          instToCid[key] = item.cid;
+        }
+        const nseProxies = [
+          { cid: 'gold', sym: 'NSE:GOLDBEES' },
+          { cid: 'silver', sym: 'NSE:SILVERBEES' },
+          { cid: 'crude', sym: 'NSE:ONGC' },
+          { cid: 'natgas', sym: 'NSE:GAIL' }
+        ];
+        for (const p of nseProxies) {
+          instruments.push(p.sym);
+          instToCid[p.sym] = p.cid;
+        }
+
+        const qRes = await kite.getLiveQuotes(instruments);
+        const qData = qRes?.data || {};
+        const tokens = [];
+        const tokenMap = {};
+        for (const [inst, info] of Object.entries(qData)) {
+          const tok = Number(info?.instrument_token);
+          if (tok > 0) {
+            tokens.push(tok);
+            tokenMap[tok] = instToCid[inst] || inst;
+          }
+        }
+        if (tokens.length > 0) {
+          ticker.subscribe(tokens, ticker.MODE_FULL);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, subscribedCount: tokens.length, tokens, tokenMap }));
+      } catch (subErr) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: subErr.message }));
+      }
+    }
+
     // ─── END TICKER ENDPOINTS ────────────────────────────────────────────────
 
     // 7d. Live Zerodha Broker Position / Order / Margin Reconciliation & ₹10K Routes
