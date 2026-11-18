@@ -51,6 +51,14 @@ const UNIVERSE = {
   'MARUTI': 'MARUTI.NS'
 };
 
+const COMMODITY_UNIVERSE = {
+  'GOLDM': 'GC=F',
+  'SILVERMIC': 'SI=F',
+  'CRUDEOILM': 'CL=F',
+  'NATGASM': 'NG=F',
+  'COPPER': 'HG=F'
+};
+
 function initDb() {
   const db = new DatabaseSync(DB_PATH);
 
@@ -192,12 +200,12 @@ async function archiveSymbol(db, symbol, ticker, interval = '5m', range = '60d')
           symbol,
           interval,
           ts,
-          Math.round(op * 100) / 100,
-          Math.round(hi * 100) / 100,
-          Math.round(lo * 100) / 100,
-          Math.round(cl * 100) / 100,
+          Math.round(op * 10000) / 10000,
+          Math.round(hi * 10000) / 10000,
+          Math.round(lo * 10000) / 10000,
+          Math.round(cl * 10000) / 10000,
           vl,
-          Math.round(adj * 100) / 100
+          Math.round(adj * 10000) / 10000
         );
         validCount++;
       }
@@ -296,6 +304,21 @@ async function catchUpMissingSessions(db) {
   }
 }
 
+async function archiveCommodities(existingDb = null) {
+  const db = existingDb || initDb();
+  const comSummary = [];
+  for (const [symbol, ticker] of Object.entries(COMMODITY_UNIVERSE)) {
+    try {
+      const res = await archiveSymbol(db, symbol, ticker, '5m', '60d');
+      comSummary.push(res);
+      await new Promise(r => setTimeout(r, 1200));
+    } catch (err) {
+      console.warn(`   ✗ Commodity archive skipped for ${symbol} (${ticker}): ${err.message}`);
+    }
+  }
+  return comSummary;
+}
+
 async function runArchiver(existingDb = null) {
   const kt = getKolkataTime();
   console.log('================================================================================');
@@ -324,6 +347,9 @@ async function runArchiver(existingDb = null) {
       console.error(`   ✗ Error archiving ${symbol}: ${err.message}`);
     }
   }
+
+  const comSummary = await archiveCommodities(db);
+  summary.push(...comSummary);
 
   console.log('\n================================================================================');
   console.log('                        ARCHIVE SUMMARY REPORT');
@@ -357,7 +383,9 @@ if (require.main === module) {
 
 module.exports = {
   runArchiver,
+  archiveCommodities,
   checkDataFreshness,
   catchUpMissingSessions,
-  UNIVERSE
+  UNIVERSE,
+  COMMODITY_UNIVERSE
 };

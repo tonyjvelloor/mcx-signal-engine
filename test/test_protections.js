@@ -173,5 +173,42 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   });
   assert.strictEqual(feeBlocked.feeVeto, true, 'Sub-hurdle gross target must trip feeVeto');
   assert.strictEqual(feeBlocked.action, 'WAIT', 'Fee veto must force action to WAIT');
-  console.log('✓ Test 9 Passed: SignalEngine math (Engulfing, Wilder ADX, OBV EMA, Regime & Fee Hurdle Gate) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 9 Passed: SignalEngine math (Engulfing, Wilder ADX, OBV EMA, Regime & Fee Hurdle Gate) verified.');
+
+  // 10. HTF Alignment, Opening Range Guard & Structural Overextension Chasing Gate tests
+  const htfBullCls = Array.from({ length: 40 }, (_, i) => 100 + i * 1.5);
+  const htfBull = signalEngine.computeHTFTrend(htfBullCls, htfBullCls.map(c => c + 1), htfBullCls.map(c => c - 1), 4);
+  assert.strictEqual(htfBull.bias, 'BULLISH', 'Steadily rising resampled HTF bars must be BULLISH');
+
+  const htfBearCls = Array.from({ length: 40 }, (_, i) => 200 - i * 1.5);
+  const htfBear = signalEngine.computeHTFTrend(htfBearCls, htfBearCls.map(c => c + 1), htfBearCls.map(c => c - 1), 4);
+  assert.strictEqual(htfBear.bias, 'BEARISH', 'Steadily falling resampled HTF bars must be BEARISH');
+
+  // 09:05 IST = 03:35 UTC; 10:00 IST = 04:30 UTC
+  const ts0905 = Date.parse('2026-11-18T03:35:00Z');
+  const ts1000 = Date.parse('2026-11-18T04:30:00Z');
+  assert.strictEqual(signalEngine.checkOpeningRangeGuard([ts0905], 'commodity').isOpeningNoise, true, '09:05 IST must flag Opening Range guard');
+  assert.strictEqual(signalEngine.checkOpeningRangeGuard([ts1000], 'commodity').isOpeningNoise, false, '10:00 IST must be outside Opening Range guard');
+
+  const overext = signalEngine.computeStructuralLevels({
+    action: 'BUY',
+    price: 7900,
+    atr: 20,
+    e21: 7850 // +50 pts = +2.5 ATR > 1.8 ATR threshold
+  });
+  assert.strictEqual(overext.isOverextended, true, 'Price >1.8 ATR above EMA21 must flag isOverextended');
+
+  const chasedVeto = signalEngine.evaluateRegimeAndFeeGate({
+    sigs: trendOnlySigs,
+    adxObj: { adx: 30, isTrending: true, isChop: false },
+    newsScore: 55,
+    entry: 7900,
+    sl: overext.sl,
+    t1: overext.t1,
+    lotMultiplier: 10,
+    roundTripFee: 45,
+    isOverextended: overext.isOverextended
+  });
+  assert.strictEqual(chasedVeto.action, 'WAIT', 'Overextended chase entry must be vetoed to WAIT');
+  console.log('✓ Test 10 Passed: HTF alignment, 15m Opening Range Guard & overextension pullback gate verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

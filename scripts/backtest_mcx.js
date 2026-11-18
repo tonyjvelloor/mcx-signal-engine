@@ -154,34 +154,124 @@ function upgradedEvaluate(bars, idx, mult) {
   return { action: gate.action, atr };
 }
 
-function simulateMode(barsBySymbol, evalFn, lotMult = 10) {
-  let trades = 0, wins = 0, grossSum = 0, feeSum = 0, netSum = 0;
+function v2InstitutionalEvaluate(bars, idx, mult, segment = 'equity') {
+  const win = bars.slice(Math.max(0, idx - 80), idx + 1);
+  const times = win.map(b => b.time);
+  const ops = win.map(b => b.open);
+  const cls = win.map(b => b.close);
+  const his = win.map(b => b.high);
+  const los = win.map(b => b.low);
+  const vls = win.map(b => b.volume);
+  const price = cls[cls.length - 1];
+  const rsi = calcRSI(cls);
+  const bb = calcBB(cls);
+  const atr = calcATR(cls, his, los);
+  const e9 = emaVal(cls, 9), e21 = emaVal(cls, 21), e50 = emaVal(cls, 50), e200 = emaVal(cls, 200);
+  const adx = signalEngine.calcADX(cls, his, los);
+  const obvObj = signalEngine.calcOBV(cls, vls);
+  const vwap = signalEngine.calcSessionVWAP(cls, his, los, vls, 30);
+  const smc = patternEngine.scanPatterns({ opens: ops, closes: cls, highs: his, lows: los, volumes: vls });
+  const htfTrend = signalEngine.computeHTFTrend(cls, his, los, 4); // 4 x 15m = 1H
+  const openingRangeGuard = signalEngine.checkOpeningRangeGuard(times, segment);
+
+  const e12 = emaVal(cls, 12), e26 = emaVal(cls, 26);
+  const macdHist = e12 - e26;
+  const sigs = {
+    rsi: rsi < 35 ? 'BUY' : rsi > 65 ? 'SELL' : 'NEUTRAL',
+    macd_hist: macdHist > 0 ? 'BUY' : 'SELL',
+    bb: price < bb.lower ? 'BUY' : price > bb.upper ? 'SELL' : 'NEUTRAL',
+    ema9: price > e9 ? 'BUY' : 'SELL',
+    ema21: price > e21 ? 'BUY' : 'SELL',
+    ema50: price > e50 ? 'BUY' : 'SELL',
+    ema200: price > e200 ? 'BUY' : 'SELL',
+    ema_cross: e9 > e21 ? 'BUY' : 'SELL',
+    adx: adx.isChop ? 'NEUTRAL' : (adx.plus > adx.minus ? 'BUY' : 'SELL'),
+    vwap: price > vwap ? 'BUY' : 'SELL',
+    struct: smc.structure?.bias === 'BULLISH' ? 'BUY' : smc.structure?.bias === 'BEARISH' ? 'SELL' : 'NEUTRAL',
+    obv: obvObj.trend
+  };
+
+  const candDir = htfTrend.bias === 'BEARISH' ? 'SELL' : 'BUY';
+  const preLevels = signalEngine.computeStructuralLevels({
+    action: candDir, price, atr, e21, vwap, smc,
+    slAtrMult: 1.5, t1AtrMult: 2.5, t2AtrMult: 4.0
+  });
+
+  const roundTripFee = segment === 'commodity' ? 45 : 15;
+  const gate = signalEngine.evaluateRegimeAndFeeGate({
+    sigs,
+    adxObj: adx,
+    smc,
+    newsScore: 50,
+    volConfirmed: true,
+    entry: price,
+    sl: preLevels.sl,
+    t1: preLevels.t1,
+    lotMultiplier: mult,
+    roundTripFee,
+    minGrossTargetMultiple: 3.5,
+    minNetRR: 1.35,
+    threshold: 65,
+    htfTrend,
+    openingRangeGuard,
+    isOverextended: preLevels.isOverextended
+  });
+
+  const finalLevels = signalEngine.computeStructuralLevels({
+    action: gate.action, price, atr, e21, vwap, smc,
+    slAtrMult: 1.5, t1AtrMult: 2.5, t2AtrMult: 4.0
+  });
+
+  return { action: gate.action, atr, levels: finalLevels };
+}
+
+function simulateMode(barsBySymbol, evalFn, { lotMult = 10, segment = 'equity', useBreakevenTrail = false } = {}) {
+  let trades = 0, wins = 0, breakevenSaves = 0, grossSum = 0, feeSum = 0, netSum = 0;
 
   for (const [, bars] of Object.entries(barsBySymbol)) {
-    let i = 65;
+    let i = 85;
     while (i < bars.length - 12) {
-      const { action, atr } = evalFn(bars, i, lotMult);
+      const { action, atr, levels } = evalFn(bars, i, lotMult, segment);
       if (action === 'WAIT' || !atr || atr <= 0) {
         i++;
         continue;
       }
 
       const entry = bars[i].close;
-      const slDist = atr * 1.5;
-      const t1Dist = atr * 2.5;
-      const sl = action === 'BUY' ? entry - slDist : entry + slDist;
-      const tp = action === 'BUY' ? entry + t1Dist : entry - t1Dist;
+      const slDist = levels?.slDist || atr * 1.5;
+      let sl = levels?.sl || (action === 'BUY' ? entry - slDist : entry + slDist);
+      const tp = levels?.t1 || (action === 'BUY' ? entry + atr * 2.5 : entry - atr * 2.5);
+      let beArmed = false;
+
+      const estFeeObj = riskEngine.calculateZerodhaFees({
+        side: action,
+        entry,
+        exit: entry,
+        quantity: 1,
+        lotMultiplier: lotMult,
+        segment
+      });
+      const feeBufferPerUnit = (estFeeObj.total || 15) / Math.max(1, lotMult);
 
       let exitPrice = bars[Math.min(bars.length - 1, i + 12)].close;
       let exitIdx = Math.min(bars.length - 1, i + 12);
 
       for (let j = i + 1; j <= Math.min(bars.length - 1, i + 12); j++) {
         const b = bars[j];
+        if (useBreakevenTrail && !beArmed) {
+          if (action === 'BUY' && b.high >= entry + slDist) {
+            sl = entry + feeBufferPerUnit;
+            beArmed = true;
+          } else if (action === 'SELL' && b.low <= entry - slDist) {
+            sl = entry - feeBufferPerUnit;
+            beArmed = true;
+          }
+        }
         if (action === 'BUY') {
-          if (b.low <= sl) { exitPrice = sl; exitIdx = j; break; }
+          if (b.low <= sl) { exitPrice = sl; exitIdx = j; if (beArmed) breakevenSaves++; break; }
           if (b.high >= tp) { exitPrice = tp; exitIdx = j; break; }
         } else {
-          if (b.high >= sl) { exitPrice = sl; exitIdx = j; break; }
+          if (b.high >= sl) { exitPrice = sl; exitIdx = j; if (beArmed) breakevenSaves++; break; }
           if (b.low <= tp) { exitPrice = tp; exitIdx = j; break; }
         }
       }
@@ -193,9 +283,9 @@ function simulateMode(barsBySymbol, evalFn, lotMult = 10) {
         exit: exitPrice,
         quantity: 1,
         lotMultiplier: lotMult,
-        segment: 'commodity'
+        segment
       });
-      const fee = feeObj.total || 20;
+      const fee = feeObj.total || 15;
       const net = gross - fee;
 
       trades++;
@@ -210,6 +300,7 @@ function simulateMode(barsBySymbol, evalFn, lotMult = 10) {
   return {
     trades,
     winRate: trades ? +((wins / trades) * 100).toFixed(1) : 0,
+    beSaves: breakevenSaves,
     grossExp: trades ? +(grossSum / trades).toFixed(2) : 0,
     avgFee: trades ? +(feeSum / trades).toFixed(2) : 0,
     netExp: trades ? +(netSum / trades).toFixed(2) : 0,
@@ -231,15 +322,17 @@ function main() {
     }
   }
 
-  console.log(`📊 MCX/NSE Pre-Holdout Walk-Forward Signal Comparison (Cutoff <= 2026-11-02, 15m Resampled)`);
+  console.log(`📊 Pre-Holdout Walk-Forward Signal Comparison (Cutoff <= 2026-11-02, 15m Resampled, Equity Friction)`);
   console.log(`Universes loaded: ${Object.keys(barsBySymbol).join(', ')}\n`);
 
-  const legacyRes = simulateMode(barsBySymbol, (bars, idx) => legacyEvaluate(bars, idx), 10);
-  const upgradedRes = simulateMode(barsBySymbol, (bars, idx, mult) => upgradedEvaluate(bars, idx, mult), 10);
+  const legacyRes = simulateMode(barsBySymbol, (bars, idx) => legacyEvaluate(bars, idx), { lotMult: 10, segment: 'equity', useBreakevenTrail: false });
+  const v1Res = simulateMode(barsBySymbol, (bars, idx, mult) => upgradedEvaluate(bars, idx, mult), { lotMult: 10, segment: 'equity', useBreakevenTrail: false });
+  const v2Res = simulateMode(barsBySymbol, (bars, idx, mult, seg) => v2InstitutionalEvaluate(bars, idx, mult, seg), { lotMult: 10, segment: 'equity', useBreakevenTrail: true });
 
   console.table({
     'Legacy Linear Engine': legacyRes,
-    'Upgraded Regime+SMC+Fee Engine': upgradedRes
+    'V1 Regime+SMC+Fee Engine': v1Res,
+    'V2 HTF+Pullback+BE Trail': v2Res
   });
 }
 

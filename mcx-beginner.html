@@ -968,8 +968,14 @@ function computeIndicators(c){
   const smc = (window.PatternEngine && window.PatternEngine.scanPatterns)
     ? window.PatternEngine.scanPatterns({ opens: ops, closes: cls, highs: his, lows: los, volumes: vls })
     : null;
+  const htfTrend = (window.SignalEngine && window.SignalEngine.computeHTFTrend)
+    ? window.SignalEngine.computeHTFTrend(cls, his, los, 12)
+    : null;
+  const openingGuard = (window.SignalEngine && window.SignalEngine.checkOpeningRangeGuard)
+    ? window.SignalEngine.checkOpeningRangeGuard(ld.timestamps, 'commodity')
+    : null;
   return{price,rsi,macd,bb,atr,stoch,adx,cci,willr,obv,obvTrend,vwap,ich,mfi,e9,e21,e50,e200,
-    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,
+    sigs,buys,sells,confluence,direction,sl,t1,t2,rr,patterns,pivots,fib,struct,rsiDiv,smc,htfTrend,openingGuard,
     prevClose:ld.prevClose,high:ld.high,low:ld.low,src:ld.src,intlPrice:ld.intlPrice||0,
     _vols:vls};
 }
@@ -1016,8 +1022,13 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     : 1;
   const price = ind.price;
   const atr = ind.atr || 0;
-  const slDist = atr * comObj.sl_atr;
-  const t1Dist = atr * comObj.t1_atr;
+  const candDir = ind.direction === 'SELL' ? 'SELL' : 'BUY';
+  const preLevels = (window.SignalEngine && window.SignalEngine.computeStructuralLevels)
+    ? window.SignalEngine.computeStructuralLevels({
+        action: candDir, price, atr, e21: ind.e21, vwap: ind.vwap, smc: ind.smc,
+        slAtrMult: comObj.sl_atr, t1AtrMult: comObj.t1_atr, t2AtrMult: comObj.t2_atr
+      })
+    : { sl: price - atr * comObj.sl_atr, t1: price + atr * comObj.t1_atr, t2: price + atr * comObj.t2_atr, isOverextended: false, breakevenTrigger: price };
 
   const gate = (window.SignalEngine && window.SignalEngine.evaluateRegimeAndFeeGate)
     ? window.SignalEngine.evaluateRegimeAndFeeGate({
@@ -1027,15 +1038,18 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
         newsScore,
         volConfirmed,
         entry: price,
-        sl: price - slDist,
-        t1: price + t1Dist,
+        sl: preLevels.sl,
+        t1: preLevels.t1,
         lotMultiplier: lotMult,
         roundTripFee: 45,
         minGrossTargetMultiple: 3.5,
         minNetRR: 1.35,
-        threshold: 65
+        threshold: 65,
+        htfTrend: ind.htfTrend,
+        openingRangeGuard: ind.openingGuard,
+        isOverextended: preLevels.isOverextended
       })
-    : { regime: 'TRANSITIONAL', techScore: 50, combined: 50, action: 'WAIT', feeVeto: false, feeVetoReason: null, netRR: 0 };
+    : { regime: 'TRANSITIONAL', techScore: 50, combined: 50, action: 'WAIT', feeVeto: false, feeVetoReason: null, vetoReason: null, netRR: 0 };
 
   const techScore = gate.techScore;
   const combined = gate.combined;
@@ -1052,7 +1066,7 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     const LOCK_MS = 15 * 60 * 1000; // 15 minutes
 
     if (lock && (now - lock.lockedAt) < LOCK_MS) {
-      if (gate.feeVeto) {
+      if (gate.feeVeto || gate.vetoReason) {
         action = 'WAIT';
         delete signalLocks[comId];
       } else if (action !== lock.action && (action === 'BUY' ? combined > 70 : action === 'SELL' ? combined < 30 : false)) {
@@ -1075,9 +1089,15 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
     const alignBonus  = (action==='BUY'&&newsVerdict==='BULLISH') || (action==='SELL'&&newsVerdict==='BEARISH') ? 5 : 0;
     conf = CLP(Math.round(techContrib + newsContrib + volContrib + alignBonus), 30, 94);
   }
-  const sl = action==='BUY' ? price - atr*comObj.sl_atr : price + atr*comObj.sl_atr;
-  const t1 = action==='BUY' ? price + atr*comObj.t1_atr : price - atr*comObj.t1_atr;
-  const t2 = action==='BUY' ? price + atr*comObj.t2_atr : price - atr*comObj.t2_atr;
+  const finalLevels = (window.SignalEngine && window.SignalEngine.computeStructuralLevels)
+    ? window.SignalEngine.computeStructuralLevels({
+        action, price, atr, e21: ind.e21, vwap: ind.vwap, smc: ind.smc,
+        slAtrMult: comObj.sl_atr, t1AtrMult: comObj.t1_atr, t2AtrMult: comObj.t2_atr
+      })
+    : { sl: action==='BUY' ? price - atr*comObj.sl_atr : price + atr*comObj.sl_atr, t1: action==='BUY' ? price + atr*comObj.t1_atr : price - atr*comObj.t1_atr, t2: action==='BUY' ? price + atr*comObj.t2_atr : price - atr*comObj.t2_atr, breakevenTrigger: price };
+  const sl = finalLevels.sl;
+  const t1 = finalLevels.t1;
+  const t2 = finalLevels.t2;
   const ld = liveData[comId] || {}; // comId is now always correct
   const dayMove = ld.price ? (ind.price - (ind.prevClose||ind.price)) / Math.max(1,Math.abs(ind.prevClose||ind.price)) : 0;
   const p1v = techScore>=62?'BUY':techScore<=38?'SELL':'NEUTRAL';
@@ -1085,13 +1105,15 @@ function buildSignal(ind, newsScore=50, newsVerdict='NEUTRAL', com=null){
   const moScore = CLP(50 + dayMove*4000, 5, 95);
   const p3v = moScore>=58?'BUY':moScore<=42?'SELL':'NEUTRAL';
   const ldIntl = liveData[comId]?.intlPrice || 0;
+  const p1Detail = gate.vetoReason || gate.feeVetoReason || (techScore>=62?`${ind.buys}/${ind.buys+ind.sells} indicators bullish — trend confirmed`:techScore<=38?`${ind.sells}/${ind.buys+ind.sells} indicators bearish — downtrend`:`Mixed — ${ind.buys} buy vs ${ind.sells} sell signals`);
   return {
     ...ind, action, confidence:conf, techScore, newsScore, combined,
-    regime: gate.regime, netRR: gate.netRR, feeVeto: gate.feeVeto, feeVetoReason: gate.feeVetoReason,
+    regime: gate.regime, netRR: gate.netRR, feeVeto: gate.feeVeto, feeVetoReason: gate.feeVetoReason, vetoReason: gate.vetoReason,
+    breakevenTrigger: finalLevels.breakevenTrigger,
     intlPrice:ldIntl, volScore, volLabel, volConfirmed,
     sl, t1, t2, rr: gate.netRR > 0 ? gate.netRR : comObj.t1_atr/comObj.sl_atr,
-    pillar1:{label:`Technical Analysis (${gate.regime})`,icon:'📈',verdict:p1v,score:techScore,
- detail:gate.feeVetoReason ? gate.feeVetoReason : (techScore>=62?`${ind.buys}/${ind.buys+ind.sells} indicators bullish — trend confirmed`:techScore<=38?`${ind.sells}/${ind.buys+ind.sells} indicators bearish — downtrend`:`Mixed — ${ind.buys} buy vs ${ind.sells} sell signals`)},
+    pillar1:{label:`Technical Analysis (${gate.regime}${ind.htfTrend ? ' · 1H ' + ind.htfTrend.bias : ''})`,icon:'📈',verdict:p1v,score:techScore,
+ detail:p1Detail},
     pillar2:{label:'News & Geopolitics',icon:'📰',verdict:p2v,score:newsScore,
  detail:newsVerdict||'Analyzing news...'},
     pillar3:{label:"Today's Momentum",icon:'⚡',verdict:p3v,score:moScore,
@@ -1670,6 +1692,25 @@ function checkOpenPaperPositions(){
     const cid = t.comId || (COMMS.find(c => t.com && t.com.includes(c.n.toUpperCase().replace(/\s+/g,'')))?.id);
     const curPrice = cid ? (liveData[cid]?.price || priceCache[cid]) : null;
     if (!curPrice || !isFinite(curPrice)) continue;
+
+    // Auto-Breakeven Stop Trailing at +1R (protects capital + covers fees)
+    const initRisk = Math.abs(t.ent - (t.initSl || t.sl || t.ent));
+    if (!t.breakevenArmed && initRisk > 0) {
+      const feePerUnit = (t.fees || 45) / Math.max(1, (t.mult || 1) * (t.qty || 1));
+      if (t.type === 'BUY' && curPrice >= t.ent + initRisk) {
+        t.initSl = t.sl;
+        t.sl = +(t.ent + feePerUnit).toFixed(2);
+        t.breakevenArmed = true;
+        try { localStorage.setItem('mcx_v4', JSON.stringify(journal)); } catch(_) {}
+        renderJournal();
+      } else if (t.type === 'SELL' && curPrice <= t.ent - initRisk) {
+        t.initSl = t.sl;
+        t.sl = +(t.ent - feePerUnit).toFixed(2);
+        t.breakevenArmed = true;
+        try { localStorage.setItem('mcx_v4', JSON.stringify(journal)); } catch(_) {}
+        renderJournal();
+      }
+    }
 
     let hitReason = null;
     let fillPrice = curPrice;

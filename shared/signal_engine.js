@@ -246,7 +246,113 @@
   }
 
   /**
-   * Evaluates Regime-Conditional Technical Score + Fee-to-Target Hurdle Gate.
+   * Resamples LTF candles into Higher-Timeframe (HTF) bars and determines structural bias.
+   */
+  function computeHTFTrend(cls, his, los, groupSize = 4) {
+    const n = cls ? cls.length : 0;
+    const step = Math.max(1, Number(groupSize) || 1);
+    const htfCloses = [];
+    for (let i = 0; i + step <= n; i += step) {
+      const sliceC = cls.slice(i, i + step);
+      htfCloses.push(sliceC[sliceC.length - 1]);
+    }
+    if (htfCloses.length < 3) {
+      return { bias: 'NEUTRAL', e9: 0, e21: 0, barCount: htfCloses.length };
+    }
+    const e9Arr = emaSeries(htfCloses, 9);
+    const e21Arr = emaSeries(htfCloses, 21);
+    const last = htfCloses[htfCloses.length - 1];
+    const e9 = e9Arr[e9Arr.length - 1];
+    const e21 = e21Arr[e21Arr.length - 1];
+    let bias = 'NEUTRAL';
+    if (last > e21 && e9 >= e21) bias = 'BULLISH';
+    else if (last < e21 && e9 <= e21) bias = 'BEARISH';
+    return {
+      bias,
+      e9: Math.round(e9 * 100) / 100,
+      e21: Math.round(e21 * 100) / 100,
+      barCount: htfCloses.length
+    };
+  }
+
+  /**
+   * Blocks fresh entries during the volatile first 15m Opening Range formation (IST).
+   */
+  function checkOpeningRangeGuard(timestamps, segment = 'commodity') {
+    if (!Array.isArray(timestamps) || timestamps.length === 0) {
+      return { isOpeningNoise: false, reason: null };
+    }
+    const rawTs = Number(timestamps[timestamps.length - 1]);
+    if (!isFinite(rawTs) || rawTs <= 0) {
+      return { isOpeningNoise: false, reason: null };
+    }
+    const ms = rawTs < 1e12 ? rawTs * 1000 : rawTs;
+    const ist = new Date(ms + 5.5 * 3600 * 1000);
+    const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    const isOpeningNoise = segment === 'equity'
+      ? (mins >= 9 * 60 + 15 && mins < 9 * 60 + 30)
+      : (mins >= 9 * 60 && mins < 9 * 60 + 15);
+    return {
+      isOpeningNoise,
+      reason: isOpeningNoise ? 'Waiting for 15m Opening Range formation' : null
+    };
+  }
+
+  /**
+   * Computes structural Stop Loss anchored near swing/OB invalidation + overextension check.
+   */
+  function computeStructuralLevels({
+    action = 'WAIT',
+    price = 0,
+    atr = 0,
+    e21 = 0,
+    vwap = 0,
+    smc = null,
+    slAtrMult = 1.5,
+    t1AtrMult = 2.5,
+    t2AtrMult = 4.0
+  }) {
+    const distFromE21 = (e21 > 0 && atr > 0) ? Math.abs(price - e21) / atr : 0;
+    const isOverextended = (action === 'BUY' && price > e21 && distFromE21 > 1.8) ||
+                           (action === 'SELL' && price < e21 && distFromE21 > 1.8);
+
+    const rawSlDist = atr * slAtrMult;
+    let slDist = rawSlDist;
+
+    if (atr > 0 && smc && smc.structure) {
+      if (action === 'BUY' && smc.structure.swingLow > 0 && smc.structure.swingLow < price) {
+        const swingDist = (price - smc.structure.swingLow) + 0.2 * atr;
+        slDist = clamp(swingDist, 0.8 * rawSlDist, 1.5 * rawSlDist);
+      } else if (action === 'SELL' && smc.structure.swingHigh > price) {
+        const swingDist = (smc.structure.swingHigh - price) + 0.2 * atr;
+        slDist = clamp(swingDist, 0.8 * rawSlDist, 1.5 * rawSlDist);
+      }
+    }
+
+    const ratioScale = rawSlDist > 0 ? (slDist / rawSlDist) : 1;
+    const t1Dist = atr * t1AtrMult * Math.max(1, ratioScale);
+    const t2Dist = atr * t2AtrMult * Math.max(1, ratioScale);
+
+    const isSell = action === 'SELL';
+    const sl = isSell ? price + slDist : price - slDist;
+    const t1 = isSell ? price - t1Dist : price + t1Dist;
+    const t2 = isSell ? price - t2Dist : price + t2Dist;
+    const breakevenTrigger = isSell ? price - slDist : price + slDist;
+
+    return {
+      entry: price,
+      sl,
+      t1,
+      t2,
+      slDist,
+      isOverextended,
+      distFromE21: Math.round(distFromE21 * 100) / 100,
+      breakevenTrigger
+    };
+  }
+
+  /**
+   * Evaluates Regime-Conditional Technical Score + HTF / Opening / Fee Hurdle Gates.
    */
   function evaluateRegimeAndFeeGate({
     sigs = {},
@@ -261,7 +367,10 @@
     roundTripFee = 45,
     minGrossTargetMultiple = 3.5,
     minNetRR = 1.35,
-    threshold = 65
+    threshold = 65,
+    htfTrend = null,
+    openingRangeGuard = null,
+    isOverextended = false
   }) {
     const val = (k) => (sigs[k] === 'BUY' ? 1 : sigs[k] === 'SELL' ? -1 : 0);
 
@@ -352,6 +461,26 @@
       if (action === 'SELL' && latestSweep.type === 'SELL_SIDE_SWEEP') action = 'WAIT';
     }
 
+    // Opening Range, Overextension Chasing & 1H HTF Alignment Gates
+    let vetoReason = null;
+    if (action !== 'WAIT' && openingRangeGuard && openingRangeGuard.isOpeningNoise) {
+      action = 'WAIT';
+      vetoReason = openingRangeGuard.reason;
+    }
+    if (action !== 'WAIT' && isOverextended) {
+      action = 'WAIT';
+      vetoReason = 'Price overextended (>1.8 ATR from EMA21) — wait for pullback';
+    }
+    if (action !== 'WAIT' && htfTrend && htfTrend.bias && htfTrend.bias !== 'NEUTRAL') {
+      if (action === 'BUY' && htfTrend.bias === 'BEARISH' && combined < 78) {
+        action = 'WAIT';
+        vetoReason = 'Opposes 1H Bearish HTF trend';
+      } else if (action === 'SELL' && htfTrend.bias === 'BULLISH' && combined > 22) {
+        action = 'WAIT';
+        vetoReason = 'Opposes 1H Bullish HTF trend';
+      }
+    }
+
     // Fee-to-Target Hurdle Gate
     let grossTarget1 = 0;
     let netRR = 0;
@@ -376,6 +505,7 @@
 
       if (feeVeto) {
         action = 'WAIT';
+        vetoReason = vetoReason || feeVetoReason;
       }
     }
 
@@ -386,6 +516,7 @@
       action,
       feeVeto,
       feeVetoReason,
+      vetoReason,
       netRR: Math.round(netRR * 100) / 100,
       grossTarget1: Math.round(grossTarget1 * 100) / 100
     };
@@ -396,6 +527,9 @@
     calcOBV,
     calcSessionVWAP,
     detectPatterns,
+    computeHTFTrend,
+    checkOpeningRangeGuard,
+    computeStructuralLevels,
     evaluateRegimeAndFeeGate
   };
 
