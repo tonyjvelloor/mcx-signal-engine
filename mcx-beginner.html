@@ -20,7 +20,7 @@
 </head>
 <body>
 
-<!-- ═══════════ GLOBAL TOP BAR ═══════════ -->
+<!-- ═══════════ GLOBAL TOP BAR (ROW 1: NAV & ACTIONS) ═══════════ -->
 <div class="gbar">
   <div class="gbar-logo">MCX <span style="font-size:9px;color:var(--gold);border:1px solid rgba(245,197,66,0.3);padding:1px 5px;border-radius:3px;margin-left:4px;">COMMODITIES</span></div>
   <div class="mode-tabs">
@@ -28,22 +28,21 @@
   <span class="mt-icon">🟢</span> Beginner
     </div>
     <div class="mode-tab" id="tab-pro" onclick="setMode('pro')">
-  <span class="mt-icon">⚡</span> Pro Analytics
+  <span class="mt-icon">⚡</span> Pro
     </div>
     <div class="mode-tab" id="tab-log" onclick="setMode('log')">
-  <span class="mt-icon">📋</span> Paper Journal
+  <span class="mt-icon">📋</span> Journal
     </div>
     <div class="mode-tab" id="tab-india" onclick="setMode('india')">
-  <span class="mt-icon">🇮🇳</span> India Dashboard
+  <span class="mt-icon">🇮🇳</span> India
     </div>
     <div class="mode-tab" id="tab-stocks" onclick="setMode('stocks')">
-  <span class="mt-icon">🏢</span> Stock Screener
+  <span class="mt-icon">🏢</span> Stocks
     </div>
     <div class="mode-tab" id="tab-orderflow" onclick="setMode('orderflow')">
-  <span class="mt-icon">🎯</span> OrderFlow SMC
+  <span class="mt-icon">🎯</span> OrderFlow
     </div>
   </div>
-  <div class="com-scroll" id="comTabs"></div>
   <div class="gbar-right">
     <div class="gs" id="session-pill-wrap" title="MCX Sessions (IST): Asia 09:00-13:30, London 13:30-18:30, US Power Hours 18:30-23:30" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;border:1px solid var(--br);background:var(--bg3);cursor:help;">
       <span id="session-dot" class="dot doff"></span>
@@ -55,12 +54,36 @@
     <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
     <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
     <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
-    <button class="rfbtn" id="focusModeBtn" onclick="toggleFocusMode()" title="Toggle 1-Screen Live Execution Focus Mode" style="font-size:10px;color:var(--grn)">🎯 Focus</button>
+    <button class="rfbtn" id="focusModeBtn" onclick="toggleFocusMode()" title="Shortcut: F — Toggle 1-Screen Live Execution Focus Mode" style="font-size:10px;color:var(--grn)">🎯 Focus</button>
     <button class="rfbtn" id="audioToggleBtn" onclick="toggleAudio()" title="Toggle Signal Audio Chimes" style="font-size:11px"><span id="audioIcon">🔊</span></button>
     <button class="rfbtn" id="briefingBtn" onclick="openBriefingModal()" title="Pre-Market Daily Briefing & Cross-Asset Screener" style="font-size:10px;color:var(--cya)">📋 Briefing</button>
     <button class="rfbtn" id="kiteBtn" onclick="handleKiteConnect()" style="font-size:11px; font-weight:700; color:var(--tx); border:1px solid var(--br);"><span id="kiteDot" class="dot doff"></span> <span id="kiteTxt">Connect Kite</span></button>
-    <button class="rfbtn" id="rfbtn" onclick="fullRefresh()"><span id="rfIcon">↻</span> Refresh</button>
+    <button class="rfbtn" id="rfbtn" onclick="fullRefresh()" title="Shortcut: R"><span id="rfIcon">↻</span></button>
     <button class="rfbtn" onclick="openSettings()"><span style="font-size:12px">⚙</span></button>
+  </div>
+</div>
+<!-- ROW 2: DEDICATED COMMODITY TICKER STRIP -->
+<div class="com-strip">
+  <div class="com-scroll" id="comTabs"></div>
+  <div class="hotkey-hint">Hotkeys: <strong>1-5</strong> Assets · <strong>C</strong> Copy · <strong>F</strong> Focus · <strong>R</strong> Refresh</div>
+</div>
+
+<!-- NON-BLOCKING TOAST NOTIFICATION STACK -->
+<div id="toast-stack" style="position:fixed;bottom:18px;right:18px;z-index:9998;display:flex;flex-direction:column;gap:8px;max-width:360px;pointer-events:none"></div>
+
+<!-- INLINE CLOSE TRADE MODAL (REPLACES BLOCKING PROMPT) -->
+<div id="close-trade-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:600;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg2);border:1px solid var(--brl);border-radius:12px;max-width:360px;width:100%;padding:18px;font-family:var(--fm)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <strong id="ctm-title" style="color:var(--gold);font-size:12px">Close Position</strong>
+      <button onclick="document.getElementById('close-trade-modal').style.display='none'" style="background:transparent;border:1px solid var(--br);color:var(--txd);border-radius:4px;padding:2px 7px;cursor:pointer">✕</button>
+    </div>
+    <div id="ctm-sub" style="font-size:10px;color:var(--txd);margin-bottom:10px">Enter exit fill price:</div>
+    <input id="ctm-price" type="number" step="any" onkeydown="if(event.key==='Enter')confirmCloseTradeModal()" style="width:100%;background:var(--bg3);border:1px solid var(--brl);color:var(--tx);padding:8px 10px;border-radius:6px;font-family:var(--fm);font-size:13px;margin-bottom:12px">
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('close-trade-modal').style.display='none'" style="padding:6px 12px;background:var(--bg4);border:1px solid var(--br);border-radius:6px;color:var(--txd);cursor:pointer;font-family:var(--fm);font-size:10px">Cancel</button>
+      <button onclick="confirmCloseTradeModal()" style="padding:6px 14px;background:var(--grnbg);border:1px solid rgba(34,197,94,0.5);border-radius:6px;color:var(--grn);font-weight:700;cursor:pointer;font-family:var(--fm);font-size:10px">✔ Confirm Close</button>
+    </div>
   </div>
 </div>
 
@@ -94,6 +117,9 @@
   <!-- Daily Risk Circuit Breaker Banner -->
   <div id="circuit-breaker-banner" style="display:none;margin-top:8px;padding:9px 14px;border-radius:8px;font-family:var(--fm);font-size:11px;border:1px solid;text-align:center;"></div>
     </div>
+
+    <div class="beg-cockpit">
+      <div class="beg-main">
 
     <!-- PERSISTENT RESEARCH & REGULATORY DISCLAIMER BANNER -->
     <div class="disclaimer" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px 16px;margin:1.25rem 0;font-size:11px;color:var(--amb);line-height:1.6;display:flex;align-items:flex-start;gap:12px;">
@@ -342,117 +368,13 @@
   </div>
     </div>
 
-    <div class="b-bottom" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.25rem">
-      <!-- Left: Capital Tracker & Risk Control -->
-      <div class="bcap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div class="bcap-label" style="margin-bottom:0">Capital &amp; Risk Guardrails</div>
-          <span style="font-size:9px;font-family:var(--fm);color:var(--txd)">Zerodha MCX: <strong style="color:var(--gold)">₹20 Flat</strong></span>
-        </div>
-        <div class="bcap-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:10px">
-          <div class="bcs"><div class="bcs-l">Capital</div><div class="bcs-v" id="b-cap" style="color:var(--gold)">₹10,000</div></div>
-          <div class="bcs"><div class="bcs-l">Net P&amp;L</div><div class="bcs-v" id="b-pnl" style="color:var(--txd)">₹0</div></div>
-          <div class="bcs"><div class="bcs-l">Trades</div><div class="bcs-v" id="b-trades">0</div></div>
-          <div class="bcs"><div class="bcs-l">Win Rate</div><div class="bcs-v" id="b-wr" style="color:var(--txd)">—</div></div>
-        </div>
-        <!-- Active Commodity Contract Spec -->
-        <div id="b-contract-spec" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div><span style="color:var(--txd)">Symbol:</span> <strong id="spec-sym" style="color:var(--tx)">GOLDM</strong> (<span id="spec-name" style="color:var(--gold)">Gold Mini</span>)</div>
-          <div><span style="color:var(--txd)">Multiplier:</span> <strong id="spec-mult" style="color:var(--tx)">10</strong> <span id="spec-unit" style="color:var(--txd)">₹/10g</span></div>
-          <div><span style="color:var(--txd)">Exchange:</span> <span id="spec-exch" style="color:var(--cya)">MCX</span></div>
-        </div>
-        <!-- ₹10,000 Smart Margin & Instrument Router Box -->
-        <div id="b-10k-route-box" style="background:var(--bg3);border:1px solid var(--brl);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;line-height:1.5">
-          <span style="color:var(--txd)">Evaluating ₹10,000 Zerodha margin route...</span>
-        </div>
-        <!-- Adaptive 3-Tier Risk Stance Selector -->
-        <div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <div>
-            <span style="color:var(--txd)">Risk Stance:</span>
-            <select id="b-risk-stance" onchange="updateAdaptiveRiskStance(true)" style="margin-left:4px;background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;font-family:var(--fm);font-size:9px;padding:2px 6px">
-              <option value="AUTO">AUTO (Step-down after 1 loss)</option>
-              <option value="CONSERVATIVE">CONSERVATIVE (₹75 / 60%)</option>
-              <option value="BALANCED">BALANCED (₹125 / 100%)</option>
-              <option value="AGGRESSIVE">AGGRESSIVE (₹150 / 120%)</option>
-            </select>
-          </div>
-          <div id="b-stance-status" style="color:var(--grn)">⚖️ BALANCED (₹125 cap)</div>
-        </div>
-        <div style="padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:10px;font-family:var(--fm);color:var(--txd);line-height:1.6">
-          🛡️ <strong>Risk Guardrails</strong>: Max risk/trade: <span style="color:var(--gold)">₹125</span> (1.25% of ₹10k) · Daily Circuit Breaker: <span style="color:var(--red)">₹300</span> (3%) · Min Net R:R: <span style="color:var(--grn)">1:1.5</span> · Overnight: <span style="color:var(--tx)">NRML</span> · Intraday 5x: <span style="color:var(--tx)">MIS</span>
-        </div>
-      </div>
-
-      <!-- Right: Trade Sizing & Execution Panel -->
-      <div class="bcap" style="display:flex;flex-direction:column">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="bcap-label" style="margin-bottom:0">Trade Execution &amp; Sizing Engine</div>
-          <button onclick="copyActiveSignalToPanel()" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.3);border-radius:4px;color:var(--gold);font-size:9px;font-family:var(--fm);padding:3px 8px;cursor:pointer;font-weight:600">⚡ Copy Active Signal</button>
-        </div>
-
-        <!-- Trade Setup Inputs -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">SIDE</label>
-            <select id="b-side" onchange="updateSizingFeedback()" style="width:100%;background:var(--bg3);border:1px solid var(--br);border-radius:4px;color:var(--tx);font-family:var(--fm);font-size:10px;padding:4px 6px">
-              <option value="BUY">BUY 🟢</option>
-              <option value="SELL">SELL 🔴</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">ENTRY ₹</label>
-            <input class="pji" id="b-jEnt" type="number" step="any" placeholder="Entry" oninput="updateSizingFeedback()" style="width:100%">
-          </div>
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--red);display:block;margin-bottom:2px">STOP LOSS ₹</label>
-            <input class="pji" id="b-jSL" type="number" step="any" placeholder="SL" oninput="updateSizingFeedback()" style="width:100%;border-color:rgba(239,68,68,0.3)">
-          </div>
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--grn);display:block;margin-bottom:2px">TARGET ₹</label>
-            <input class="pji" id="b-jTgt" type="number" step="any" placeholder="Target" oninput="updateSizingFeedback()" style="width:100%;border-color:rgba(34,197,94,0.3)">
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">LOTS (QTY)</label>
-            <input class="pji" id="b-jQty" type="number" value="1" min="1" step="1" oninput="updateSizingFeedback()" style="width:100%">
-          </div>
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">PRODUCT</label>
-            <select id="b-prod" style="width:100%;background:var(--bg3);border:1px solid var(--br);border-radius:4px;color:var(--tx);font-family:var(--fm);font-size:10px;padding:4px 6px">
-              <option value="NRML">NRML (Positional)</option>
-              <option value="MIS">MIS (Intraday)</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">MAX RISK (₹)</label>
-            <input class="pji" id="b-jBudget" type="number" value="125" step="25" oninput="updateSizingFeedback()" style="width:100%">
-          </div>
-        </div>
-
-        <!-- Live Sizing & Risk Feedback Box -->
-        <div id="b-sizing-feedback" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:10px;line-height:1.5">
-          <span style="color:var(--txd)">Enter Entry &amp; Stop Loss or click "Copy Active Signal" to verify net risk and fees.</span>
-        </div>
-
-        <!-- Execution Action Buttons -->
-        <div style="display:flex;gap:6px;margin-top:auto">
-          <button class="pjb pjb-buy" id="btn-paper-exec" onclick="executeManualTrade(false)" style="flex:1;padding:7px;font-size:10px;background:var(--bg4);border:1px solid var(--brl);color:var(--tx)">📝 Paper Execute</button>
-          <button class="pjb" id="btn-kite-exec" onclick="executeManualTrade(true)" style="flex:1;padding:7px;font-size:10px;background:var(--goldbg);border:1px solid rgba(245,197,66,0.4);color:var(--gold)">⚡ Send to Kite</button>
-          <button class="pjb" id="btn-gtt-exec" onclick="executeGttOco()" title="Place broker-side two-leg GTT OCO Stop Loss + Target" style="flex:0.8;padding:7px;font-size:10px;background:var(--blubg);border:1px solid rgba(59,130,246,0.4);color:var(--blu)">🛡️ GTT OCO</button>
-          <button class="pjb pjb-clr" onclick="clearJournal()" title="Clear journal" style="padding:7px 10px">⌫</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Trade Journal History Table -->
+    <!-- Trade Journal History Table (inside Left Main Column) -->
     <div class="bcap" style="margin-bottom:1.5rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="bcap-label" style="margin-bottom:0">Verified Trade Journal (Real Slippage &amp; Statutory Fees)</div>
         <span style="font-size:9px;font-family:var(--fm);color:var(--txd)">Showing last 20 trades</span>
       </div>
-      <div style="overflow-x:auto;max-height:150px">
+      <div style="overflow-x:auto;max-height:200px">
         <table class="jtbl">
           <thead>
             <tr>
@@ -474,6 +396,125 @@
         <div class="j-empty" id="b-jempty">No trades yet. Click "Copy Active Signal" and "Paper Execute" to log your first trade.</div>
       </div>
     </div>
+
+      </div><!-- /.beg-main -->
+
+      <!-- RIGHT STICKY EXECUTION COCKPIT -->
+      <div class="beg-side">
+        <!-- Daily Risk Fuel Gauge -->
+        <div class="bcap" style="margin-bottom:12px;padding:10px 12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:9px;margin-bottom:5px">
+            <span style="color:var(--txd);font-weight:700">⛽ DAILY RISK FUEL GAUGE</span>
+            <strong id="b-risk-gauge-txt" style="color:var(--grn)">₹300 / ₹300 left (0/2 losses)</strong>
+          </div>
+          <div style="height:6px;background:var(--bg4);border-radius:4px;overflow:hidden">
+            <div id="b-risk-gauge-fill" style="height:100%;width:100%;background:var(--grn);border-radius:4px;transition:width .35s ease,background .35s ease"></div>
+          </div>
+        </div>
+
+        <!-- Trade Sizing & Execution Panel (Pinned First for Instant Action) -->
+        <div class="bcap" style="display:flex;flex-direction:column;margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="bcap-label" style="margin-bottom:0">⚡ Trade Execution Ticket</div>
+            <button onclick="copyActiveSignalToPanel()" title="Shortcut: C" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.3);border-radius:4px;color:var(--gold);font-size:9px;font-family:var(--fm);padding:3px 8px;cursor:pointer;font-weight:600">⚡ Copy Signal (C)</button>
+          </div>
+
+          <!-- Trade Setup Inputs -->
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px">
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">SIDE</label>
+              <select id="b-side" onchange="updateSizingFeedback()" style="width:100%;background:var(--bg3);border:1px solid var(--br);border-radius:4px;color:var(--tx);font-family:var(--fm);font-size:10px;padding:4px 6px">
+                <option value="BUY">BUY 🟢</option>
+                <option value="SELL">SELL 🔴</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">ENTRY ₹</label>
+              <input class="pji" id="b-jEnt" type="number" step="any" placeholder="Entry" oninput="updateSizingFeedback()" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--red);display:block;margin-bottom:2px">STOP LOSS ₹</label>
+              <input class="pji" id="b-jSL" type="number" step="any" placeholder="SL" oninput="updateSizingFeedback()" style="width:100%;border-color:rgba(239,68,68,0.3)">
+            </div>
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--grn);display:block;margin-bottom:2px">TARGET ₹</label>
+              <input class="pji" id="b-jTgt" type="number" step="any" placeholder="Target" oninput="updateSizingFeedback()" style="width:100%;border-color:rgba(34,197,94,0.3)">
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">LOTS / QTY</label>
+              <input class="pji" id="b-jQty" type="number" value="1" min="1" step="1" oninput="updateSizingFeedback()" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">PRODUCT</label>
+              <select id="b-prod" style="width:100%;background:var(--bg3);border:1px solid var(--br);border-radius:4px;color:var(--tx);font-family:var(--fm);font-size:10px;padding:4px 6px">
+                <option value="NRML">NRML</option>
+                <option value="MIS">MIS (5x)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:8px;font-family:var(--fm);color:var(--txd);display:block;margin-bottom:2px">MAX RISK ₹</label>
+              <input class="pji" id="b-jBudget" type="number" value="125" step="25" oninput="updateSizingFeedback()" style="width:100%">
+            </div>
+          </div>
+
+          <!-- ₹10,000 Smart Margin & Instrument Router Box -->
+          <div id="b-10k-route-box" style="background:var(--bg3);border:1px solid var(--brl);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;line-height:1.5">
+            <span style="color:var(--txd)">Evaluating ₹10,000 Zerodha margin route...</span>
+          </div>
+
+          <!-- Live Sizing & Risk Feedback Box -->
+          <div id="b-sizing-feedback" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:10px;line-height:1.5">
+            <span style="color:var(--txd)">Enter Entry &amp; Stop Loss or click "Copy Signal (C)" / "Use ₹10K Route".</span>
+          </div>
+
+          <!-- Execution Action Buttons -->
+          <div style="display:flex;gap:6px;margin-top:auto">
+            <button class="pjb pjb-buy" id="btn-paper-exec" onclick="executeManualTrade(false)" style="flex:1;padding:8px 6px;font-size:10px;background:var(--bg4);border:1px solid var(--brl);color:var(--tx);border-radius:6px;cursor:pointer;font-family:var(--fm);font-weight:700">📝 Paper</button>
+            <button class="pjb" id="btn-kite-exec" onclick="executeManualTrade(true)" style="flex:1;padding:8px 6px;font-size:10px;background:var(--goldbg);border:1px solid rgba(245,197,66,0.45);color:var(--gold);border-radius:6px;cursor:pointer;font-family:var(--fm);font-weight:700">⚡ Kite</button>
+            <button class="pjb" id="btn-gtt-exec" onclick="executeGttOco()" title="Place broker-side two-leg GTT OCO Stop Loss + Target" style="flex:0.9;padding:8px 6px;font-size:10px;background:var(--blubg);border:1px solid rgba(59,130,246,0.45);color:var(--blu);border-radius:6px;cursor:pointer;font-family:var(--fm);font-weight:700">🛡️ GTT</button>
+            <button class="pjb pjb-clr" onclick="clearJournal()" title="Clear journal" style="padding:8px 9px;background:var(--bg3);border:1px solid var(--br);color:var(--txd);border-radius:6px;cursor:pointer">⌫</button>
+          </div>
+        </div>
+
+        <!-- Capital Tracker & Adaptive Risk Stance -->
+        <div class="bcap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="bcap-label" style="margin-bottom:0">Capital &amp; Risk Guardrails</div>
+            <span style="font-size:9px;font-family:var(--fm);color:var(--txd)">MCX: <strong style="color:var(--gold)">₹20 Flat</strong></span>
+          </div>
+          <div class="bcap-stats" style="grid-template-columns:repeat(2,1fr);margin-bottom:8px">
+            <div class="bcs"><div class="bcs-l">Capital</div><div class="bcs-v" id="b-cap" style="color:var(--gold)">₹10,000</div></div>
+            <div class="bcs"><div class="bcs-l">Net P&amp;L</div><div class="bcs-v" id="b-pnl" style="color:var(--txd)">₹0</div></div>
+            <div class="bcs"><div class="bcs-l">Trades</div><div class="bcs-v" id="b-trades">0</div></div>
+            <div class="bcs"><div class="bcs-l">Win Rate</div><div class="bcs-v" id="b-wr" style="color:var(--txd)">—</div></div>
+          </div>
+          <!-- Active Commodity Contract Spec -->
+          <div id="b-contract-spec" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 9px;font-family:var(--fm);font-size:9px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px">
+            <div><strong id="spec-sym" style="color:var(--tx)">GOLDM</strong> (<span id="spec-name" style="color:var(--gold)">Gold Mini</span>)</div>
+            <div><strong id="spec-mult" style="color:var(--tx)">10</strong> <span id="spec-unit" style="color:var(--txd)">₹/10g</span> · <span id="spec-exch" style="color:var(--cya)">MCX</span></div>
+          </div>
+          <!-- Adaptive 3-Tier Risk Stance Selector -->
+          <div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 9px;font-family:var(--fm);font-size:9px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <span style="color:var(--txd)">Risk Stance:</span>
+              <select id="b-risk-stance" onchange="updateAdaptiveRiskStance(true)" style="background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;font-family:var(--fm);font-size:9px;padding:2px 5px">
+                <option value="AUTO">AUTO (Step-down on 1 loss)</option>
+                <option value="CONSERVATIVE">CONSERVATIVE (₹75)</option>
+                <option value="BALANCED">BALANCED (₹125)</option>
+                <option value="AGGRESSIVE">AGGRESSIVE (₹150)</option>
+              </select>
+            </div>
+            <div id="b-stance-status" style="color:var(--grn)">⚖️ BALANCED (₹125 cap)</div>
+          </div>
+          <div style="padding:7px 9px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:9px;font-family:var(--fm);color:var(--txd);line-height:1.5">
+            🛡️ Max risk/trade: <span style="color:var(--gold)">₹125</span> · Daily Lock: <span style="color:var(--red)">₹300</span> / 2 losses · Min Net R:R: <span style="color:var(--grn)">1:1.5</span>
+          </div>
+        </div>
+      </div><!-- /.beg-side -->
+    </div><!-- /.beg-cockpit -->
   </div>
 </div>
 
@@ -1539,11 +1580,28 @@ function updateSizingFeedback(){
     }
   }
 
-  // 2. Evaluate Daily Risk Circuit Breaker
+  // 2. Evaluate Daily Risk Circuit Breaker + Update Daily Risk Fuel Gauge
   let isCircuitTripped = false;
   const circuitBanner = document.getElementById('circuit-breaker-banner');
+  const dailyLimit = window.dailyLossLimit || 300.0;
+  const gaugeTxt = document.getElementById('b-risk-gauge-txt');
+  const gaugeFill = document.getElementById('b-risk-gauge-fill');
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
-    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: window.dailyLossLimit || 300.0, maxConsecutiveLosses: 2 });
+    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: dailyLimit, maxConsecutiveLosses: 2 });
+    const usedLoss = cb && cb.dailyNetPnl < 0 ? Math.abs(cb.dailyNetPnl) : 0;
+    const remBudget = Math.max(0, Math.round(dailyLimit - usedLoss));
+    const remPct = cb?.tripped ? 0 : Math.max(0, Math.min(100, Math.round((remBudget / dailyLimit) * 100)));
+    const gaugeCol = (cb?.tripped || remPct < 30) ? 'var(--red)' : remPct < 60 ? 'var(--amb)' : 'var(--grn)';
+    if (gaugeTxt) {
+      gaugeTxt.textContent = cb?.tripped
+        ? `LOCKED (₹${remBudget} / ₹${dailyLimit} · ${cb.consecutiveLosses || 0}/2 losses)`
+        : `₹${remBudget} / ₹${dailyLimit} left (${cb?.consecutiveLosses || 0}/2 losses)`;
+      gaugeTxt.style.color = gaugeCol;
+    }
+    if (gaugeFill) {
+      gaugeFill.style.width = `${remPct}%`;
+      gaugeFill.style.background = gaugeCol;
+    }
     if (cb && cb.tripped) {
       isCircuitTripped = true;
       if (circuitBanner) {
@@ -1634,6 +1692,28 @@ function toggleAudio() {
   }
 }
 
+function showToast(message, type = 'info') {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) return;
+  const cfg = {
+    success: { border: 'rgba(34,197,94,0.55)', bg: 'rgba(15,28,20,0.96)', color: '#4ade80' },
+    error:   { border: 'rgba(239,68,68,0.55)', bg: 'rgba(32,14,14,0.96)', color: '#f87171' },
+    warn:    { border: 'rgba(245,158,11,0.55)', bg: 'rgba(30,24,12,0.96)', color: '#fbbf24' },
+    info:    { border: 'rgba(59,130,246,0.5)',  bg: 'rgba(15,21,34,0.96)', color: '#e2e8f0' }
+  }[type] || { border: 'rgba(59,130,246,0.5)', bg: 'rgba(15,21,34,0.96)', color: '#e2e8f0' };
+  const el = document.createElement('div');
+  el.className = 'toast-item';
+  el.style.cssText = `background:${cfg.bg};border:1px solid ${cfg.border};color:${cfg.color};padding:10px 13px;border-radius:8px;font-family:var(--fm);font-size:10px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,0.45);white-space:pre-line;cursor:pointer;`;
+  el.textContent = message;
+  el.onclick = () => el.remove();
+  stack.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(16px)';
+    setTimeout(() => el.remove(), 220);
+  }, 4500);
+}
+
 async function executeManualTrade(isKite = false){
   const side = document.getElementById('b-side')?.value || 'BUY';
   const ent = parseFloat(document.getElementById('b-jEnt')?.value);
@@ -1644,7 +1724,7 @@ async function executeManualTrade(isKite = false){
   const prod = document.getElementById('b-prod')?.value || 'NRML';
 
   if(!ent || !sl || isNaN(ent) || isNaN(sl)){
-    alert('Please enter a valid Entry Price and Stop Loss.');
+    showToast('Please enter a valid Entry Price and Stop Loss (or press C to copy active signal).', 'warn');
     return;
   }
 
@@ -1652,7 +1732,7 @@ async function executeManualTrade(isKite = false){
   if (window.MacroEvents && window.MacroEvents.checkMacroBlackout) {
     const bo = window.MacroEvents.checkMacroBlackout(activeC.id);
     if (bo && bo.isBlackout) {
-      alert(`🚨 ORDER BLOCKED BY MACRO BLACKOUT SHIELD:\n${bo.warningText}`);
+      showToast(`🚨 ORDER BLOCKED BY MACRO BLACKOUT SHIELD:\n${bo.warningText}`, 'error');
       return;
     }
   }
@@ -1661,7 +1741,7 @@ async function executeManualTrade(isKite = false){
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
     const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: window.dailyLossLimit || 300.0, maxConsecutiveLosses: 2 });
     if (cb && cb.tripped) {
-      alert(`🛑 ORDER BLOCKED BY DAILY CIRCUIT BREAKER:\n${cb.message}`);
+      showToast(`🛑 ORDER BLOCKED BY DAILY CIRCUIT BREAKER:\n${cb.message}`, 'error');
       return;
     }
   }
@@ -1679,7 +1759,7 @@ async function executeManualTrade(isKite = false){
   const totalNetLoss = grossLoss + feesAtSL.total;
 
   if(totalNetLoss > budget){
-    alert(`RISK_VIOLATION: Trade net risk of ₹${totalNetLoss.toFixed(2)} exceeds your ₹${budget} risk budget limit.\nPlease reduce lots or tighten your stop loss.`);
+    showToast(`⚠️ RISK_VIOLATION: Net risk ₹${totalNetLoss.toFixed(2)} exceeds ₹${budget} cap.\nReduce lots or tighten Stop Loss.`, 'error');
     return;
   }
 
@@ -1703,7 +1783,7 @@ async function executeManualTrade(isKite = false){
       });
       const pData = await pRes.json();
       if (!pRes.ok || pData.error) {
-        alert(`❌ Paper Trade Rejected: ${pData.error}`);
+        showToast(`❌ Paper Trade Rejected: ${pData.error}`, 'error');
         return;
       }
       dbId = pData.tradeId || null;
@@ -1732,7 +1812,7 @@ async function executeManualTrade(isKite = false){
     renderJournal();
     updateSizingFeedback();
     if (window.AudioAlerts) window.AudioAlerts.playSignalChime(side);
-    alert(`📝 Paper Trade Opened:\n${sym} ${side} @ ₹${ent.toLocaleString('en-IN')}\nQty: ${qty} | Max Risk: ₹${totalNetLoss.toFixed(2)}\nSynced to SQLite & Journal.`);
+    showToast(`📝 Paper Trade Opened: ${sym} ${side} @ ₹${ent.toLocaleString('en-IN')}\nQty: ${qty} | Max Risk: ₹${totalNetLoss.toFixed(2)} (Synced to SQLite)`, 'success');
     return;
   }
 
@@ -1760,7 +1840,7 @@ async function executeManualTrade(isKite = false){
     const data = await resp.json();
 
     if(!resp.ok || data.error){
-      alert(`❌ Order Rejected: ${data.error || 'Server error'}`);
+      showToast(`❌ Order Rejected: ${data.error || 'Server error'}`, 'error');
       return;
     }
 
@@ -1786,9 +1866,9 @@ async function executeManualTrade(isKite = false){
     renderJournal();
     if (window.AudioAlerts) window.AudioAlerts.playSignalChime(side);
 
-    alert(`⚡ Order Dispatched Successfully!\nOrder ID: ${trade.orderId}\nMode: ${data.simulated ? 'Safe Paper Mode' : 'Live Zerodha Exchange'}\nSymbol: ${sym} ${side} @ ₹${ent}`);
+    showToast(`⚡ Order Dispatched (${data.simulated ? 'Safe Paper Mode' : 'Live Zerodha'})\nID: ${trade.orderId} · ${sym} ${side} @ ₹${ent}`, 'success');
   } catch(err){
-    alert(`Network communication error: ${err.message}`);
+    showToast(`Network error: ${err.message}`, 'error');
   }
 }
 
@@ -1801,7 +1881,7 @@ async function executeGttOco(){
   const prod = document.getElementById('b-prod')?.value || 'NRML';
 
   if(!ent || !sl || !tgt || isNaN(ent) || isNaN(sl) || isNaN(tgt)){
-    alert('Please enter valid Entry, Stop Loss, and Target prices to place a two-leg GTT OCO.');
+    showToast('Enter valid Entry, Stop Loss, and Target prices to arm a two-leg GTT OCO.', 'warn');
     return;
   }
 
@@ -1826,13 +1906,13 @@ async function executeGttOco(){
     });
     const data = await resp.json();
     if(!resp.ok || data.error){
-      alert(`❌ GTT OCO Rejected: ${data.error || 'Server error'}`);
+      showToast(`❌ GTT OCO Rejected: ${data.error || 'Server error'}`, 'error');
       return;
     }
     if (window.AudioAlerts) window.AudioAlerts.playSignalChime(side);
-    alert(`🛡️ GTT OCO Armed on ${data.simulated ? 'Virtual Broker' : 'Zerodha Server'}!\nTrigger ID: ${data.trigger_id || data.id}\nContract: ${data.tradingsymbol || sym}\nSL: ₹${sl} | Target: ₹${tgt}`);
+    showToast(`🛡️ GTT OCO Armed (${data.simulated ? 'Virtual Broker' : 'Zerodha Server'})\n${data.tradingsymbol || sym} · SL ₹${sl} | Target ₹${tgt}`, 'success');
   } catch(err){
-    alert(`Network error placing GTT OCO: ${err.message}`);
+    showToast(`Network error placing GTT OCO: ${err.message}`, 'error');
   }
 }
 
@@ -1878,15 +1958,40 @@ async function finalizeJournalClose(t, exitPrice, exitReason = 'MANUAL_CLOSE'){
   fetchTradeLessons();
 }
 
+let pendingCloseTradeId = null;
+
 function closeJournalTrade(tradeId){
   const t = journal.find(x => x.id === tradeId);
   if(!t || t.status === 'CLOSED') return;
 
-  const curPrice = (liveData[activeC.id]?.price) || priceCache[activeC.id] || t.ent;
-  const exitPrice = parseFloat(prompt(`Close trade #${tradeId} (${t.com} ${t.type}) at exit price:`, curPrice.toFixed(2)));
-  if(!exitPrice || isNaN(exitPrice)) return;
+  pendingCloseTradeId = tradeId;
+  const curPrice = (liveData[t.comId || activeC.id]?.price) || priceCache[t.comId || activeC.id] || t.ent;
+  const modal = document.getElementById('close-trade-modal');
+  const titleEl = document.getElementById('ctm-title');
+  const subEl = document.getElementById('ctm-sub');
+  const priceEl = document.getElementById('ctm-price');
+  if (titleEl) titleEl.textContent = `Close #${tradeId} · ${t.com} ${t.type}`;
+  if (subEl) subEl.textContent = `Entry ₹${t.ent} · SL ₹${t.sl || '—'} · Enter exit fill price:`;
+  if (priceEl) {
+    priceEl.value = Number(curPrice).toFixed(2);
+    setTimeout(() => { priceEl.focus(); priceEl.select(); }, 30);
+  }
+  if (modal) modal.style.display = 'flex';
+}
 
+function confirmCloseTradeModal(){
+  const modal = document.getElementById('close-trade-modal');
+  const exitPrice = parseFloat(document.getElementById('ctm-price')?.value);
+  if (!exitPrice || isNaN(exitPrice)) {
+    showToast('Please enter a valid exit fill price.', 'warn');
+    return;
+  }
+  const t = journal.find(x => x.id === pendingCloseTradeId);
+  if (modal) modal.style.display = 'none';
+  pendingCloseTradeId = null;
+  if (!t || t.status === 'CLOSED') return;
   finalizeJournalClose(t, exitPrice, 'MANUAL_CLOSE');
+  showToast(`✔ Closed ${t.com} ${t.type} @ ₹${exitPrice} | Net P&L: ${t.pnl >= 0 ? '+' : ''}₹${t.pnl}`, t.pnl >= 0 ? 'success' : 'warn');
 }
 
 function checkOpenPaperPositions(){
@@ -2552,7 +2657,7 @@ function logOlympTrade(outcome) {
   const usdBal = parseFloat(document.getElementById('b-usd-bal')?.value) || 100;
   const cb = evaluateUsdCircuitBreaker(usdBal);
   if (cb.tripped) {
-    alert(`🛑 OLYMP TRADE SESSION LOCKED: ${cb.reason}`);
+    showToast(`🛑 OLYMP TRADE SESSION LOCKED:\n${cb.reason}`, 'error');
     return;
   }
   const plan = window.GlobalUsdMode?.buildUsdTradePlan?.({ commodityId: activeC?.id, sig, usdBalance: usdBal, nowMs: Date.now() });
@@ -2580,6 +2685,7 @@ function logOlympTrade(outcome) {
   });
   if (olympJournal.length > 50) olympJournal = olympJournal.slice(0, 50);
   try { localStorage.setItem('mcx_olymp_v1', JSON.stringify(olympJournal)); } catch (_) {}
+  showToast(`🌐 Olymp ${outcome} logged (${plan?.pair || activeC?.n}): ${pnlUsd >= 0 ? '+' : '-'}$${Math.abs(pnlUsd).toFixed(2)}`, outcome === 'WIN' ? 'success' : 'warn');
   if (allSigs[activeC?.id]) renderGlobalUsdCard(allSigs[activeC.id]);
 }
 
@@ -2636,7 +2742,7 @@ function renderGlobalUsdCard(sig) {
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;background:var(--bg3);border-radius:7px;padding:7px 10px;border:1px solid var(--br);margin-bottom:8px">
       <div>Recommended Mode: <strong style="color:${modeCol}">${plan.recommendedMode}</strong></div>
-      <div style="color:var(--amb)">⏱ Next 5m Candle: <strong>${plan.entryTiming.countdownFormatted}</strong> <span style="color:var(--txd)">(${plan.entryTiming.instruction})</span></div>
+      <div style="color:var(--amb)">⏱ Next 5m Candle: <strong id="b-olymp-5m-cd">${plan.entryTiming.countdownFormatted}</strong> <span style="color:var(--txd)">(${plan.entryTiming.instruction})</span></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px">
       <div style="background:var(--bg3);border-radius:7px;padding:9px 11px;border:1px solid var(--br)">
@@ -2830,8 +2936,160 @@ function renderBegSignal(sig){
  </span><span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--txd)">
    ${sig.buys||0}↑ ${sig.sells||0}↓ indicators
  </span>${sig.dualFeed ? `<span style="font-size:11px;font-family:var(--fm);padding:4px 10px;border-radius:20px;background:var(--bg3);color:var(--cya)">⚖️ ${sig.dualFeed.summary}</span>` : ''}</div></div><div style="text-align:right;flex-shrink:0"><div class="bsc-price" style="color:${activeC.color}">${fmt(price)}</div><div style="font-size:13px;font-family:var(--fm);color:var(--txd);margin-top:2px">${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-chg" style="color:${ch>=0?'var(--grn)':'var(--red)'}">${fmtD(ch)} (${pctStr})</div><div style="font-size:10px;font-family:var(--fm);color:var(--txd);margin-top:2px">USD ${fmtUSD(sig.intlPrice,activeC)}</div><div class="bsc-src">Updated ${now} · ${sig.src||'—'} · Signal since ${(window.lastSignalChange && activeC && window.lastSignalChange[activeC.id]) ? new Date(window.lastSignalChange[activeC.id]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</div></div></div>
+ <div style="margin-top:12px;background:var(--bg3);border:1px solid var(--br);border-radius:8px;padding:8px 10px">
+   <div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;font-family:var(--fm);color:var(--txd);margin-bottom:4px">
+     <span>📈 LIVE 5M CANDLESTICKS &amp; TRADE LEVELS</span>
+     <span style="display:flex;gap:8px"><span style="color:#60a5fa">━ EMA21</span><span style="color:#f5c542">┈ Entry</span><span style="color:#ef4444">┈ SL</span><span style="color:#22c55e">┈ T1</span></span>
+   </div>
+   <canvas id="b-mini-chart" width="680" height="190" style="width:100%;height:190px;display:block;border-radius:4px"></canvas>
+ </div>
  ${levelsHTML}
     </div>`;
+  drawMiniSignalChart(activeC, sig);
+}
+
+function drawMiniSignalChart(c, sig) {
+  const cv = document.getElementById('b-mini-chart');
+  if (!cv || !c) return;
+  const ctx = cv.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth || 680;
+  const h = 190;
+  cv.width = Math.round(w * dpr);
+  cv.height = Math.round(h * dpr);
+  ctx.scale(dpr, dpr);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0c0f15';
+  ctx.fillRect(0, 0, w, h);
+
+  const ld = liveData[c.id];
+  if (!ld || !Array.isArray(ld.closes) || ld.closes.length < 5) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Waiting for live 5m OHLC candles...', w / 2, h / 2);
+    return;
+  }
+
+  const count = Math.min(40, ld.closes.length);
+  const startIdx = ld.closes.length - count;
+  const ops = ld.opens.slice(startIdx);
+  const his = ld.highs.slice(startIdx);
+  const los = ld.lows.slice(startIdx);
+  const cls = ld.closes.slice(startIdx);
+
+  // Compute EMA21 across full history so the tail is accurate
+  const k = 2 / 22;
+  const emaFull = [];
+  let e = ld.closes[0];
+  for (let i = 0; i < ld.closes.length; i++) {
+    e = i === 0 ? ld.closes[0] : ld.closes[i] * k + e * (1 - k);
+    emaFull.push(e);
+  }
+  const emaSlice = emaFull.slice(startIdx);
+
+  const showLevels = sig && sig.action !== 'WAIT';
+  const entryVal = sig?.price;
+  const slVal = showLevels ? sig.sl : null;
+  const t1Val = showLevels ? sig.t1 : null;
+
+  let minP = Math.min(...los);
+  let maxP = Math.max(...his);
+  if (showLevels) {
+    [entryVal, slVal, t1Val].forEach(v => {
+      if (v && isFinite(v)) {
+        minP = Math.min(minP, v);
+        maxP = Math.max(maxP, v);
+      }
+    });
+  }
+  const padPrice = (maxP - minP) * 0.08 || Math.max(1, maxP * 0.002);
+  minP -= padPrice;
+  maxP += padPrice;
+
+  const padL = 8, padR = 72, padT = 10, padB = 12;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const yOf = p => padT + ((maxP - p) / Math.max(1e-9, maxP - minP)) * plotH;
+
+  // Subtle horizontal grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 3; g++) {
+    const gy = padT + (plotH * g) / 3;
+    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(w - padR, gy); ctx.stroke();
+    const gp = maxP - ((maxP - minP) * g) / 3;
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(fmt(gp), w - padR + 5, gy + 3);
+  }
+
+  // Candlesticks
+  const step = plotW / Math.max(1, count);
+  const bodyW = Math.max(3, Math.min(10, step * 0.62));
+  for (let i = 0; i < count; i++) {
+    const cx = padL + i * step + step / 2;
+    const up = cls[i] >= ops[i];
+    const col = up ? '#22c55e' : '#ef4444';
+    ctx.strokeStyle = col;
+    ctx.fillStyle = col;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, yOf(his[i]));
+    ctx.lineTo(cx, yOf(los[i]));
+    ctx.stroke();
+
+    const yO = yOf(ops[i]);
+    const yC = yOf(cls[i]);
+    const top = Math.min(yO, yC);
+    const bh = Math.max(1.5, Math.abs(yC - yO));
+    ctx.fillRect(cx - bodyW / 2, top, bodyW, bh);
+  }
+
+  // EMA21 curve
+  ctx.strokeStyle = '#60a5fa';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const cx = padL + i * step + step / 2;
+    const cy = yOf(emaSlice[i]);
+    if (i === 0) ctx.moveTo(cx, cy);
+    else ctx.lineTo(cx, cy);
+  }
+  ctx.stroke();
+
+  // Horizontal level helper
+  const drawLevel = (val, label, color) => {
+    if (!val || !isFinite(val)) return;
+    const y = yOf(val);
+    if (y < padT - 4 || y > h - padB + 4) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(w - padR, y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = color;
+    ctx.fillRect(w - padR + 2, y - 7, padR - 4, 14);
+    ctx.fillStyle = '#090d14';
+    ctx.font = 'bold 8.5px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${label} ${Math.round(val)}`, w - padR + 4, y + 3);
+  };
+
+  if (showLevels) {
+    drawLevel(slVal, 'SL', '#ef4444');
+    drawLevel(t1Val, 'T1', '#22c55e');
+    drawLevel(entryVal, 'EN', '#f5c542');
+  } else if (entryVal) {
+    drawLevel(entryVal, 'LTP', '#f5c542');
+  }
 }
 
 function renderBegPillars(sig){
@@ -3542,6 +3800,50 @@ function _boot(){
   updateSession();
   setInterval(updateSession, 10000);
   setInterval(reconcileKiteDesk, 15000);
+
+  // Live 1-second 5m candle countdown tick for Olymp Trade card
+  setInterval(() => {
+    const cdEl = document.getElementById('b-olymp-5m-cd');
+    if (!cdEl) return;
+    const remSec = Math.max(0, 300 - (Math.floor(Date.now() / 1000) % 300));
+    const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
+    const ss = String(remSec % 60).padStart(2, '0');
+    cdEl.textContent = `${mm}:${ss}`;
+  }, 1000);
+
+  // Global keyboard shortcuts (ignored while typing in inputs/selects)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      ['close-trade-modal', 'briefing-modal', 'b-settings-modal'].forEach(id => {
+        const m = document.getElementById(id);
+        if (m && m.style.display !== 'none') m.style.display = 'none';
+      });
+      return;
+    }
+    const tag = (e.target && e.target.tagName) || '';
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || e.target?.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'f') {
+      e.preventDefault();
+      toggleFocusMode();
+      showToast(document.body.classList.contains('focus-mode') ? '🎯 Focus Mode ON (clean trading cockpit)' : '🎯 Focus Mode OFF (full analytics visible)', 'info');
+    } else if (k === 'c') {
+      e.preventDefault();
+      copyActiveSignalToPanel();
+      showToast(`⚡ Copied ${activeC?.n || 'active'} signal to Execution Ticket`, 'info');
+    } else if (k === 'r') {
+      e.preventDefault();
+      fullRefresh();
+      showToast('↻ Refreshing market feeds & signals...', 'info');
+    } else if (['1', '2', '3', '4', '5'].includes(k)) {
+      const idx = Number(k) - 1;
+      if (COMMS[idx]) {
+        e.preventDefault();
+        switchCom(COMMS[idx].id);
+      }
+    }
+  });
   const params = new URLSearchParams(window.location.search);
   const targetCom = params.get('com');
   if (targetCom && COMMS.some(c => c.id === targetCom)) {
@@ -3744,6 +4046,71 @@ function renderIndiaDashboard(data, ts, fresh){
   </div>
 </div>
 <style>
+/* ══ 2-TIER HEADER & STICKY SPLIT-SCREEN COCKPIT ══ */
+.com-strip {
+  position: sticky;
+  top: 48px;
+  z-index: 95;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--br);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.com-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.com-scroll::-webkit-scrollbar { display: none; }
+.hotkey-hint {
+  font-size: 9px;
+  font-family: var(--fm);
+  color: var(--txm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.beg {
+  max-width: 1420px !important;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2.5rem;
+}
+.beg-cockpit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) 390px;
+  gap: 16px;
+  align-items: start;
+}
+.beg-main { min-width: 0; }
+.beg-side {
+  position: sticky;
+  top: 98px;
+  min-width: 0;
+}
+.toast-item {
+  pointer-events: auto;
+  transition: opacity .22s ease, transform .22s ease;
+  animation: toastSlideIn .2s ease;
+}
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media(max-width:1120px){
+  .beg-cockpit {
+    grid-template-columns: 1fr;
+  }
+  .beg-side {
+    position: static;
+  }
+  .hotkey-hint {
+    display: none;
+  }
+}
 body.focus-mode .focus-hide,
 body.focus-mode .disclaimer,
 body.focus-mode .tg-setup,
