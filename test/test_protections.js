@@ -8,6 +8,7 @@ const geoAnalogs = require('../shared/geopolitical_analogs');
 const patternEngine = require('../shared/pattern_engine');
 const globalUsdMode = require('../shared/global_usd_mode');
 const signalEngine = require('../shared/signal_engine');
+const debateEngine = require('../shared/debate_engine');
 const kite = require('../kite');
 
 console.log('🧪 Running Institutional Protection, Geopolitical & SMC Pattern Tests...\n');
@@ -273,5 +274,62 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     usdBalance: 100
   });
   assert.strictEqual(olympRangePlan.recommendedMode, 'FIXED-TIME (FTT) 15m–30m');
-  console.log('✓ Test 11 Passed: ₹10K Margin Router, Dual-Feed Parity/OI (H4) & Olymp Trade Multiplier/FTT Assistant verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 11 Passed: ₹10K Margin Router, Dual-Feed Parity/OI (H4) & Olymp Trade Multiplier/FTT Assistant verified.');
+
+  // 12. TauricResearch-Inspired Bull vs Bear Devil's Advocate, Trade Reflection Memory & Adaptive Risk Stance
+  const confirmedDebate = debateEngine.buildQuantitativeDebate({
+    symbol: 'GOLDPETAL26NOVFUT',
+    commodityId: 'gold',
+    action: 'BUY',
+    confidence: 76,
+    regime: 'TRENDING',
+    htfTrend: { bias: 'BULLISH' },
+    dualFeed: { paritySignal: 'BULLISH_LAG', paritySpreadPct: 0.25, oiRegime: 'LONG_BUILDUP', domRatio: 1.8, sessionWindow: 'PRIME_US_OVERLAP' },
+    netRR: 2.1
+  });
+  assert.strictEqual(confirmedDebate.verdict, 'CONFIRM');
+  assert.strictEqual(confirmedDebate.sizeMultiplier, 1.0);
+
+  const memoryVetoDebate = debateEngine.buildQuantitativeDebate({
+    symbol: 'CRUDEOILM26DECFUT',
+    commodityId: 'crude',
+    action: 'BUY',
+    confidence: 75,
+    regime: 'RANGING',
+    htfTrend: { bias: 'BULLISH' },
+    dualFeed: { sessionWindow: 'MIDDAY_LULL', paritySignal: 'NEUTRAL' },
+    recentLessons: [
+      { symbol: 'CRUDEOILM26DECFUT', session_window: 'MIDDAY_LULL', regime: 'RANGING', net_pnl: -110 },
+      { symbol: 'CRUDEOILM26DECFUT', session_window: 'MIDDAY_LULL', regime: 'RANGING', net_pnl: -95 }
+    ]
+  });
+  assert.strictEqual(memoryVetoDebate.verdict, 'VETO', '2 repeated losses in same window/regime must trigger VETO');
+  assert.strictEqual(memoryVetoDebate.sizeMultiplier, 0);
+
+  const recoveryStance = debateEngine.evaluateAdaptiveRiskStance({
+    trades: [{ pnl: -100 }],
+    baseRisk: 125,
+    dailyLossLimit: 300,
+    requestedStance: 'AUTO'
+  });
+  assert.strictEqual(recoveryStance.stance, 'CONSERVATIVE_RECOVERY');
+  assert.strictEqual(recoveryStance.effectiveRisk, 75, '1 loss today must auto-step down risk to ₹75 (60%)');
+
+  const lesson = debateEngine.extractLessonFromTrade({
+    symbol: 'CRUDEOILM', side: 'BUY', netPnl: -115, exitReason: 'AUTO_SL', regime: 'RANGING', sessionWindow: 'MIDDAY_LULL'
+  });
+  assert.strictEqual(lesson.outcome, 'LOSS');
+  assert.ok(lesson.lesson.includes('MIDDAY_LULL'));
+  console.log('✓ Test 12 Passed: Tauric Bull/Bear Debate, Reflection Memory VETO & Auto-Conservative Risk Step-Down verified.');
+
+  // 13. Server-Side GTT Breakeven Modify & Olymp Trade Manifest V3 Extension tests
+  const modGtt = await kite.modifyGTT('GTT-SIM-999', { tradingsymbol: 'GOLDPETAL26NOVFUT', stoploss: 7855, target: 8050 }, false);
+  assert.strictEqual(modGtt.simulated, true);
+  assert.strictEqual(modGtt.stoploss, 7855);
+  const fs = require('fs');
+  const path = require('path');
+  const extManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'olymp-extension', 'manifest.json'), 'utf8'));
+  assert.strictEqual(extManifest.manifest_version, 3);
+  assert.ok(extManifest.host_permissions.includes('http://127.0.0.1:8000/*'));
+  console.log('✓ Test 13 Passed: Kite GTT Breakeven modifyGTT() & Olymp Trade Manifest V3 Co-Pilot Extension verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "MCX Desk — Olymp Trade Semi-Auto Co-Pilot",
+  "version": "1.0.0",
+  "description": "Demo-first semi-auto Co-Pilot HUD for Olymp Trade powered by your local MCX Quantitative Signal Engine (http://127.0.0.1:8000). Pre-fills stakes & displays Bull/Bear verdict without unattended auto-clicking.",
+  "permissions": ["alarms", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "https://*.olymptrade.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.olymptrade.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

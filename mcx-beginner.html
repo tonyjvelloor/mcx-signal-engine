@@ -14,6 +14,7 @@
 <script src="/shared/pattern_engine.js"></script>
 <script src="/shared/global_usd_mode.js"></script>
 <script src="/shared/signal_engine.js"></script>
+<script src="/shared/debate_engine.js"></script>
 
 <style>:root{--bg:#07070A;--bg2:#0E0E14;--bg3:#14141C;--bg4:#1A1A24;--bg5:#21212E;--br:rgba(255,255,255,0.06);--brl:rgba(255,255,255,0.11);--tx:#D8D6E8;--txd:#6A6880;--txm:#32314A;--grn:#22C55E;--grn2:#16A34A;--grnbg:rgba(34,197,94,0.08);--red:#EF4444;--red2:#DC2626;--redbg:rgba(239,68,68,0.08);--amb:#F59E0B;--ambbg:rgba(245,158,11,0.08);--blu:#3B82F6;--blubg:rgba(59,130,246,0.08);--cya:#06B6D4;--cyabg:rgba(6,182,212,0.08);--pur:#A855F7;--purbg:rgba(168,85,247,0.08);--gold:#F5C542;--goldbg:rgba(245,197,66,0.08);--fm:'IBM Plex Mono',monospace;--fd:'Syne',sans-serif}*{box-sizing:border-box;margin:0;padding:0}html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:100vh;font-size:13px}.gbar{background:var(--bg2);border-bottom:1px solid var(--br);height:46px;display:flex;align-items:center;padding:0 1rem;gap:0;position:sticky;top:0;z-index:200}.gbar-logo{font-family:var(--fm);font-size:14px;font-weight:500;color:var(--gold);letter-spacing:2px;padding-right:16px;border-right:1px solid var(--br);margin-right:14px;flex-shrink:0}.mode-tabs{display:flex;height:100%;gap:0;margin-right:16px;border-right:1px solid var(--br);padding-right:12px}.mode-tab{display:flex;align-items:center;gap:7px;padding:0 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--txd);transition:all .18s;border-bottom:2px solid transparent;white-space:nowrap}.mode-tab:hover{color:var(--tx)}.mode-tab.active{color:var(--tx);border-bottom-color:var(--gold)}.mode-tab .mt-icon{font-size:14px}.com-scroll{display:flex;height:100%;overflow-x:auto;flex:1;scrollbar-width:none}.com-scroll::-webkit-scrollbar{display:none}.com-tab{display:flex;align-items:center;gap:6px;padding:0 12px;cursor:pointer;font-size:10px;font-family:var(--fm);color:var(--txd);border-right:1px solid var(--br);transition:all .15s;white-space:nowrap;flex-shrink:0;height:100%}.com-tab:hover{background:var(--bg3);color:var(--tx)}.com-tab.active{background:var(--bg3);color:var(--tx)}.ct-sig{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.cs-BUY{background:var(--bg4);color:var(--gold)}.cs-SELL{background:var(--bg4);color:var(--gold)}.cs-WAIT{background:var(--bg5);color:var(--txd)}.gbar-right{display:flex;align-items:center;gap:10px;padding-left:12px;border-left:1px solid var(--br);flex-shrink:0;margin-left:auto}.gs{font-size:10px;font-family:var(--fm);color:var(--txd);white-space:nowrap}.gs strong{color:var(--tx)}.rfbtn{font-size:10px;font-family:var(--fm);padding:4px 12px;border-radius:4px;border:1px solid var(--brl);background:transparent;color:var(--gold);cursor:pointer;transition:all .15s}.rfbtn:hover:not(:disabled){background:var(--goldbg)}.rfbtn:disabled{opacity:.4;cursor:not-allowed}.spin{animation:sp 1s linear infinite;display:inline-block}.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block}.dlive{background:var(--grn);animation:pl 1.5s infinite}.dwait{background:var(--amb)}.doff{background:var(--txd)}.view{display:none}.view.active{display:block}.bst{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--fm);color:var(--txd)}.bst strong{color:var(--tx)}.bl{border-radius:10px;padding:11px;text-align:center;border:1px solid var(--br)}.bfbg{background:linear-gradient(90deg,var(--grn2),var(--grn))}.bfbr{background:linear-gradient(90deg,var(--red2),var(--red))}.bfba{background:var(--amb)}.psb{display:flex;align-items:center;gap:4px;font-size:10px;font-family:var(--fm);color:var(--txd);flex-shrink:0}.psb strong{color:var(--tx)}.psb-div{width:1px;height:12px;background:var(--br);flex-shrink:0}.ppb{padding:9px 11px}.ic-BUY,.ic-OVERSOLD{color:var(--grn)}.ic-SELL,.ic-OVERBOUGHT{color:var(--red)}.ic-NEUTRAL{color:var(--txd)}.chart-canvas-wrap{position:relative;width:100%;height:100%;min-height:170px}.pps-BUY{background:var(--grnbg);color:var(--grn)}.pps-SELL{background:var(--redbg);color:var(--red)}.pt-lbl{color:var(--txd)}.pt-val{text-align:right;font-weight:500;color:var(--tx)}.pt-R{color:var(--red)}.pt-S{color:var(--grn)}.pt-P{color:var(--gold)}.risk-form{padding:9px 11px;display:flex;flex-direction:column;gap:5px}.jtbl{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:9px}.jtbl th{font-size:7px;color:var(--txd);text-transform:uppercase;letter-spacing:.4px;padding:5px 7px;border-bottom:1px solid var(--br);text-align:left;background:var(--bg3);position:sticky;top:0}.jtbl td{padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.025);color:var(--tx)}.jtbl tr:hover td{background:var(--bg3)}.j-empty{font-size:9px;color:var(--txm);text-align:center;padding:16px;font-family:var(--fm)}.inter-row{display:flex;align-items:center;justify-content:space-between;padding:5px 7px;background:var(--bg3);border-radius:3px;margin-bottom:3px}.ir-n{font-size:9px;font-family:var(--fm);color:var(--txd)}.ir-v{font-size:9px;font-family:var(--fm);color:var(--tx)}.ir-s{font-size:8px;font-family:var(--fm);font-weight:600}.ldg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:1.5rem}.ring{width:22px;height:22px;border:2px solid var(--br);border-top-color:var(--gold);border-radius:50%;animation:ring-sp .9s linear infinite;flex-shrink:0}.ring-sm{width:16px;height:16px;border-width:1.5px}.ldg p{font-size:10px;color:var(--txd);font-family:var(--fm);text-align:center}.ni{border-left:2px solid var(--txm);border-radius:0 5px 5px 0;padding:8px 10px;background:var(--bg3);margin-bottom:1px}.ni-B{border-left-color:var(--grn)}.ni-S{border-left-color:var(--red)}.ni-N{border-left-color:var(--txm)}.ni-hl{font-size:11px;color:var(--tx);line-height:1.4;margin-bottom:3px}.ni-why{font-size:10px;color:var(--txd);line-height:1.5;margin-bottom:4px}.ni-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ni-badge{font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--fm)}.nb-B{background:var(--grnbg);color:var(--grn)}.nb-S{background:var(--redbg);color:var(--red)}.nb-N{background:var(--bg5);color:var(--txd)}.ni-src{font-size:9px;color:var(--txm);font-family:var(--fm)}.ni-imp{font-size:9px;font-family:var(--fm);font-weight:600}.ni-HIGH{color:var(--red)}.ni-MEDIUM{color:var(--amb)}.ni-LOW{color:var(--txd)}.pvt-tabs{display:flex;gap:2px}.pvt-tab{font-size:8px;font-family:var(--fm);padding:2px 6px;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--txd);cursor:pointer;transition:all .15s}.pvt-tab:hover{color:var(--tx)}.pvt-tab.active{background:var(--bg5);border-color:var(--brl);color:var(--tx)}.hdiv{height:1px;background:var(--br);margin:.9rem 0}.geo-row{padding:5px 0;border-bottom:1px solid var(--br);display:flex;align-items:flex-start;gap:6px;font-size:11px}.ic-red{color:var(--red);flex-shrink:0}.c-red{color:var(--red)}.c-txm{color:var(--txm)}.evb-HIGH{background:var(--redbg);color:var(--red)}.evb-MEDIUM{background:var(--ambbg);color:var(--amb)}.evb-LOW{background:var(--bg5);color:var(--txd)}.ev{background:var(--bg3);border-radius:3px;padding:5px 7px;display:flex;align-items:center;gap:6px;margin-bottom:3px}@keyframes sp{to{transform:rotate(360deg)}}@keyframes pl{0%,100%{opacity:1}50%{opacity:.2}}@keyframes ring-sp{to{transform:rotate(360deg)}}@media(max-width:1100px){.pro-grid{grid-template-columns:230px 1fr}.pro-col:last-child{display:none}}@media(max-width:780px){.gbar{height:auto;flex-wrap:wrap;padding:8px 10px;gap:8px}.gbar-logo{border-right:none;padding-right:0}.mode-tabs{width:100%;order:-1}.mode-tab{flex:1;justify-content:center;font-size:11px;padding:6px 0}.com-scroll{order:3;width:100%;border-top:1px solid var(--br);margin-top:4px}.gbar-right{width:100%;justify-content:space-between;padding-left:0;border-left:none;font-size:10px}.gs{font-size:9px}.beg{padding:0.75rem 0.6rem}.beg-header h2{font-size:18px}.beg-statusrow{gap:8px}.bst{font-size:9px}.tlight{padding:10px 12px;gap:8px}.tl-dot{width:22px;height:22px}.tl-label{font-size:13px}.b-pillars{grid-template-columns:1fr}.b-levels{grid-template-columns:1fr 1fr}.b-explain{grid-template-columns:1fr}.b-bottom{grid-template-columns:1fr}.bsig-card{padding:1.1rem}.bsc-price{font-size:22px}.bsc-title{font-size:16px}.bcap-stats{grid-template-columns:1fr 1fr}.pro-statusbar{display:none}.pro-grid{grid-template-columns:1fr;height:auto}.pro-col:first-child,.pro-col:last-child{display:none}.pro-col:nth-child(2){display:flex;height:auto}.chart-wrap-pro{min-height:200px;height:220px}.vol-wrap{height:40px}.ind-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:480px){.b-levels{grid-template-columns:1fr}.ind-grid{grid-template-columns:repeat(2,1fr)}.pmtf-grid{grid-template-columns:repeat(3,1fr)}.bsig-card{padding:0.9rem}}.beg{max-width:1050px;margin:0 auto;padding:1.5rem 1rem}.beg-header{text-align:center;margin-bottom:1.5rem}.beg-header h2{font-size:22px;font-weight:800;color:var(--gold);letter-spacing:-.3px}.beg-header p{font-size:12px;color:var(--txd);margin-top:5px}.beg-statusrow{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:10px;flex-wrap:wrap}.bsig-card{border-radius:14px;padding:1.75rem;margin-bottom:1.25rem;border:1px solid var(--brl);background:var(--bg2)}.bsc-BUY{background:var(--bg2);border-color:rgba(59,130,246,0.3)}.bsc-SELL{background:var(--bg2);border-color:rgba(168,85,247,0.3)}.bsc-WAIT{background:var(--bg2);border-color:var(--br)}.bsc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:1rem}.bsc-badge{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:6px 14px;font-family:var(--fm);font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:0.5px}.bb-BUY{background:#1E293B;color:#93C5FD;border:1px solid #3B82F6}.bb-SELL{background:#1E293B;color:#C4B5FD;border:1px solid #8B5CF6}.bb-WAIT{background:var(--bg4);color:var(--txd);border:1px solid var(--brl)}.bsc-title{font-family:var(--fd);font-size:20px;font-weight:700;line-height:1.3;margin-bottom:8px}.bsc-reason{font-size:13px;color:var(--txd);line-height:1.7;max-width:540px}.bsc-price{font-family:var(--fm);font-size:28px;font-weight:500;letter-spacing:-1px}.bsc-chg{font-size:12px;font-family:var(--fm);margin-top:4px}.bsc-src{font-size:9px;color:var(--txm);margin-top:5px;font-family:var(--fm)}.b-levels{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:.75rem}.bl-ent{background:rgba(245,197,66,.06);border-color:rgba(245,197,66,.2)}.bl-sl{background:var(--redbg);border-color:rgba(239,68,68,.2)}.bl-t1{background:var(--grnbg);border-color:rgba(34,197,94,.2)}.bl-t2{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3)}.bl-label{font-size:9px;color:var(--txd);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;font-family:var(--fm)}.bl-val{font-size:15px;font-weight:700;font-family:var(--fm)}.bl-hint{font-size:10px;color:var(--txd);margin-top:3px;line-height:1.4}.bval-ent{color:var(--gold)}.bval-sl{color:var(--red)}.bval-t1{color:var(--grn)}.bval-t2{color:#4ADE80}.b-wait-box{background:var(--bg3);border-radius:10px;padding:1.25rem;text-align:center}.bwb-icon{font-size:28px;margin-bottom:7px}.bwb-title{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--txd);margin-bottom:5px}.bwb-msg{font-size:12px;color:var(--txm);line-height:1.6}.b-pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:1.25rem}.bp{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bp-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px}.bp-icon{font-size:16px}.bp-title{font-size:11px;font-weight:600;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;font-family:var(--fd)}.bp-verdict{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-bottom:7px;font-family:var(--fm)}.bpv-BUY,.bpv-BULLISH{background:var(--grnbg);color:var(--grn)}.bpv-SELL,.bpv-BEARISH{background:var(--redbg);color:var(--red)}.bpv-NEUTRAL,.bpv-WAIT,.bpv-MIXED{background:var(--ambbg);color:var(--amb)}.bp-body{font-size:11px;color:var(--txd);line-height:1.6}.bp-body strong{color:var(--tx)}.bfbar{height:5px;border-radius:3px;background:var(--bg4);margin-top:8px;overflow:hidden}.bfbar-fill{height:100%;border-radius:3px;transition:width 1s ease}.b-explain{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:1.25rem}.bexp{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bexp-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txd);font-family:var(--fd);margin-bottom:7px}.bexp-body{font-size:11px;color:var(--txd);line-height:1.7}.bexp-body strong{color:var(--tx)}.bnews-section{background:var(--bg2);border:1px solid var(--br);border-radius:12px;margin-bottom:1.25rem;overflow:hidden}.bnews-hdr{padding:12px 16px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between}.bnews-title{font-family:var(--fd);font-size:12px;font-weight:700}.bnews-list{padding:10px;display:flex;flex-direction:column;gap:7px;max-height:340px;overflow-y:auto}.bnews-list::-webkit-scrollbar{width:2px}.bnews-list::-webkit-scrollbar-thumb{background:var(--br)}.bevents{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:1.25rem}.bevents-title{font-family:var(--fd);font-size:12px;font-weight:700;margin-bottom:9px;color:var(--amb)}.bev-list{display:flex;flex-direction:column;gap:5px}.bev{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:7px;padding:8px 10px}.bev-n{flex:1;font-size:11px}.bev-d{font-size:10px;color:var(--txd);font-family:var(--fm)}.bev-b{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px}.bevb-HIGH{background:var(--redbg);color:var(--red)}.bevb-MEDIUM{background:var(--ambbg);color:var(--amb)}.bevb-LOW{background:var(--bg5);color:var(--txd)}.b-bottom{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:1.25rem}.bcap{background:var(--bg2);border:1px solid var(--br);border-radius:12px;padding:14px}.bcap-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txd);margin-bottom:10px;font-family:var(--fd)}.bcap-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}.bcs{background:var(--bg3);border-radius:7px;padding:8px 10px}.bcs-l{font-size:9px;color:var(--txd);margin-bottom:2px;font-family:var(--fm)}.bcs-v{font-size:16px;font-weight:700;font-family:var(--fm)}.tlight{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:1.25rem;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:12px}.tl-dot{width:28px;height:28px;border-radius:50%;transition:all .4s ease;flex-shrink:0}.tl-dot.active{box-shadow:none;opacity:1}.tl-red{background:var(--red);color:var(--red)}.tl-red.off{background:rgba(239,68,68,0.15);box-shadow:none}.tl-amb{background:var(--amb);color:var(--amb)}.tl-amb.off{background:rgba(245,158,11,0.15);box-shadow:none}.tl-grn{background:var(--grn);color:var(--grn)}.tl-grn.off{background:rgba(34,197,94,0.15);box-shadow:none}.tl-label{font-family:var(--fd);font-size:15px;font-weight:700}.tl-sub{font-size:11px;color:var(--txd);margin-top:2px}.disclaimer{background:var(--ambbg);border:1px solid rgba(245,158,11,.2);border-radius:9px;padding:10px 14px;font-size:11px;color:var(--amb);line-height:1.6;margin-bottom:1.25rem;text-align:center}.b-perf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.bpcard{background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:12px;text-align:center}.bpcard-l{font-size:9px;color:var(--txd);font-family:var(--fm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}.bpcard-v{font-size:20px;font-weight:700;font-family:var(--fm)}</style>
 </head>
@@ -54,6 +55,7 @@
     <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
     <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
     <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
+    <button class="rfbtn" id="focusModeBtn" onclick="toggleFocusMode()" title="Toggle 1-Screen Live Execution Focus Mode" style="font-size:10px;color:var(--grn)">🎯 Focus</button>
     <button class="rfbtn" id="audioToggleBtn" onclick="toggleAudio()" title="Toggle Signal Audio Chimes" style="font-size:11px"><span id="audioIcon">🔊</span></button>
     <button class="rfbtn" id="briefingBtn" onclick="openBriefingModal()" title="Pre-Market Daily Briefing & Cross-Asset Screener" style="font-size:10px;color:var(--cya)">📋 Briefing</button>
     <button class="rfbtn" id="kiteBtn" onclick="handleKiteConnect()" style="font-size:11px; font-weight:700; color:var(--tx); border:1px solid var(--br);"><span id="kiteDot" class="dot doff"></span> <span id="kiteTxt">Connect Kite</span></button>
@@ -137,13 +139,27 @@
   <div class="bsig-card bsc-WAIT"><div class="ldg"><div class="ring"></div><p>Loading signal...</p></div></div>
     </div>
 
-    <div class="b-pillars" id="b-pillars">
+    <div class="b-pillars focus-hide" id="b-pillars">
   <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
   <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
   <div class="bp"><div class="ldg" style="min-height:80px"><div class="ring ring-sm"></div></div></div>
     </div>
 
-    <div class="b-explain" id="b-explain" style="display:none"></div>
+    <div class="b-explain focus-hide" id="b-explain" style="display:none"></div>
+
+    <!-- BULL VS BEAR DEVIL'S ADVOCATE & REFLECTION MEMORY CARD (TAURIC-INSPIRED) -->
+    <div class="bnews-section" style="margin-bottom:1.25rem">
+      <div class="bnews-hdr">
+        <span class="bnews-title">⚖️ Bull vs. Bear Devil's Advocate &amp; Reflection Memory</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="b-debate-verdict" style="font-size:9px;font-family:var(--fm);font-weight:700;padding:2px 7px;border-radius:3px;background:var(--bg5);color:var(--txd)">STANDBY</span>
+          <button onclick="runAiDeepDebate()" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.35);border-radius:4px;color:var(--gold);font-size:9px;padding:2px 8px;cursor:pointer;font-family:var(--fm);font-weight:600">⚔️ Run AI Deep Debate</button>
+        </div>
+      </div>
+      <div id="b-debate-body" style="padding:12px;font-family:var(--fm);font-size:10px;line-height:1.6">
+        <div style="color:var(--txd)">Waiting for live signal synthesis to run Bull vs. Bear cross-examination...</div>
+      </div>
+    </div>
 
     <!-- GLOBAL USD / OLYMP TRADE MODE CARD -->
     <div class="bnews-section" style="margin-bottom:1.25rem">
@@ -160,7 +176,7 @@
     </div>
 
     <!-- INSTITUTIONAL GEOPOLITICAL PRECEDENT & SMC PATTERN RADAR -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem">
+    <div class="focus-hide" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem">
       <div class="bnews-section" style="margin-bottom:0">
         <div class="bnews-hdr">
           <span class="bnews-title">🌍 Geopolitical &amp; Historical Analog Radar</span>
@@ -185,7 +201,7 @@
       </div>
     </div>
 
-    <div class="bnews-section">
+    <div class="bnews-section focus-hide">
   <div class="bnews-hdr" style="display:flex;align-items:center;justify-content:space-between">
     <span class="bnews-title">Why the market is moving</span>
     <div style="display:flex;align-items:center;gap:8px">
@@ -348,6 +364,19 @@
         <!-- ₹10,000 Smart Margin & Instrument Router Box -->
         <div id="b-10k-route-box" style="background:var(--bg3);border:1px solid var(--brl);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;line-height:1.5">
           <span style="color:var(--txd)">Evaluating ₹10,000 Zerodha margin route...</span>
+        </div>
+        <!-- Adaptive 3-Tier Risk Stance Selector -->
+        <div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 10px;font-family:var(--fm);font-size:9px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <div>
+            <span style="color:var(--txd)">Risk Stance:</span>
+            <select id="b-risk-stance" onchange="updateAdaptiveRiskStance(true)" style="margin-left:4px;background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;font-family:var(--fm);font-size:9px;padding:2px 6px">
+              <option value="AUTO">AUTO (Step-down after 1 loss)</option>
+              <option value="CONSERVATIVE">CONSERVATIVE (₹75 / 60%)</option>
+              <option value="BALANCED">BALANCED (₹125 / 100%)</option>
+              <option value="AGGRESSIVE">AGGRESSIVE (₹150 / 120%)</option>
+            </select>
+          </div>
+          <div id="b-stance-status" style="color:var(--grn)">⚖️ BALANCED (₹125 cap)</div>
         </div>
         <div style="padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:6px;font-size:10px;font-family:var(--fm);color:var(--txd);line-height:1.6">
           🛡️ <strong>Risk Guardrails</strong>: Max risk/trade: <span style="color:var(--gold)">₹125</span> (1.25% of ₹10k) · Daily Circuit Breaker: <span style="color:var(--red)">₹300</span> (3%) · Min Net R:R: <span style="color:var(--grn)">1:1.5</span> · Overnight: <span style="color:var(--tx)">NRML</span> · Intraday 5x: <span style="color:var(--tx)">MIS</span>
@@ -1824,18 +1853,29 @@ async function finalizeJournalClose(t, exitPrice, exitReason = 'MANUAL_CLOSE'){
   t.closeTime = new Date().toLocaleTimeString('en-IN', { hour12: false });
 
   if (t.dbId) {
+    const activeSig = allSigs[t.comId || activeC?.id] || {};
     try {
       await fetch('/api/paper-trades', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tradeId: t.dbId, exitPrice, exitReason, lotMultiplier: t.mult })
+        body: JSON.stringify({
+          tradeId: t.dbId,
+          exitPrice,
+          exitReason,
+          lotMultiplier: t.mult,
+          regime: activeSig.regime || 'UNKNOWN',
+          sessionWindow: activeSig.dualFeed?.sessionWindow || 'UNKNOWN',
+          paritySignal: activeSig.dualFeed?.paritySignal || 'NEUTRAL'
+        })
       });
     } catch (_) {}
   }
 
   try { localStorage.setItem('mcx_v4', JSON.stringify(journal)); } catch(_) {}
   renderJournal();
+  updateAdaptiveRiskStance(false);
   updateSizingFeedback();
+  fetchTradeLessons();
 }
 
 function closeJournalTrade(tradeId){
@@ -2352,9 +2392,132 @@ function renderBeg(){
   renderBegSignal(sig);
   renderBegPillars(sig);
   renderBegExplain(activeC,sig);
+  renderDebateCard(sig);
   renderGlobalUsdCard(sig);
   renderSmcPatterns();
+  updateAdaptiveRiskStance(false);
   if (lastGeoIntel) renderGeopoliticalRadar(lastGeoIntel);
+}
+
+window.recentTradeLessons = [];
+async function fetchTradeLessons() {
+  try {
+    const res = await fetch('/api/lessons');
+    if (res.ok) {
+      const d = await res.json();
+      if (Array.isArray(d.lessons)) window.recentTradeLessons = d.lessons;
+      if (allSigs[activeC?.id]) renderDebateCard(allSigs[activeC.id]);
+    }
+  } catch (_) {}
+}
+
+function updateAdaptiveRiskStance(applyToInput = false) {
+  if (!window.DebateEngine || !window.DebateEngine.evaluateAdaptiveRiskStance) return;
+  const sel = document.getElementById('b-risk-stance');
+  const stEl = document.getElementById('b-stance-status');
+  const requestedStance = sel ? sel.value : 'AUTO';
+  const res = window.DebateEngine.evaluateAdaptiveRiskStance({
+    trades: journal,
+    baseRisk: window.maxRiskPerTrade || 125,
+    dailyLossLimit: window.dailyLossLimit || 300,
+    requestedStance
+  });
+  window.activeRiskStance = res;
+  if (stEl) {
+    const col = res.stance.includes('CONSERVATIVE') ? 'var(--amb)' : res.stance === 'AGGRESSIVE' ? 'var(--cya)' : 'var(--grn)';
+    stEl.textContent = `${res.label} → ₹${res.effectiveRisk} cap`;
+    stEl.style.color = col;
+    stEl.title = res.reason;
+  }
+  const budEl = document.getElementById('b-jBudget');
+  if (budEl && (applyToInput || res.stance === 'CONSERVATIVE_RECOVERY')) {
+    budEl.value = String(res.effectiveRisk);
+    updateSizingFeedback();
+  }
+}
+
+function renderDebateCard(sig, overrideDebate = null) {
+  const box = document.getElementById('b-debate-body');
+  const badge = document.getElementById('b-debate-verdict');
+  if (!box || !window.DebateEngine) return;
+
+  const eff = getEffectiveExecutionSpec();
+  const debate = overrideDebate || window.DebateEngine.buildQuantitativeDebate({
+    symbol: eff.tradingsymbol,
+    commodityId: activeC?.id || 'gold',
+    action: sig?.action || 'WAIT',
+    confidence: sig?.confidence || 0,
+    regime: sig?.regime || 'TRANSITIONAL',
+    htfTrend: sig?.htfTrend || null,
+    dualFeed: sig?.dualFeed || null,
+    smc: sig?.smc || null,
+    geoIntel: lastGeoIntel || null,
+    recentLessons: window.recentTradeLessons || [],
+    netRR: sig?.netRR || 0
+  });
+
+  if (badge) {
+    const vCol = debate.verdict === 'CONFIRM' ? 'var(--grn)' : debate.verdict === 'HALVE_SIZE' ? 'var(--amb)' : debate.verdict === 'VETO' ? 'var(--red)' : 'var(--txd)';
+    const vBg = debate.verdict === 'CONFIRM' ? 'var(--grnbg)' : debate.verdict === 'HALVE_SIZE' ? 'var(--ambbg)' : debate.verdict === 'VETO' ? 'var(--redbg)' : 'var(--bg5)';
+    badge.textContent = `${debate.verdict}${debate.source === 'CLAUDE_HAIKU_DEBATE' ? ' (AI)' : ''}`;
+    badge.style.color = vCol;
+    badge.style.background = vBg;
+  }
+
+  const bullHtml = (debate.bullCase || []).map(p => `<div style="margin-bottom:3px"><span style="color:var(--grn)">▲</span> ${p}</div>`).join('') || '<div style="color:var(--txd)">No strong bullish catalyst.</div>';
+  const bearHtml = (debate.bearCase || []).map(p => `<div style="margin-bottom:3px"><span style="color:var(--red)">▼</span> ${p}</div>`).join('') || '<div style="color:var(--txd)">No major bearish trap detected.</div>';
+  const lessonsHtml = (window.recentTradeLessons || []).slice(0, 2).map(l =>
+    `<div style="color:var(--txd);font-size:9px;margin-top:2px">🧠 ${l.lesson}</div>`
+  ).join('');
+
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+      <div style="background:var(--bg3);border-radius:7px;padding:8px 10px;border-left:2px solid var(--grn)">
+        <div style="color:var(--grn);font-size:9px;font-weight:700;margin-bottom:4px">BULL ANALYST THESIS (Score ${debate.bullScore})</div>
+        ${bullHtml}
+      </div>
+      <div style="background:var(--bg3);border-radius:7px;padding:8px 10px;border-left:2px solid var(--red)">
+        <div style="color:var(--red);font-size:9px;font-weight:700;margin-bottom:4px">BEAR / DEVIL'S ADVOCATE (Score ${debate.bearScore})</div>
+        ${bearHtml}
+      </div>
+    </div>
+    <div style="background:var(--bg3);border-radius:6px;padding:7px 10px;border:1px solid var(--br)">
+      <div><strong>Desk Synthesis:</strong> <span style="color:var(--gold)">${debate.rationale}</span></div>
+      ${lessonsHtml || '<div style="color:var(--txm);font-size:9px;margin-top:2px">🧠 Reflection memory active — closed trades will automatically train future debates.</div>'}
+    </div>
+  `;
+}
+
+async function runAiDeepDebate() {
+  const sig = allSigs[activeC?.id];
+  const box = document.getElementById('b-debate-body');
+  if (!sig || !box) return;
+  box.innerHTML = '<div class="ldg" style="padding:1rem"><div class="ring ring-sm"></div><p>Running Tauric Bull vs. Bear Devil\'s Advocate Debate...</p></div>';
+  try {
+    const eff = getEffectiveExecutionSpec();
+    const res = await fetch('/api/ai/debate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: eff.tradingsymbol,
+        commodityId: activeC.id,
+        action: sig.action,
+        confidence: sig.confidence,
+        regime: sig.regime,
+        htfTrend: sig.htfTrend,
+        dualFeed: sig.dualFeed,
+        smc: sig.smc,
+        geoIntel: lastGeoIntel,
+        netRR: sig.netRR,
+        useAi: true
+      })
+    });
+    const data = await res.json();
+    if (Array.isArray(data.recentLessons)) window.recentTradeLessons = data.recentLessons;
+    renderDebateCard(sig, data);
+  } catch (err) {
+    renderDebateCard(sig);
+  }
 }
 
 function evaluateUsdCircuitBreaker(usdBal) {
@@ -2453,6 +2616,22 @@ function renderGlobalUsdCard(sig) {
   const actCol = plan.action === 'BUY' ? 'var(--grn)' : plan.action === 'SELL' ? 'var(--red)' : 'var(--txd)';
   const modeCol = plan.recommendedMode.includes('MULTIPLIER') ? 'var(--grn)' : plan.recommendedMode.includes('FIXED-TIME') ? 'var(--cya)' : 'var(--txd)';
   const usdBlockMsg = usdCb.reason || plan.blockedReason || 'Stop for day after 2 losses or -4%';
+
+  // Sync live ticket to server for the Olymp Trade Chrome Co-Pilot Extension
+  try {
+    const debateVerdict = document.getElementById('b-debate-verdict')?.textContent || 'STANDBY';
+    fetch('/api/olymp/live-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...plan,
+        debateVerdict,
+        usdCircuitTripped: usdCb.tripped,
+        usdNetToday: usdCb.netUsd,
+        usdConsecLosses: usdCb.consecLosses
+      })
+    }).catch(() => {});
+  } catch (_) {}
 
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;background:var(--bg3);border-radius:7px;padding:7px 10px;border:1px solid var(--br);margin-bottom:8px">
@@ -3341,10 +3520,25 @@ async function loadBacktestStatsBeg() {
   }
 }
 
+function toggleFocusMode(forceState = null) {
+  const next = forceState != null ? Boolean(forceState) : !document.body.classList.contains('focus-mode');
+  document.body.classList.toggle('focus-mode', next);
+  try { localStorage.setItem('mcx_focus_mode', next ? '1' : '0'); } catch (_) {}
+  const btn = document.getElementById('focusModeBtn');
+  if (btn) {
+    btn.style.background = next ? 'var(--grnbg)' : 'transparent';
+    btn.style.borderColor = next ? 'rgba(34,197,94,0.5)' : 'var(--brl)';
+    btn.textContent = next ? '🎯 Focus: ON' : '🎯 Focus';
+  }
+}
+
 function _boot(){
+  if (localStorage.getItem('mcx_focus_mode') === '1') toggleFocusMode(true);
   loadBacktestStatsBeg();
   loadAccountProfile();
   hydrateJournalFromSqlite();
+  fetchTradeLessons();
+  updateAdaptiveRiskStance(false);
   updateSession();
   setInterval(updateSession, 10000);
   setInterval(reconcileKiteDesk, 15000);
@@ -3550,6 +3744,16 @@ function renderIndiaDashboard(data, ts, fresh){
   </div>
 </div>
 <style>
+body.focus-mode .focus-hide,
+body.focus-mode .disclaimer,
+body.focus-mode .tg-setup,
+body.focus-mode #beg-tab-signals,
+body.focus-mode #beg-tab-analysis,
+body.focus-mode #beg-tab-simulator,
+body.focus-mode #beg-tab-heatmap,
+body.focus-mode #b-tlight {
+  display: none !important;
+}
 @media(max-width:640px){
   #view-india [style*="grid-template-columns:1fr 1fr"]{
     grid-template-columns:1fr!important;

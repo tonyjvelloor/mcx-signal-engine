@@ -391,6 +391,65 @@ async function placeGTT(trigger, isLiveAllowed = false) {
   return kiteRequest('/gtt/triggers', 'POST', params.toString(), session.access_token);
 }
 
+async function modifyGTT(triggerId, trigger, isLiveAllowed = false) {
+  const sym = String(trigger.tradingsymbol || trigger.symbol || '').toUpperCase();
+  const isCommodity = isMcxSymbol(sym, trigger.exchange);
+  const defaultExchange = isCommodity ? 'MCX' : 'NSE';
+  const defaultProduct = isCommodity ? 'NRML' : 'MIS';
+
+  if (!isLiveAllowed) {
+    return {
+      status: 'success',
+      simulated: true,
+      trigger_id: triggerId,
+      tradingsymbol: sym,
+      stoploss: Number(trigger.stoploss || 0),
+      target: Number(trigger.target || 0),
+      message: 'Paper GTT OCO modified to fee-covered breakeven successfully.'
+    };
+  }
+
+  const session = loadSession();
+  if (!session) throw new Error('No active Kite session. Please authenticate first.');
+
+  const transactionType = (trigger.transaction_type || trigger.side || 'SELL').toUpperCase();
+  const qty = Number(trigger.quantity || 1);
+  const prod = trigger.product || defaultProduct;
+  const ex = trigger.exchange || defaultExchange;
+
+  const condition = {
+    exchange: ex,
+    tradingsymbol: sym,
+    trigger_values: [Number(trigger.stoploss), Number(trigger.target)],
+    last_price: Number(trigger.last_price || trigger.entry || trigger.stoploss)
+  };
+
+  const orders = [
+    {
+      transaction_type: transactionType,
+      quantity: qty,
+      product: prod,
+      order_type: 'LIMIT',
+      price: Number(trigger.stoploss)
+    },
+    {
+      transaction_type: transactionType,
+      quantity: qty,
+      product: prod,
+      order_type: 'LIMIT',
+      price: Number(trigger.target)
+    }
+  ];
+
+  const params = new URLSearchParams({
+    type: 'two-leg',
+    condition: JSON.stringify(condition),
+    orders: JSON.stringify(orders)
+  });
+
+  return kiteRequest(`/gtt/triggers/${encodeURIComponent(triggerId)}`, 'PUT', params.toString(), session.access_token);
+}
+
 module.exports = {
   loadConfig,
   loadSession,
@@ -404,5 +463,6 @@ module.exports = {
   getLiveQuotes,
   placeOrder,
   placeGTT,
+  modifyGTT,
   isSessionValid
 };

@@ -24,6 +24,7 @@ const circuitBreaker = require('./shared/circuit_breaker');
 const geopoliticalHistory = require('./shared/geopolitical_history');
 const geopoliticalAnalogs = require('./shared/geopolitical_analogs');
 const patternEngine = require('./shared/pattern_engine');
+const debateEngine = require('./shared/debate_engine');
 const nseHolidays = require('./shared/nse_holidays');
 
 const PORT = process.env.PORT || 8000;
@@ -51,11 +52,22 @@ const ALLOWED_STATIC_FILES = {
   '/shared/geopolitical_history.js': 'shared/geopolitical_history.js',
   '/shared/pattern_engine.js': 'shared/pattern_engine.js',
   '/shared/global_usd_mode.js': 'shared/global_usd_mode.js',
-  '/shared/signal_engine.js': 'shared/signal_engine.js'
+  '/shared/signal_engine.js': 'shared/signal_engine.js',
+  '/shared/debate_engine.js': 'shared/debate_engine.js'
 };
 
 // In-Memory High-Speed Cache (Symbol/Key -> { data, timestamp, ttl })
 const memoryCache = new Map();
+// Server-Side Live GTT +1R Breakeven Guard Registry
+const armedGttGuards = new Map();
+// Latest Olymp Trade Co-Pilot Ticket (polled by Chrome Extension)
+let latestOlympTicket = {
+  ok: false,
+  pair: 'XAU/USD',
+  action: 'WAIT',
+  recommendedMode: 'WAIT — DO NOT ENTER',
+  updatedAt: null
+};
 
 function getCached(key) {
   const item = memoryCache.get(key);
@@ -154,6 +166,18 @@ try {
     UPDATE account_settings
     SET capital = 10000, max_risk_per_trade = 125, daily_loss_limit = 300, pilot_drawdown_limit = 600, updated_at = CURRENT_TIMESTAMP
     WHERE id = 1 AND capital = 15000 AND max_risk_per_trade = 50;
+    CREATE TABLE IF NOT EXISTS trade_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      side TEXT NOT NULL,
+      regime TEXT,
+      session_window TEXT,
+      parity_signal TEXT,
+      exit_reason TEXT,
+      net_pnl REAL,
+      lesson TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
   console.log('📦 SQLite database initialized: market_data.db');
 } catch (e) {
@@ -1266,12 +1290,31 @@ const server = http.createServer(async (req, res) => {
                 WHERE id = ?
               `).run(exitPrice, new Date().toISOString(), netPnl, status, exitReason, tradeId);
 
+              // Post-Trade Reflection Memory (TauricResearch-inspired)
+              let lessonObj = null;
+              try {
+                lessonObj = debateEngine.extractLessonFromTrade({
+                  symbol: trade.symbol,
+                  side: trade.side,
+                  netPnl,
+                  exitReason,
+                  regime: data.regime || 'UNKNOWN',
+                  sessionWindow: data.sessionWindow || 'UNKNOWN',
+                  paritySignal: data.paritySignal || 'NEUTRAL'
+                });
+                db.prepare(`
+                  INSERT INTO trade_lessons (symbol, side, regime, session_window, parity_signal, exit_reason, net_pnl, lesson)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(lessonObj.symbol, lessonObj.side, lessonObj.regime, lessonObj.sessionWindow, lessonObj.paritySignal, lessonObj.exitReason, lessonObj.netPnl, lessonObj.lesson);
+              } catch (_) {}
+
               res.writeHead(200, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({
                 success: true,
                 tradeId,
                 netPnl: netPnl.toFixed(2),
-                status
+                status,
+                lesson: lessonObj ? lessonObj.lesson : null
               }));
             }
           } catch(e) {
@@ -1729,14 +1772,142 @@ const server = http.createServer(async (req, res) => {
 
           const isLiveAllowed = process.env.ENABLE_LIVE_ORDERS === 'true';
           const result = await kite.placeGTT(trigger, isLiveAllowed);
+
+          // Register in server-side +1R Breakeven GTT Guard
+          const trigId = result?.data?.trigger_id || result?.trigger_id || result?.id;
+          if (trigId && Number(trigger.entry) > 0 && Number(trigger.stoploss) > 0) {
+            const fees = riskEngine.calculateZerodhaFees({
+              side: trigger.side === 'SELL' ? 'BUY' : 'SELL',
+              entry: Number(trigger.entry),
+              exit: Number(trigger.target),
+              quantity: Number(trigger.quantity || 1),
+              lotMultiplier: spec.multiplier || 1,
+              segment: spec.segment || 'commodity'
+            }).total;
+            armedGttGuards.set(String(trigId), {
+              triggerId: String(trigId),
+              symbol: trigger.tradingsymbol,
+              exchange: trigger.exchange,
+              exitSide: String(trigger.side || 'SELL').toUpperCase(),
+              entrySide: String(trigger.side || 'SELL').toUpperCase() === 'SELL' ? 'BUY' : 'SELL',
+              entry: Number(trigger.entry),
+              initSl: Number(trigger.stoploss),
+              currentSl: Number(trigger.stoploss),
+              target: Number(trigger.target),
+              quantity: Number(trigger.quantity || 1),
+              product: trigger.product || (isComm ? 'NRML' : 'MIS'),
+              multiplier: spec.multiplier || 1,
+              fees,
+              breakevenArmed: false,
+              liveAllowed: isLiveAllowed,
+              createdAt: new Date().toISOString()
+            });
+          }
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
+          res.end(JSON.stringify({ ...result, serverBreakevenGuardArmed: Boolean(trigId) }));
         } catch (gttErr) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: gttErr.message }));
         }
       });
       return;
+    }
+
+    // 7d2. Server-Side GTT Breakeven Guard Status API
+    if (req.method === 'GET' && pathname === '/api/kite/gtt-guards') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, guards: [...armedGttGuards.values()] }));
+    }
+
+    // 7d3. Automatic Edge Finder Profit Factor Matrix (Symbol × Session × Regime)
+    if (req.method === 'GET' && pathname === '/api/edge-finder') {
+      try {
+        const rows = db ? db.prepare('SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 500').all() : [];
+        const groups = {};
+        for (const r of rows) {
+          const sym = String(r.symbol || 'UNKNOWN').replace(/\d{2}[A-Z]{3}FUT$/, '');
+          const sess = r.session_window || 'UNKNOWN';
+          const reg = r.regime || 'UNKNOWN';
+          const key = `${sym}|${sess}|${reg}`;
+          if (!groups[key]) {
+            groups[key] = {
+              symbol: sym,
+              sessionWindow: sess,
+              regime: reg,
+              trades: 0,
+              wins: 0,
+              losses: 0,
+              grossProfit: 0,
+              grossLoss: 0,
+              netPnl: 0
+            };
+          }
+          const g = groups[key];
+          const pnl = Number(r.net_pnl || 0);
+          g.trades++;
+          g.netPnl += pnl;
+          if (pnl > 0) { g.wins++; g.grossProfit += pnl; }
+          else if (pnl < 0) { g.losses++; g.grossLoss += Math.abs(pnl); }
+        }
+
+        const combos = Object.values(groups).map(g => {
+          const pf = g.grossLoss > 0 ? +(g.grossProfit / g.grossLoss).toFixed(2) : (g.grossProfit > 0 ? 9.99 : 0);
+          const winRate = g.trades > 0 ? Math.round((g.wins / g.trades) * 100) : 0;
+          let status = 'CALIBRATING';
+          if (g.trades >= 5 && pf >= 1.35) status = 'PROVEN_EDGE';
+          else if (g.trades >= 5 && pf < 1.0) status = 'AUTO_MUTED';
+          return {
+            ...g,
+            winRate,
+            profitFactor: pf,
+            netPnl: Math.round(g.netPnl * 100) / 100,
+            status
+          };
+        }).sort((a, b) => b.profitFactor - a.profitFactor || b.netPnl - a.netPnl);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          ok: true,
+          totalLessons: rows.length,
+          combos,
+          topEdge: combos.find(c => c.status === 'PROVEN_EDGE') || combos[0] || null,
+          mutedCombos: combos.filter(c => c.status === 'AUTO_MUTED')
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 7d4. Olymp Trade Co-Pilot Live Ticket Bridge (Chrome Extension Sync)
+    if (pathname === '/api/olymp/live-ticket') {
+      if (req.method === 'GET') {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify(latestOlympTicket));
+      }
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            latestOlympTicket = {
+              ...data,
+              updatedAt: new Date().toISOString()
+            };
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: true, updatedAt: latestOlympTicket.updatedAt }));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: false, error: e.message }));
+          }
+        });
+        return;
+      }
     }
 
     // 8a. Macroeconomic Events & Blackout Status API
@@ -1804,6 +1975,125 @@ const server = http.createServer(async (req, res) => {
           const scan = patternEngine.scanPatterns(candles || payload);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify(scan));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // 8e2. Post-Trade Reflection Lessons API (SQLite trade_lessons)
+    if (req.method === 'GET' && pathname === '/api/lessons') {
+      try {
+        const sym = query.symbol ? String(query.symbol).toUpperCase().trim() : null;
+        let lessons = [];
+        if (db) {
+          lessons = sym
+            ? db.prepare(`SELECT * FROM trade_lessons WHERE symbol LIKE ? ORDER BY id DESC LIMIT 15`).all(`%${sym}%`)
+            : db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 20`).all();
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, lessons }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 8e3. TauricResearch-Inspired Bull vs. Bear Devil's Advocate Debate API
+    if (req.method === 'POST' && pathname === '/api/ai/debate') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const payload = JSON.parse(body || '{}');
+          const symbol = String(payload.symbol || payload.commodityId || 'GOLDM').toUpperCase();
+          const action = String(payload.action || 'WAIT').toUpperCase();
+          const useAi = payload.useAi !== false;
+
+          let recentLessons = [];
+          if (db) {
+            try {
+              const baseKey = symbol.replace(/\d{2}[A-Z]{3}FUT$/, '');
+              recentLessons = db.prepare(`SELECT * FROM trade_lessons WHERE symbol LIKE ? ORDER BY id DESC LIMIT 8`).all(`%${baseKey}%`);
+            } catch (_) {}
+          }
+
+          const geoIntel = payload.geoIntel || await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null);
+          const quantDebate = debateEngine.buildQuantitativeDebate({
+            symbol,
+            commodityId: payload.commodityId || 'gold',
+            action,
+            confidence: Number(payload.confidence || 0),
+            regime: payload.regime || 'TRANSITIONAL',
+            htfTrend: payload.htfTrend || null,
+            dualFeed: payload.dualFeed || null,
+            smc: payload.smc || null,
+            geoIntel,
+            recentLessons,
+            netRR: Number(payload.netRR || 0)
+          });
+
+          const cacheKey = `ai_debate_${symbol}_${action}_${payload.regime || ''}`;
+          const cachedAi = useAi ? getCached(cacheKey) : null;
+          if (cachedAi) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ...cachedAi, cached: true, recentLessons: recentLessons.slice(0, 5) }));
+          }
+
+          const apiKey = useAi ? getAnthropicKey() : null;
+          if (apiKey && (action === 'BUY' || action === 'SELL')) {
+            try {
+              const promptCtx = JSON.stringify({
+                symbol,
+                proposedAction: action,
+                confidence: payload.confidence,
+                regime: payload.regime,
+                htfBias: payload.htfTrend?.bias,
+                dualFeed: payload.dualFeed?.summary,
+                netRR: payload.netRR,
+                quantVerdict: quantDebate.verdict,
+                quantBull: quantDebate.bullCase,
+                quantBear: quantDebate.bearCase,
+                pastLessons: recentLessons.slice(0, 4).map(l => l.lesson)
+              });
+              const aiResp = await fetchJson('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01',
+                  'content-type': 'application/json'
+                },
+                timeout: 15000
+              }, {
+                model: 'claude-haiku-4-5',
+                max_tokens: 420,
+                system: 'You are a TauricResearch-style Bull vs Bear Devil\'s Advocate Risk Desk for an Indian ₹10,000 Zerodha & Olymp Trade desk. Respond ONLY with valid JSON: {"bullCase":["...","..."],"bearCase":["...","..."],"verdict":"CONFIRM"|"HALVE_SIZE"|"VETO","rationale":"<1 concise sentence>"}. Prioritize capital preservation and never encourage chasing.',
+                messages: [{ role: 'user', content: `Debate this live setup critically:\n${promptCtx}` }]
+              });
+
+              if (aiResp.data?.content?.[0]?.text) {
+                const clean = aiResp.data.content[0].text.replace(/```json|```/g, '').trim();
+                const parsed = JSON.parse(clean);
+                const merged = {
+                  ...quantDebate,
+                  bullCase: Array.isArray(parsed.bullCase) && parsed.bullCase.length ? parsed.bullCase.slice(0, 4) : quantDebate.bullCase,
+                  bearCase: Array.isArray(parsed.bearCase) && parsed.bearCase.length ? parsed.bearCase.slice(0, 4) : quantDebate.bearCase,
+                  verdict: ['CONFIRM', 'HALVE_SIZE', 'VETO'].includes(parsed.verdict) ? parsed.verdict : quantDebate.verdict,
+                  sizeMultiplier: parsed.verdict === 'VETO' ? 0 : (parsed.verdict === 'HALVE_SIZE' ? 0.5 : quantDebate.sizeMultiplier),
+                  rationale: parsed.rationale || quantDebate.rationale,
+                  source: 'CLAUDE_HAIKU_DEBATE'
+                };
+                setCache(cacheKey, merged, 10 * 60 * 1000);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ ...merged, cached: false, recentLessons: recentLessons.slice(0, 5) }));
+              }
+            } catch (_) {}
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ ...quantDebate, cached: false, recentLessons: recentLessons.slice(0, 5) }));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: err.message }));
@@ -1982,5 +2272,55 @@ setInterval(() => {
     }
   } catch (_) {}
 }, 5 * 60 * 1000); // Check every 5 minutes
+
+// ─────────────────────────────────────────────────────────────
+// SERVER-SIDE LIVE GTT +1R FEE-COVERED BREAKEVEN GUARD LOOP
+// Runs every 10s when Kite session is active & GTT guards are armed
+// ─────────────────────────────────────────────────────────────
+async function evaluateGttBreakevenGuards() {
+  if (armedGttGuards.size === 0) return;
+  const pending = [...armedGttGuards.values()].filter(g => !g.breakevenArmed);
+  if (pending.length === 0) return;
+  const session = kite.loadSession();
+  if (!session) return;
+
+  try {
+    const instList = [...new Set(pending.map(g => `${g.exchange}:${g.symbol}`))];
+    const qRes = await kite.getLiveQuotes(instList);
+    const qData = qRes?.data || {};
+    for (const g of pending) {
+      const ltp = Number(qData[`${g.exchange}:${g.symbol}`]?.last_price || 0);
+      if (!ltp || !isFinite(ltp)) continue;
+      const initRisk = Math.abs(g.entry - g.initSl);
+      if (initRisk <= 0) continue;
+      const feePerUnit = (g.fees || 45) / Math.max(1, g.multiplier * g.quantity);
+
+      let newSl = null;
+      if (g.entrySide === 'BUY' && ltp >= g.entry + initRisk) {
+        newSl = +(g.entry + feePerUnit).toFixed(2);
+      } else if (g.entrySide === 'SELL' && ltp <= g.entry - initRisk) {
+        newSl = +(g.entry - feePerUnit).toFixed(2);
+      }
+
+      if (newSl != null) {
+        await kite.modifyGTT(g.triggerId, {
+          tradingsymbol: g.symbol,
+          exchange: g.exchange,
+          side: g.exitSide,
+          entry: ltp,
+          stoploss: newSl,
+          target: g.target,
+          quantity: g.quantity,
+          product: g.product
+        }, g.liveAllowed);
+        g.currentSl = newSl;
+        g.breakevenArmed = true;
+        g.breakevenAt = new Date().toISOString();
+        console.log(`🛡️ [GTT-GUARD] Auto-trailed ${g.symbol} (#${g.triggerId}) SL to fee-covered breakeven ₹${newSl}`);
+      }
+    }
+  } catch (_) {}
+}
+setInterval(evaluateGttBreakevenGuards, 10000);
 
 module.exports = server;
