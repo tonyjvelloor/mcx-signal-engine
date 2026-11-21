@@ -26,6 +26,7 @@ const geopoliticalAnalogs = require('./shared/geopolitical_analogs');
 const patternEngine = require('./shared/pattern_engine');
 const debateEngine = require('./shared/debate_engine');
 const nseHolidays = require('./shared/nse_holidays');
+const autoPilot = require('./shared/auto_pilot');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -81,6 +82,33 @@ function pruneExpiredStagedOrders() {
   for (const [id, ord] of stagedOrders.entries()) {
     if (now >= ord.expiresAt) stagedOrders.delete(id);
   }
+}
+
+// Autonomous Paper-Trading Pilot State (Armed for Monday–Friday Live Sessions)
+let autoPilotState = {
+  enabled: true,
+  maxConcurrentOpen: 2,
+  cooldownMinutes: 30,
+  lastScanAt: null,
+  lastSessionStatus: null,
+  lastEvaluations: [],
+  activityLog: [],
+  symbolLastEntryMs: {}
+};
+
+function logAutoPilotEvent(type, message, extra = {}) {
+  const entry = {
+    time: new Date().toISOString(),
+    istTime: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }),
+    type,
+    message,
+    ...extra
+  };
+  autoPilotState.activityLog.unshift(entry);
+  if (autoPilotState.activityLog.length > 40) {
+    autoPilotState.activityLog = autoPilotState.activityLog.slice(0, 40);
+  }
+  console.log(`🤖 [AUTO-PILOT ${type}] ${message}`);
 }
 
 function getCached(key) {
@@ -2112,6 +2140,71 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 7d7. Autonomous Paper-Trading Pilot API (Monday–Friday Auto-Execution & Lifecycle Telemetry)
+    if (pathname === '/api/auto-pilot') {
+      if (req.method === 'GET') {
+        const sessionInfo = autoPilot.getMarketSessionWindow();
+        let openAutoTrades = [];
+        if (db) {
+          try {
+            openAutoTrades = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN' ORDER BY id DESC`).all();
+          } catch (_) {}
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          ok: true,
+          enabled: autoPilotState.enabled,
+          killSwitchActive: killSwitchState.active,
+          maxConcurrentOpen: autoPilotState.maxConcurrentOpen,
+          lastScanAt: autoPilotState.lastScanAt,
+          session: sessionInfo,
+          openTradesCount: openAutoTrades.length,
+          openTrades: openAutoTrades,
+          evaluations: autoPilotState.lastEvaluations,
+          activityLog: autoPilotState.activityLog.slice(0, 20)
+        }));
+      }
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const d = JSON.parse(body || '{}');
+            if (typeof d.enabled === 'boolean') {
+              autoPilotState.enabled = d.enabled;
+              logAutoPilotEvent(
+                d.enabled ? 'ARMED' : 'PAUSED',
+                d.enabled
+                  ? 'Auto-Paper Pilot ARMED for Monday–Friday live sessions (09:15–23:15 IST).'
+                  : 'Auto-Paper Pilot paused by user.'
+              );
+            }
+            let scanReport = null;
+            if (d.action === 'SCAN_NOW' || d.runScan) {
+              scanReport = await runAutoPaperPilotCycle({
+                forceScan: true,
+                allowForceEntry: Boolean(d.allowForceEntry)
+              });
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({
+              ok: true,
+              enabled: autoPilotState.enabled,
+              lastScanAt: autoPilotState.lastScanAt,
+              session: autoPilot.getMarketSessionWindow(),
+              evaluations: autoPilotState.lastEvaluations,
+              activityLog: autoPilotState.activityLog.slice(0, 20),
+              scanReport
+            }));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: false, error: e.message }));
+          }
+        });
+        return;
+      }
+    }
+
     // 8a. Macroeconomic Events & Blackout Status API
     if (req.method === 'GET' && pathname === '/api/macro-events') {
       const symbol = query.symbol || 'all';
@@ -2525,5 +2618,253 @@ async function evaluateGttBreakevenGuards() {
   } catch (_) {}
 }
 setInterval(evaluateGttBreakevenGuards, 10000);
+
+// ─────────────────────────────────────────────────────────────
+// AUTONOMOUS PAPER-TRADING PILOT ENGINE (MONDAY–FRIDAY LIVE LOOP)
+// Scans Gold, Silver, Crude, NatGas & Copper every 60s during market hours,
+// manages +1R breakeven & SL/Target exits, and auto-executes paper trades
+// that pass Regime + Fee Hurdle + Bull/Bear Debate + ₹10K Risk Guardrails.
+// ─────────────────────────────────────────────────────────────
+let autoPilotBusy = false;
+
+async function loadCandlesForAutoPilotAsset(asset) {
+  // 1. Try fresh Yahoo Finance 5m bars (fast 3s timeout) and persist to SQLite
+  try {
+    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.ticker)}?interval=5m&range=5d`;
+    const yfResp = await fetchJson(yfUrl, { timeout: 3000 });
+    const res0 = yfResp?.data?.chart?.result?.[0];
+    if (res0 && Array.isArray(res0.timestamp) && res0.indicators?.quote?.[0]) {
+      const q = res0.indicators.quote[0];
+      const rows = [];
+      for (let i = 0; i < res0.timestamp.length; i++) {
+        const cl = q.close?.[i], hi = q.high?.[i], lo = q.low?.[i];
+        const op = q.open?.[i] != null ? q.open[i] : cl;
+        const vl = q.volume?.[i] || 0;
+        if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
+          rows.push({ time: res0.timestamp[i], open: op, high: hi, low: lo, close: cl, volume: vl });
+        }
+      }
+      if (rows.length >= 25) {
+        if (db) {
+          try {
+            const ins = db.prepare(`INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume) VALUES (?, '5m', ?, ?, ?, ?, ?, ?)`);
+            for (const c of rows.slice(-60)) ins.run(asset.dbSym, c.time, c.open, c.high, c.low, c.close, c.volume);
+          } catch (_) {}
+        }
+        return rows.slice(-240);
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fallback to local SQLite 5m archive
+  if (db) {
+    try {
+      const rows = db.prepare(
+        `SELECT time, open, high, low, close, volume FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 240`
+      ).all(asset.dbSym).reverse();
+      if (rows.length >= 25) return rows;
+    } catch (_) {}
+  }
+  return [];
+}
+
+async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = false } = {}) {
+  if (autoPilotBusy) return { skipped: true, reason: 'BUSY' };
+  const sessionInfo = autoPilot.getMarketSessionWindow();
+  autoPilotState.lastSessionStatus = sessionInfo;
+
+  if (!forceScan && (!autoPilotState.enabled || killSwitchState.active || !sessionInfo.isAnySessionOpen)) {
+    return {
+      skipped: true,
+      reason: killSwitchState.active ? 'KILL_SWITCH_ACTIVE' : (!autoPilotState.enabled ? 'DISABLED' : 'MARKET_CLOSED'),
+      session: sessionInfo
+    };
+  }
+
+  autoPilotBusy = true;
+  try {
+    const accProfile = getAccountProfile();
+    const todayTrades = db
+      ? db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all()
+      : [];
+    const recentLessons = db
+      ? db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 25`).all()
+      : [];
+    const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null);
+
+    const evaluations = [];
+    const latestPrices = {};
+
+    for (const asset of autoPilot.AUTO_PILOT_ASSETS) {
+      const rawCandles = await loadCandlesForAutoPilotAsset(asset);
+      const assetLessons = recentLessons.filter(l => String(l.symbol || '').includes(asset.dbSym) || String(l.symbol || '').includes(asset.name));
+      const ev = autoPilot.evaluateCommodityForAutoPilot({
+        asset,
+        rawCandles,
+        usdInr: 93.95,
+        newsScore: 50,
+        recentLessons: assetLessons,
+        geoIntel,
+        accountProfile: accProfile,
+        todayTrades
+      });
+      evaluations.push(ev);
+
+      if (ev.executionPlan && ev.executionPlan.entryPrice > 0) {
+        const pxInfo = {
+          price: ev.executionPlan.entryPrice,
+          high: ev.executionPlan.currentHigh || ev.executionPlan.entryPrice,
+          low: ev.executionPlan.currentLow || ev.executionPlan.entryPrice,
+          regime: ev.regime,
+          sessionWindow: ev.sessionWindow,
+          paritySignal: ev.paritySignal
+        };
+        latestPrices[ev.executionPlan.tradingsymbol] = pxInfo;
+        latestPrices[ev.executionPlan.tradingsymbol.replace(/\d{2}[A-Z]{3}FUT$/, '')] = pxInfo;
+      }
+    }
+
+    autoPilotState.lastScanAt = new Date().toISOString();
+    autoPilotState.lastEvaluations = evaluations;
+
+    // Step 1: Manage existing open paper positions (+1R Breakeven + SL/Target/EOD Auto-Close + Reflection Lessons)
+    const lifecycle = autoPilot.manageOpenPaperPositions({
+      db,
+      latestPrices,
+      sessionInfo
+    });
+    for (const be of lifecycle.breakevenArmed) {
+      logAutoPilotEvent('BREAKEVEN_ARMED', `Trailed ${be.symbol} (#${be.tradeId}) SL to fee-covered breakeven ₹${be.newSl}`, be);
+    }
+    for (const cl of lifecycle.closed) {
+      logAutoPilotEvent('AUTO_CLOSED', `Closed ${cl.symbol} ${cl.side} (#${cl.tradeId}) via ${cl.exitReason} @ ₹${cl.exitPrice} | Net P&L: ₹${cl.netPnl}`, cl);
+    }
+
+    // Step 2: Evaluate New Auto-Paper Entries (only when session is open or allowForceEntry=true)
+    const openedTrades = [];
+    const canEnterNow = (sessionInfo.isAnySessionOpen || allowForceEntry) && autoPilotState.enabled && !killSwitchState.active;
+
+    if (canEnterNow && db) {
+      const freshTodayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+      const cb = circuitBreaker.evaluateCircuitBreaker({
+        trades: freshTodayTrades,
+        dailyLossLimit: accProfile.dailyLossLimit,
+        maxConsecutiveLosses: 2,
+        maxDailyTrades: 3
+      });
+
+      if (!cb.tripped) {
+        const openNow = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
+        const openSyms = new Set(openNow.map(t => String(t.symbol).toUpperCase()));
+        let slotsLeft = Math.max(0, autoPilotState.maxConcurrentOpen - openNow.length);
+        let dailyTradesLeft = Math.max(0, (cb.maxDailyTrades || 3) - (cb.todayTradeCount || 0));
+
+        const candidates = evaluations
+          .filter(e => e.qualifiesForAutoExec && e.executionPlan)
+          .sort((a, b) => b.confidence - a.confidence);
+
+        for (const cand of candidates) {
+          if (slotsLeft <= 0 || dailyTradesLeft <= 0) break;
+          const p = cand.executionPlan;
+          if (openSyms.has(p.tradingsymbol)) continue;
+
+          // Respect session hours by exchange unless allowForceEntry is true
+          if (!allowForceEntry) {
+            if (p.exchange === 'NSE' && !sessionInfo.isNseHours) continue;
+            if (p.exchange === 'MCX' && !sessionInfo.isMcxHours) continue;
+          }
+
+          // 30-minute per-symbol entry cooldown
+          const lastEntryMs = autoPilotState.symbolLastEntryMs[p.tradingsymbol] || 0;
+          if (!allowForceEntry && (Date.now() - lastEntryMs) < autoPilotState.cooldownMinutes * 60 * 1000) {
+            continue;
+          }
+
+          const feesAtEntry = riskEngine.calculateZerodhaFees({
+            segment: p.segment,
+            buyPrice: p.side === 'BUY' ? p.entryPrice : p.stopLoss,
+            sellPrice: p.side === 'BUY' ? p.stopLoss : p.entryPrice,
+            qty: p.qty,
+            lotMultiplier: p.lotMultiplier
+          });
+          const brokerage = feesAtEntry.brokerage;
+          const sttGst = Math.round((feesAtEntry.totalFees - brokerage) * 100) / 100;
+
+          const ins = db.prepare(`
+            INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 'AUTO_PILOT')
+          `);
+          const info = ins.run(p.tradingsymbol, p.side, p.qty, p.entryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst);
+          const tradeId = Number(info.lastInsertRowid);
+
+          try {
+            db.prepare(`
+              INSERT INTO signals (symbol, time, action, confidence, price, stop_loss, target1, target2, reason, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
+            `).run(
+              p.tradingsymbol,
+              new Date().toISOString(),
+              p.side,
+              cand.confidence,
+              p.entryPrice,
+              p.stopLoss,
+              p.target1,
+              p.target2,
+              `[AUTO-PILOT ${cand.debateVerdict}] ${cand.regime} · ${cand.sessionWindow} · Net R:R 1:${p.netRR}`
+            );
+          } catch (_) {}
+
+          autoPilotState.symbolLastEntryMs[p.tradingsymbol] = Date.now();
+          openSyms.add(p.tradingsymbol);
+          slotsLeft--;
+          dailyTradesLeft--;
+
+          const opened = {
+            tradeId,
+            symbol: p.tradingsymbol,
+            exchange: p.exchange,
+            side: p.side,
+            qty: p.qty,
+            entryPrice: p.entryPrice,
+            stopLoss: p.stopLoss,
+            target: p.target1,
+            plannedLoss: p.plannedLoss,
+            netRR: p.netRR,
+            confidence: cand.confidence,
+            debateVerdict: cand.debateVerdict
+          };
+          openedTrades.push(opened);
+          logAutoPilotEvent(
+            'AUTO_OPENED',
+            `Opened #${tradeId} ${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR} · Debate: ${cand.debateVerdict})`,
+            opened
+          );
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      scannedAt: autoPilotState.lastScanAt,
+      session: sessionInfo,
+      lifecycle,
+      openedTrades,
+      evaluations
+    };
+  } finally {
+    autoPilotBusy = false;
+  }
+}
+
+// Run initial diagnostic evaluation 6s after server boot & then every 60s during live market sessions
+setTimeout(() => {
+  runAutoPaperPilotCycle({ forceScan: true, allowForceEntry: false }).catch(() => {});
+}, 6000);
+
+setInterval(() => {
+  if (autoPilotState.enabled && !killSwitchState.active) {
+    runAutoPaperPilotCycle({ forceScan: false, allowForceEntry: false }).catch(() => {});
+  }
+}, 60 * 1000);
 
 module.exports = server;

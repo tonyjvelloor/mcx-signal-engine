@@ -355,5 +355,82 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.ok(serverSrc.includes("pathname === '/api/staged-orders'"), 'server.js must expose /api/staged-orders');
   const olympHudSrc = fs.readFileSync(path.join(__dirname, '..', 'olymp-extension', 'content.js'), 'utf8');
   assert.ok(olympHudSrc.includes('t.killSwitchActive'), 'Olymp Co-Pilot HUD must lock when killSwitchActive is true');
-  console.log('✓ Test 14 Passed: Max 3 Daily Trades Cap, Global Emergency Kill Switch & Staged Order Queue verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 14 Passed: Max 3 Daily Trades Cap, Global Emergency Kill Switch & Staged Order Queue verified.');
+
+  // 15. Autonomous Monday–Friday Paper-Trading Pilot Engine tests (shared/auto_pilot.js)
+  const autoPilot = require('../shared/auto_pilot');
+  const monMorning = new Date('2026-11-23T05:00:00Z'); // Monday Nov 23, 2026 10:30 IST
+  const sunAfternoon = new Date('2026-11-22T08:00:00Z'); // Sunday Nov 22, 2026 13:30 IST
+  const monSess = autoPilot.getMarketSessionWindow(monMorning);
+  const sunSess = autoPilot.getMarketSessionWindow(sunAfternoon);
+  assert.strictEqual(monSess.isMcxHours, true, 'Monday 10:30 IST must be active MCX hours');
+  assert.strictEqual(monSess.isNseHours, true, 'Monday 10:30 IST must be active NSE hours');
+  assert.strictEqual(sunSess.isAnySessionOpen, false, 'Sunday must be closed');
+
+  // Build 45 bars of steady bullish 5m Gold trend during Monday 10:00-13:40 IST
+  const baseTs = Math.floor(new Date('2026-11-23T04:30:00Z').getTime() / 1000);
+  const trendBars = [];
+  for (let i = 0; i < 45; i++) {
+    const px = 2620 + i * 1.4;
+    trendBars.push({
+      time: baseTs + i * 300,
+      open: +(px - 0.5).toFixed(2),
+      high: +(px + 1.8).toFixed(2),
+      low: +(px - 1.0).toFixed(2),
+      close: +px.toFixed(2),
+      volume: 400 + i * 15
+    });
+  }
+  const goldAsset = autoPilot.AUTO_PILOT_ASSETS.find(a => a.id === 'gold');
+  const goldEval = autoPilot.evaluateCommodityForAutoPilot({
+    asset: goldAsset,
+    rawCandles: trendBars,
+    usdInr: 93.95,
+    newsScore: 65,
+    accountProfile: { capital: 10000, maxRiskPerTrade: 125, dailyLossLimit: 300 },
+    todayTrades: [],
+    nowDate: monMorning
+  });
+  assert.ok(goldEval.executionPlan && goldEval.executionPlan.tradingsymbol.startsWith('GOLDPETAL'), '₹10K Auto-Pilot must route Gold to GOLDPETAL');
+  assert.ok(goldEval.executionPlan.entryPrice > 5000 && goldEval.executionPlan.entryPrice < 20000, 'GOLDPETAL price must be scaled to 1g (~₹8k-₹12k)');
+
+  // Verify SQLite lifecycle manager (+1R breakeven trail + AUTO_TARGET close + trade_lessons insertion)
+  const { DatabaseSync } = require('node:sqlite');
+  const memDb = new DatabaseSync(':memory:');
+  memDb.exec(`
+    CREATE TABLE paper_trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT, side TEXT, qty INTEGER, entry_price REAL, entry_time TEXT,
+      exit_price REAL, exit_time TEXT, stop_loss REAL, target REAL,
+      net_pnl REAL, brokerage REAL, stt_gst REAL, status TEXT, exit_reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE trade_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT, side TEXT, regime TEXT, session_window TEXT, parity_signal TEXT,
+      exit_reason TEXT, net_pnl REAL, lesson TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO paper_trades (symbol, side, qty, entry_price, stop_loss, target, brokerage, stt_gst, status, exit_reason)
+    VALUES ('GOLDPETAL26NOVFUT', 'BUY', 1, 7800, 7740, 7950, 40, 5, 'OPEN', 'AUTO_PILOT');
+  `);
+
+  // Step 1: Move to +1R (7865 >= 7800 + 60) -> should arm fee-covered breakeven SL (7845)
+  const step1 = autoPilot.manageOpenPaperPositions({
+    db: memDb,
+    latestPrices: { GOLDPETAL26NOVFUT: { price: 7865, high: 7870, low: 7850 } }
+  });
+  assert.strictEqual(step1.breakevenArmed.length, 1, '+1R move must arm fee-covered breakeven SL');
+  assert.strictEqual(step1.breakevenArmed[0].newSl, 7845);
+
+  // Step 2: Move to Target (7955 >= 7950) -> should auto-close at 7950 & write reflection lesson
+  const step2 = autoPilot.manageOpenPaperPositions({
+    db: memDb,
+    latestPrices: { GOLDPETAL26NOVFUT: { price: 7955, high: 7960, low: 7940, regime: 'TRENDING', sessionWindow: 'ASIA_MORNING' } }
+  });
+  assert.strictEqual(step2.closed.length, 1, 'Reaching target must auto-close position');
+  assert.strictEqual(step2.closed[0].exitReason, 'AUTO_TARGET');
+  assert.strictEqual(step2.closed[0].status, 'WIN');
+  const lessonsInDb = memDb.prepare('SELECT * FROM trade_lessons').all();
+  assert.strictEqual(lessonsInDb.length, 1, 'Auto-closed paper trade must write a reflection lesson into trade_lessons');
+  console.log('✓ Test 15 Passed: Autonomous Paper-Trading Pilot (5-commodity scan, ₹10K routing, +1R breakeven, auto-close & lesson extraction) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();
