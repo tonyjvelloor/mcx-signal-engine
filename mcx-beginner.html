@@ -4284,17 +4284,35 @@ function renderIndiaDashboard(data, ts, fresh){
 </div>
 <style>
 /* ══ 2-TIER HEADER & STICKY SPLIT-SCREEN COCKPIT ══ */
+.gbar {
+  padding: 0 10px !important;
+}
+.gbar-logo {
+  padding-right: 10px !important;
+  margin-right: 8px !important;
+  font-size: 13px !important;
+}
+.mode-tabs {
+  margin-right: 8px !important;
+  padding-right: 8px !important;
+}
+.mode-tab {
+  padding: 0 9px !important;
+  font-size: 11px !important;
+  gap: 5px !important;
+}
 .com-strip {
   position: sticky;
-  top: 48px;
-  z-index: 95;
-  background: var(--bg1);
-  border-bottom: 1px solid var(--br);
+  top: 46px;
+  z-index: 190;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--brl);
   padding: 6px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
 }
 .com-scroll {
   display: flex;
