@@ -882,7 +882,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(data));
     }
 
-    // 1b. Local Yahoo Proxy (Reliable upstream candle fetch)
+    // 1b. Local Yahoo Proxy (Reliable upstream candle fetch + Instant SQLite Archive Fallback)
     if (pathname === '/api/yahoo') {
       const ticker = query.ticker || query.symbol || 'GC=F';
       const interval = query.interval || '5m';
@@ -893,11 +893,66 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(cached));
       }
+
+      const serveSqliteFallback = (reason) => {
+        if (!db) return false;
+        try {
+          const tickerToDbSym = {
+            'GC=F': 'GOLDM',
+            'SI=F': 'SILVERMIC',
+            'CL=F': 'CRUDEOILM',
+            'NG=F': 'NATGASM',
+            'HG=F': 'COPPER'
+          };
+          const dbSym = tickerToDbSym[ticker] || String(ticker).replace('.NS', '').toUpperCase();
+          const rows = db.prepare(
+            `SELECT time, open, high, low, close, volume FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 360`
+          ).all(dbSym).reverse();
+          if (rows.length >= 10) {
+            const last = rows[rows.length - 1];
+            const first = rows[0];
+            const payload = {
+              chart: {
+                result: [{
+                  meta: {
+                    symbol: ticker,
+                    regularMarketPrice: last.close,
+                    chartPreviousClose: first.close,
+                    previousClose: first.close,
+                    regularMarketDayHigh: Math.max(...rows.slice(-75).map(r => r.high)),
+                    regularMarketDayLow: Math.min(...rows.slice(-75).map(r => r.low)),
+                    source: 'SQLITE_ARCHIVE_FALLBACK',
+                    fallbackReason: reason
+                  },
+                  timestamp: rows.map(r => r.time),
+                  indicators: {
+                    quote: [{
+                      open: rows.map(r => r.open),
+                      high: rows.map(r => r.high),
+                      low: rows.map(r => r.low),
+                      close: rows.map(r => r.close),
+                      volume: rows.map(r => r.volume || 0)
+                    }]
+                  }
+                }],
+                error: null
+              }
+            };
+            setCache(cacheKey, payload, 10000);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(payload));
+            return true;
+          }
+        } catch (_) {}
+        return false;
+      };
+
       try {
         const eventsParam = query.events ? `&events=${encodeURIComponent(query.events)}` : '';
         const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}${eventsParam}`;
-        const yfResp = await fetchJson(yfUrl);
-        if (!yfResp.data || !yfResp.data.chart) {
+        const yfResp = await fetchJson(yfUrl, { timeout: 3500 });
+        if (!yfResp.data || !yfResp.data.chart || !yfResp.data.chart.result) {
+          if (serveSqliteFallback('upstream_empty')) return;
           res.writeHead(502, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: 'Market data unavailable from upstream' }));
         }
@@ -905,6 +960,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(yfResp.data));
       } catch (yfErr) {
+        if (serveSqliteFallback(yfErr.message)) return;
         res.writeHead(502, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: yfErr.message }));
       }
