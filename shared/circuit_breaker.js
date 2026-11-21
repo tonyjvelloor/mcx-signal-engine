@@ -27,20 +27,26 @@
       trades = [],
       dailyLossLimit = 400.0,
       maxConsecutiveLosses = 2,
+      maxDailyTrades = 3,
       refDate
     } = params;
 
     const d = refDate ? new Date(refDate) : new Date();
     const todayIST = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
 
-    // Filter closed trades executed today in IST
-    const todayClosedTrades = trades.filter(t => {
-      const rawPnl = t.pnl ?? t.netPnl ?? t.net_pnl;
-      if (rawPnl == null) return false;
-      const rawTs = t.timestamp || t.exit_time || t.created_at;
+    // Count all trades placed today in IST (open or closed) for daily frequency cap
+    const todayAllTrades = trades.filter(t => {
+      const rawTs = t.timestamp || t.entry_time || t.exit_time || t.created_at;
       const tDate = t.date || (rawTs ? new Date(rawTs).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : null);
-      if (!tDate) return true; // Include if date was omitted or caller pre-filtered
+      if (!tDate) return true;
       return tDate === todayIST;
+    });
+    const todayTradeCount = todayAllTrades.length;
+
+    // Filter closed trades executed today in IST
+    const todayClosedTrades = todayAllTrades.filter(t => {
+      const rawPnl = t.pnl ?? t.netPnl ?? t.net_pnl;
+      return rawPnl != null;
     });
 
     let dailyNetPnl = 0;
@@ -68,6 +74,8 @@
         reason: 'DAILY_LOSS_LIMIT_REACHED',
         dailyNetPnl: Math.round(dailyNetPnl * 100) / 100,
         consecutiveLosses,
+        todayTradeCount,
+        maxDailyTrades,
         remainingLossBudget: 0,
         message: `🛡️ CIRCUIT BREAKER: Daily loss limit reached (-₹${Math.abs(dailyNetPnl).toFixed(2)} on ₹${dailyLossLimit.toFixed(2)} limit). Trading halted to protect capital.`
       };
@@ -80,8 +88,24 @@
         reason: 'MAX_CONSECUTIVE_LOSSES_REACHED',
         dailyNetPnl: Math.round(dailyNetPnl * 100) / 100,
         consecutiveLosses,
+        todayTradeCount,
+        maxDailyTrades,
         remainingLossBudget: Math.round(remainingBudget * 100) / 100,
         message: `🛡️ CIRCUIT BREAKER: ${consecutiveLosses} consecutive losses recorded today (P&L: -₹${Math.abs(dailyNetPnl).toFixed(2)}). Session locked to eliminate revenge trading.`
+      };
+    }
+
+    // 3. Check Daily Order-Frequency Cap (prevents choppy overtrading & fee erosion)
+    if (maxDailyTrades > 0 && todayTradeCount >= maxDailyTrades) {
+      return {
+        tripped: true,
+        reason: 'MAX_DAILY_TRADES_REACHED',
+        dailyNetPnl: Math.round(dailyNetPnl * 100) / 100,
+        consecutiveLosses,
+        todayTradeCount,
+        maxDailyTrades,
+        remainingLossBudget: Math.round(remainingBudget * 100) / 100,
+        message: `🛡️ CIRCUIT BREAKER: Daily order cap (${todayTradeCount}/${maxDailyTrades} trades) reached. Stopping to prevent choppy overtrading & fee erosion.`
       };
     }
 
@@ -89,6 +113,8 @@
       tripped: false,
       dailyNetPnl: Math.round(dailyNetPnl * 100) / 100,
       consecutiveLosses,
+      todayTradeCount,
+      maxDailyTrades,
       remainingLossBudget: Math.round(remainingBudget * 100) / 100,
       message: 'Active (Within safe daily risk thresholds)'
     };

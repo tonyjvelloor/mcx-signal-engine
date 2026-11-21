@@ -331,5 +331,29 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   const extManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'olymp-extension', 'manifest.json'), 'utf8'));
   assert.strictEqual(extManifest.manifest_version, 3);
   assert.ok(extManifest.host_permissions.includes('http://127.0.0.1:8000/*'));
-  console.log('✓ Test 13 Passed: Kite GTT Breakeven modifyGTT() & Olymp Trade Manifest V3 Co-Pilot Extension verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 13 Passed: Kite GTT Breakeven modifyGTT() & Olymp Trade Manifest V3 Co-Pilot Extension verified.');
+
+  // 14. Daily Order-Frequency Cap (Max 3 Trades/Day), Global Kill Switch & Staged Order Queue tests
+  const twoTrades = circuitBreaker.evaluateCircuitBreaker({
+    trades: [{ pnl: 120 }, { pnl: 80 }],
+    dailyLossLimit: 300,
+    maxDailyTrades: 3
+  });
+  assert.strictEqual(twoTrades.tripped, false);
+  assert.strictEqual(twoTrades.todayTradeCount, 2);
+
+  const threeTradesCap = circuitBreaker.evaluateCircuitBreaker({
+    trades: [{ pnl: 120 }, { pnl: -50 }, { pnl: 90 }],
+    dailyLossLimit: 300,
+    maxDailyTrades: 3
+  });
+  assert.strictEqual(threeTradesCap.tripped, true, '3 trades today must trip MAX_DAILY_TRADES_REACHED');
+  assert.strictEqual(threeTradesCap.reason, 'MAX_DAILY_TRADES_REACHED');
+
+  const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.ok(serverSrc.includes("pathname === '/api/kill-switch'"), 'server.js must expose /api/kill-switch');
+  assert.ok(serverSrc.includes("pathname === '/api/staged-orders'"), 'server.js must expose /api/staged-orders');
+  const olympHudSrc = fs.readFileSync(path.join(__dirname, '..', 'olymp-extension', 'content.js'), 'utf8');
+  assert.ok(olympHudSrc.includes('t.killSwitchActive'), 'Olymp Co-Pilot HUD must lock when killSwitchActive is true');
+  console.log('✓ Test 14 Passed: Max 3 Daily Trades Cap, Global Emergency Kill Switch & Staged Order Queue verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

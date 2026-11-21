@@ -69,6 +69,20 @@ let latestOlympTicket = {
   updatedAt: null
 };
 
+// Global Emergency Kill Switch & Auto-Expiring Staged Order Queue
+let killSwitchState = {
+  active: false,
+  reason: null,
+  activatedAt: null
+};
+const stagedOrders = new Map();
+function pruneExpiredStagedOrders() {
+  const now = Date.now();
+  for (const [id, ord] of stagedOrders.entries()) {
+    if (now >= ord.expiresAt) stagedOrders.delete(id);
+  }
+}
+
 function getCached(key) {
   const item = memoryCache.get(key);
   if (!item) return null;
@@ -1066,7 +1080,11 @@ const server = http.createServer(async (req, res) => {
             const accProfile = getAccountProfile();
             const maxLossBudget = Number(data.maxLossTotal) > 0 ? Number(data.maxLossTotal) : accProfile.maxRiskPerTrade;
 
-            // Macro Blackout & Daily Circuit Breaker checks
+            // Global Kill Switch, Macro Blackout & Daily Circuit Breaker checks
+            if (killSwitchState.active) {
+              res.writeHead(423, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: `🛑 KILL SWITCH ACTIVE${killSwitchState.reason ? ': ' + killSwitchState.reason : ''}. Disarm Kill Switch before placing orders.` }));
+            }
             const blackout = macroEvents.checkMacroBlackout(symbol);
             if (blackout.isBlackout && !data.overrideBlackout) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1622,6 +1640,8 @@ const server = http.createServer(async (req, res) => {
           ordersCount: orders.length,
           openOrders: orders.filter(o => o.status === 'OPEN' || o.status === 'TRIGGER PENDING'),
           circuitBreaker: circuit,
+          killSwitch: killSwitchState,
+          stagedOrdersCount: (() => { pruneExpiredStagedOrders(); return stagedOrders.size; })(),
           tickerStatus: ticker.getStatus(),
           tenKRoutes
         }));
@@ -1668,6 +1688,12 @@ const server = http.createServer(async (req, res) => {
           const segment = isComm ? 'commodity' : 'equity';
           const lotMult = Number(order.lotMultiplier) || spec.multiplier || 1;
           const accProfile = getAccountProfile();
+
+          // 0. Global Emergency Kill Switch
+          if (killSwitchState.active) {
+            res.writeHead(423, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: `🛑 KILL SWITCH ACTIVE${killSwitchState.reason ? ': ' + killSwitchState.reason : ''}. Live/Paper Kite orders halted.` }));
+          }
 
           // 1. Check Macroeconomic Event Blackout
           const blackout = macroEvents.checkMacroBlackout(symbol);
@@ -1746,6 +1772,12 @@ const server = http.createServer(async (req, res) => {
           const spec = riskEngine.getContractSpec(symbol);
           const isComm = spec.segment === 'commodity';
           const accProfile = getAccountProfile();
+
+          // 0. Global Emergency Kill Switch
+          if (killSwitchState.active) {
+            res.writeHead(423, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: `🛑 KILL SWITCH ACTIVE${killSwitchState.reason ? ': ' + killSwitchState.reason : ''}. GTT OCO placement halted.` }));
+          }
 
           // 1. Check Macroeconomic Event Blackout
           const blackout = macroEvents.checkMacroBlackout(symbol);
@@ -1887,7 +1919,14 @@ const server = http.createServer(async (req, res) => {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
-        return res.end(JSON.stringify(latestOlympTicket));
+        return res.end(JSON.stringify({
+          ...latestOlympTicket,
+          killSwitchActive: killSwitchState.active,
+          killSwitchReason: killSwitchState.reason,
+          blockedReason: killSwitchState.active
+            ? `KILL SWITCH ACTIVE${killSwitchState.reason ? ': ' + killSwitchState.reason : ''}`
+            : latestOlympTicket.blockedReason
+        }));
       }
       if (req.method === 'POST') {
         let body = '';
@@ -1907,6 +1946,113 @@ const server = http.createServer(async (req, res) => {
           }
         });
         return;
+      }
+    }
+
+    // 7d5. Global Emergency Kill Switch API (Halts Kite, Paper, GTT Guards & Olymp Co-Pilot)
+    if (pathname === '/api/kill-switch') {
+      if (req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, ...killSwitchState }));
+      }
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body || '{}');
+            const nextActive = typeof data.active === 'boolean' ? data.active : !killSwitchState.active;
+            killSwitchState = {
+              active: nextActive,
+              reason: nextActive ? (String(data.reason || 'Manual emergency halt').slice(0, 120)) : null,
+              activatedAt: nextActive ? new Date().toISOString() : null
+            };
+            if (nextActive) {
+              stagedOrders.clear();
+              console.warn(`🛑 [KILL-SWITCH] ENGAGED: ${killSwitchState.reason}`);
+            } else {
+              console.log('🟢 [KILL-SWITCH] DISARMED — Desk execution unlocked.');
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: true, ...killSwitchState }));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: false, error: e.message }));
+          }
+        });
+        return;
+      }
+    }
+
+    // 7d6. Staged Order Queue API (Auto-Expiring 5-Minute Review-Before-Fire Queue)
+    if (pathname === '/api/staged-orders') {
+      pruneExpiredStagedOrders();
+      if (req.method === 'GET') {
+        const list = [...stagedOrders.values()].sort((a, b) => b.createdAtMs - a.createdAtMs);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, orders: list }));
+      }
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            if (killSwitchState.active) {
+              res.writeHead(423, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ ok: false, error: '🛑 KILL SWITCH ACTIVE: Cannot stage orders while halted.' }));
+            }
+            const d = JSON.parse(body || '{}');
+            const entry = Number(d.entry);
+            const sl = Number(d.sl);
+            const target = Number(d.target) || null;
+            const qty = Math.max(1, parseInt(d.qty, 10) || 1);
+            const side = String(d.side || 'BUY').toUpperCase();
+            const symbol = String(d.symbol || 'GOLDPETAL').toUpperCase();
+            if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(sl) || sl <= 0) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ ok: false, error: 'Valid positive Entry and Stop Loss are required to stage an order.' }));
+            }
+            if ((side === 'BUY' && sl >= entry) || (side === 'SELL' && sl <= entry)) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ ok: false, error: 'Invalid SL geometry for trade side.' }));
+            }
+            const ttlMs = Math.min(15 * 60 * 1000, Math.max(60 * 1000, Number(d.ttlMs) || (5 * 60 * 1000)));
+            const nowMs = Date.now();
+            const id = `STG-${nowMs.toString(36).toUpperCase()}-${Math.floor(Math.random() * 90 + 10)}`;
+            const staged = {
+              id,
+              symbol,
+              exchange: String(d.exchange || 'MCX').toUpperCase(),
+              comId: d.comId || 'gold',
+              side,
+              entry,
+              sl,
+              target,
+              qty,
+              lotMultiplier: Number(d.lotMultiplier) || 1,
+              segment: d.segment || 'commodity',
+              product: String(d.product || 'NRML').toUpperCase(),
+              budget: Number(d.budget) || 125,
+              estRisk: Number(d.estRisk) || 0,
+              createdAtMs: nowMs,
+              expiresAt: nowMs + ttlMs
+            };
+            stagedOrders.set(id, staged);
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: true, order: staged }));
+          } catch (e) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ ok: false, error: e.message }));
+          }
+        });
+        return;
+      }
+      if (req.method === 'DELETE') {
+        const id = query.id;
+        if (id) stagedOrders.delete(String(id));
+        else stagedOrders.clear();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, remaining: stagedOrders.size }));
       }
     }
 
@@ -2278,6 +2424,7 @@ setInterval(() => {
 // Runs every 10s when Kite session is active & GTT guards are armed
 // ─────────────────────────────────────────────────────────────
 async function evaluateGttBreakevenGuards() {
+  if (killSwitchState.active) return;
   if (armedGttGuards.size === 0) return;
   const pending = [...armedGttGuards.values()].filter(g => !g.breakevenArmed);
   if (pending.length === 0) return;

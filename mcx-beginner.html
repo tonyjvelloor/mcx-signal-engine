@@ -43,23 +43,21 @@
   <span class="mt-icon">🎯</span> OrderFlow
     </div>
   </div>
-  <div class="gbar-right">
-    <div class="gs" id="session-pill-wrap" title="MCX Sessions (IST): Asia 09:00-13:30, London 13:30-18:30, US Power Hours 18:30-23:30" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;border:1px solid var(--br);background:var(--bg3);cursor:help;">
+  <div class="gbar-right" style="gap:6px">
+    <div class="gs" id="session-pill-wrap" title="MCX Sessions (IST): Asia 09:00-13:30, London 13:30-18:30, US Power Hours 18:30-23:30" style="display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:4px;border:1px solid var(--br);background:var(--bg3);cursor:help;">
       <span id="session-dot" class="dot doff"></span>
       <span id="session-badge" style="font-size:10px;font-family:var(--fm);font-weight:600;color:var(--tx);">Session...</span>
       <span id="session-timer" style="font-size:9px;font-family:var(--fm);color:var(--txd);">—</span>
     </div>
-    <div class="gs"><span class="dot doff" id="connDot"></span> <span id="connTxt" style="font-size:10px;font-family:var(--fm);color:var(--txd)">—</span></div>
-    <div class="gs">INR <strong id="st-inr">₹93.95</strong></div>
-    <div class="gs"><span id="st-usd-lbl" style="color:var(--txd)">XAU</span> <strong id="st-xau" style="color:var(--gold)">$4,506.76</strong></div>
-    <div class="gs" id="st-usd-wrap" style="display:none"><span id="st-usd-name" style="color:var(--txd)">—</span> <strong id="st-usd-val" style="color:var(--cya)">—</strong></div>
-    <div class="gs">Next <strong id="st-cd" style="color:var(--amb)">—</strong></div>
-    <button class="rfbtn" id="focusModeBtn" onclick="toggleFocusMode()" title="Shortcut: F — Toggle 1-Screen Live Execution Focus Mode" style="font-size:10px;color:var(--grn)">🎯 Focus</button>
-    <button class="rfbtn" id="audioToggleBtn" onclick="toggleAudio()" title="Toggle Signal Audio Chimes" style="font-size:11px"><span id="audioIcon">🔊</span></button>
-    <button class="rfbtn" id="briefingBtn" onclick="openBriefingModal()" title="Pre-Market Daily Briefing & Cross-Asset Screener" style="font-size:10px;color:var(--cya)">📋 Briefing</button>
-    <button class="rfbtn" id="kiteBtn" onclick="handleKiteConnect()" style="font-size:11px; font-weight:700; color:var(--tx); border:1px solid var(--br);"><span id="kiteDot" class="dot doff"></span> <span id="kiteTxt">Connect Kite</span></button>
-    <button class="rfbtn" id="rfbtn" onclick="fullRefresh()" title="Shortcut: R"><span id="rfIcon">↻</span></button>
-    <button class="rfbtn" onclick="openSettings()"><span style="font-size:12px">⚙</span></button>
+    <!-- Hidden mirrors kept for JS compatibility (shown cleanly in .beg-statusrow below) -->
+    <span style="display:none"><span class="dot doff" id="connDot"></span><span id="connTxt">—</span><strong id="st-inr">₹93.95</strong><span id="st-usd-lbl">XAU</span><strong id="st-xau">$4,506.76</strong><span id="st-usd-wrap"><span id="st-usd-name">—</span><strong id="st-usd-val">—</strong></span><strong id="st-cd">—</strong></span>
+    <button class="rfbtn" id="focusModeBtn" onclick="toggleFocusMode()" title="Shortcut: F — Toggle 1-Screen Live Execution Focus Mode" style="font-size:10px;color:var(--grn);padding:4px 8px">🎯 Focus</button>
+    <button class="rfbtn" id="killSwitchBtn" onclick="toggleKillSwitch()" title="Emergency Kill Switch — Immediately halts Kite, Paper, GTT & Olymp Co-Pilot" style="font-size:10px;color:var(--red);border:1px solid rgba(239,68,68,0.4);padding:4px 8px">🛑 Kill</button>
+    <button class="rfbtn" id="audioToggleBtn" onclick="toggleAudio()" title="Toggle Signal Audio Chimes" style="font-size:11px;padding:4px 7px"><span id="audioIcon">🔊</span></button>
+    <button class="rfbtn" id="briefingBtn" onclick="openBriefingModal()" title="Pre-Market Daily Briefing & Cross-Asset Screener" style="font-size:10px;color:var(--cya);padding:4px 8px">📋 Briefing</button>
+    <a class="rfbtn" id="kiteBtn" href="/api/kite/login" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:var(--gold);border:1px solid rgba(245,197,66,0.45);background:var(--goldbg);padding:4px 10px;white-space:nowrap"><span id="kiteDot" class="dot doff"></span><span id="kiteTxt">Connect Kite</span></a>
+    <button class="rfbtn" id="rfbtn" onclick="fullRefresh()" title="Shortcut: R" style="padding:4px 8px"><span id="rfIcon">↻</span></button>
+    <button class="rfbtn" onclick="openSettings()" style="padding:4px 8px"><span style="font-size:12px">⚙</span></button>
   </div>
 </div>
 <!-- ROW 2: DEDICATED COMMODITY TICKER STRIP -->
@@ -116,6 +114,11 @@
   <div id="macro-blackout-banner" style="display:none;margin-top:10px;padding:9px 14px;border-radius:8px;font-family:var(--fm);font-size:11px;border:1px solid;text-align:center;"></div>
   <!-- Daily Risk Circuit Breaker Banner -->
   <div id="circuit-breaker-banner" style="display:none;margin-top:8px;padding:9px 14px;border-radius:8px;font-family:var(--fm);font-size:11px;border:1px solid;text-align:center;"></div>
+  <!-- Global Emergency Kill Switch Banner -->
+  <div id="kill-switch-banner" style="display:none;margin-top:8px;padding:10px 14px;border-radius:8px;font-family:var(--fm);font-size:11px;border:1px solid var(--red);background:var(--redbg);color:var(--red);text-align:center;">
+    🛑 <strong>EMERGENCY KILL SWITCH ENGAGED</strong> — All Kite orders, Paper entries, GTT guards &amp; Olymp Co-Pilot are halted.
+    <button onclick="toggleKillSwitch(false)" style="margin-left:10px;background:var(--bg2);border:1px solid var(--red);color:var(--tx);border-radius:4px;padding:2px 9px;font-family:var(--fm);font-size:10px;cursor:pointer;font-weight:700">Disarm</button>
+  </div>
     </div>
 
     <div class="beg-cockpit">
@@ -414,9 +417,12 @@
 
         <!-- Trade Sizing & Execution Panel (Pinned First for Instant Action) -->
         <div class="bcap" style="display:flex;flex-direction:column;margin-bottom:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:4px">
             <div class="bcap-label" style="margin-bottom:0">⚡ Trade Execution Ticket</div>
-            <button onclick="copyActiveSignalToPanel()" title="Shortcut: C" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.3);border-radius:4px;color:var(--gold);font-size:9px;font-family:var(--fm);padding:3px 8px;cursor:pointer;font-weight:600">⚡ Copy Signal (C)</button>
+            <div style="display:flex;gap:4px">
+              <button id="btn-stage-exec" onclick="stageCurrentOrder()" title="Stage this setup for 5-minute review before firing" style="background:var(--blubg);border:1px solid rgba(59,130,246,0.4);border-radius:4px;color:var(--blu);font-size:9px;font-family:var(--fm);padding:3px 7px;cursor:pointer;font-weight:600">📌 Stage</button>
+              <button onclick="copyActiveSignalToPanel()" title="Shortcut: C" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.3);border-radius:4px;color:var(--gold);font-size:9px;font-family:var(--fm);padding:3px 8px;cursor:pointer;font-weight:600">⚡ Copy (C)</button>
+            </div>
           </div>
 
           <!-- Trade Setup Inputs -->
@@ -477,6 +483,15 @@
             <button class="pjb" id="btn-gtt-exec" onclick="executeGttOco()" title="Place broker-side two-leg GTT OCO Stop Loss + Target" style="flex:0.9;padding:8px 6px;font-size:10px;background:var(--blubg);border:1px solid rgba(59,130,246,0.45);color:var(--blu);border-radius:6px;cursor:pointer;font-family:var(--fm);font-weight:700">🛡️ GTT</button>
             <button class="pjb pjb-clr" onclick="clearJournal()" title="Clear journal" style="padding:8px 9px;background:var(--bg3);border:1px solid var(--br);color:var(--txd);border-radius:6px;cursor:pointer">⌫</button>
           </div>
+        </div>
+
+        <!-- Staged Order Queue (Review-Before-Fire, Auto-Expires in 5m) -->
+        <div class="bcap" id="staged-orders-card" style="display:none;margin-bottom:12px;border-color:rgba(59,130,246,0.4)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+            <div class="bcap-label" style="margin-bottom:0;color:var(--blu)">📌 Staged Queue (Auto-Expires 5m)</div>
+            <button onclick="discardStagedOrder(null)" style="background:transparent;border:1px solid var(--br);color:var(--txd);border-radius:4px;padding:1px 6px;font-size:9px;font-family:var(--fm);cursor:pointer">Clear All</button>
+          </div>
+          <div id="staged-orders-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--fm);font-size:9px"></div>
         </div>
 
         <!-- Capital Tracker & Adaptive Risk Stance -->
@@ -1587,19 +1602,23 @@ function updateSizingFeedback(){
   const gaugeTxt = document.getElementById('b-risk-gauge-txt');
   const gaugeFill = document.getElementById('b-risk-gauge-fill');
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
-    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: dailyLimit, maxConsecutiveLosses: 2 });
+    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: dailyLimit, maxConsecutiveLosses: 2, maxDailyTrades: 3 });
     const usedLoss = cb && cb.dailyNetPnl < 0 ? Math.abs(cb.dailyNetPnl) : 0;
     const remBudget = Math.max(0, Math.round(dailyLimit - usedLoss));
     const remPct = cb?.tripped ? 0 : Math.max(0, Math.min(100, Math.round((remBudget / dailyLimit) * 100)));
-    const gaugeCol = (cb?.tripped || remPct < 30) ? 'var(--red)' : remPct < 60 ? 'var(--amb)' : 'var(--grn)';
+    const gaugeCol = (cb?.tripped || window.killSwitchActive || remPct < 30) ? 'var(--red)' : remPct < 60 ? 'var(--amb)' : 'var(--grn)';
+    const tCount = cb?.todayTradeCount ?? 0;
+    const tMax = cb?.maxDailyTrades ?? 3;
     if (gaugeTxt) {
-      gaugeTxt.textContent = cb?.tripped
-        ? `LOCKED (₹${remBudget} / ₹${dailyLimit} · ${cb.consecutiveLosses || 0}/2 losses)`
-        : `₹${remBudget} / ₹${dailyLimit} left (${cb?.consecutiveLosses || 0}/2 losses)`;
+      gaugeTxt.textContent = window.killSwitchActive
+        ? `🛑 KILL SWITCH ON`
+        : cb?.tripped
+          ? `LOCKED (₹${remBudget} · ${tCount}/${tMax} trades · ${cb.consecutiveLosses || 0}/2 losses)`
+          : `₹${remBudget}/₹${dailyLimit} · ${tCount}/${tMax} trades · ${cb?.consecutiveLosses || 0}/2 losses`;
       gaugeTxt.style.color = gaugeCol;
     }
     if (gaugeFill) {
-      gaugeFill.style.width = `${remPct}%`;
+      gaugeFill.style.width = window.killSwitchActive ? '0%' : `${remPct}%`;
       gaugeFill.style.background = gaugeCol;
     }
     if (cb && cb.tripped) {
@@ -1618,8 +1637,9 @@ function updateSizingFeedback(){
 
   // Disable execution buttons if blocked
   const gttBtn = document.getElementById('btn-gtt-exec');
-  const isBlocked = isBlackout || isCircuitTripped;
-  [paperBtn, kiteBtn, gttBtn].forEach(btn => {
+  const stageBtn = document.getElementById('btn-stage-exec');
+  const isBlocked = isBlackout || isCircuitTripped || Boolean(window.killSwitchActive);
+  [paperBtn, kiteBtn, gttBtn, stageBtn].forEach(btn => {
     if (!btn) return;
     btn.disabled = isBlocked;
     btn.style.opacity = isBlocked ? '0.35' : '1';
@@ -3705,11 +3725,20 @@ async function initKiteTickerStream() {
 async function checkKiteStatus() {
   const urlParams = new URLSearchParams(window.location.search);
   const reqToken = urlParams.get('request_token');
+  const kiteErr = urlParams.get('kite_error');
+  const kiteOk = urlParams.get('kite_connected');
+
   if (reqToken) {
     try {
-      await fetch(`/api/kite/callback?request_token=${reqToken}`);
+      await fetch(`/api/kite/callback?request_token=${encodeURIComponent(reqToken)}`);
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch(e) {}
+  } else if (kiteErr) {
+    if (typeof showToast === 'function') showToast(`❌ Kite Login Error: ${kiteErr}`, 'error');
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } else if (kiteOk === 'true') {
+    if (typeof showToast === 'function') showToast('✅ Zerodha Kite Connected! Live quotes & ticker active.', 'success');
+    window.history.replaceState({}, document.title, window.location.pathname);
   }
 
   try {
@@ -3732,14 +3761,14 @@ async function checkKiteStatus() {
 
 async function handleKiteConnect() {
   try {
-    const res = await fetch('/api/kite/login');
+    const res = await fetch('/api/kite/login?json=true');
     const d = await res.json();
     if (d.loginUrl) {
       window.location.href = d.loginUrl;
       return;
     }
   } catch(e) {}
-  window.location.href = '/api/kite/login?redirect=true';
+  window.location.href = '/api/kite/login';
 }
 
 // DYNAMIC BACKTEST STATS LOADER (FAIL-SAFE & EXPLICIT METADATA)
@@ -3778,6 +3807,182 @@ async function loadBacktestStatsBeg() {
   }
 }
 
+window.killSwitchActive = false;
+let stagedOrdersCache = [];
+
+function renderKillSwitchUI() {
+  const active = Boolean(window.killSwitchActive);
+  const btn = document.getElementById('killSwitchBtn');
+  const banner = document.getElementById('kill-switch-banner');
+  if (btn) {
+    btn.style.background = active ? 'var(--red)' : 'transparent';
+    btn.style.color = active ? '#fff' : 'var(--red)';
+    btn.style.fontWeight = active ? '800' : '600';
+    btn.textContent = active ? '🛑 HALTED' : '🛑 Kill';
+  }
+  if (banner) banner.style.display = active ? 'block' : 'none';
+  updateSizingFeedback();
+}
+
+async function syncKillSwitchState() {
+  try {
+    const r = await fetch('/api/kill-switch');
+    if (!r.ok) return;
+    const d = await r.json();
+    window.killSwitchActive = Boolean(d.active);
+    renderKillSwitchUI();
+  } catch (_) {}
+}
+
+async function toggleKillSwitch(forceState = null) {
+  const next = typeof forceState === 'boolean' ? forceState : !window.killSwitchActive;
+  try {
+    const r = await fetch('/api/kill-switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: next, reason: next ? 'Manual emergency halt from Desk' : null })
+    });
+    const d = await r.json();
+    window.killSwitchActive = Boolean(d.active);
+    renderKillSwitchUI();
+    if (window.killSwitchActive) {
+      stagedOrdersCache = [];
+      renderStagedOrders();
+      showToast('🛑 EMERGENCY KILL SWITCH ENGAGED — Kite, Paper, GTT Guards & Olymp Co-Pilot halted.', 'error');
+    } else {
+      showToast('🟢 Kill Switch Disarmed — Normal risk guardrails active.', 'success');
+    }
+  } catch (err) {
+    showToast(`Kill Switch sync error: ${err.message}`, 'error');
+  }
+}
+
+async function stageCurrentOrder() {
+  if (window.killSwitchActive) {
+    showToast('🛑 KILL SWITCH ACTIVE: Disarm before staging orders.', 'error');
+    return;
+  }
+  const side = document.getElementById('b-side')?.value || 'BUY';
+  const ent = parseFloat(document.getElementById('b-jEnt')?.value);
+  const sl = parseFloat(document.getElementById('b-jSL')?.value);
+  const tgt = parseFloat(document.getElementById('b-jTgt')?.value) || null;
+  const qty = parseFloat(document.getElementById('b-jQty')?.value) || 1;
+  const budget = parseFloat(document.getElementById('b-jBudget')?.value) || window.maxRiskPerTrade || 125;
+  const prod = document.getElementById('b-prod')?.value || 'NRML';
+  if (!ent || !sl || isNaN(ent) || isNaN(sl)) {
+    showToast('Enter Entry & Stop Loss (or press C to copy active signal) before staging.', 'warn');
+    return;
+  }
+  const eff = getEffectiveExecutionSpec();
+  const mult = eff.multiplier;
+  const seg = eff.segment || 'commodity';
+  const feesAtSL = (window.RiskEngine && window.RiskEngine.calculateZerodhaFees)
+    ? window.RiskEngine.calculateZerodhaFees({ side, entry: ent, exit: sl, quantity: qty, lotMultiplier: mult, segment: seg })
+    : { total: 45.0 };
+  const estRisk = Math.round(((Math.abs(ent - sl) * mult * qty) + feesAtSL.total) * 100) / 100;
+  try {
+    const r = await fetch('/api/staged-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: eff.tradingsymbol,
+        exchange: eff.exchange || 'MCX',
+        comId: activeC?.id || 'gold',
+        side,
+        entry: ent,
+        sl,
+        target: tgt,
+        qty,
+        lotMultiplier: mult,
+        segment: seg,
+        product: eff.isOverride ? (eff.product || prod) : prod,
+        budget,
+        estRisk,
+        ttlMs: 5 * 60 * 1000
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      showToast(`❌ Stage Rejected: ${d.error || 'Invalid setup'}`, 'error');
+      return;
+    }
+    showToast(`📌 Staged ${eff.tradingsymbol} ${side} @ ₹${ent} (auto-expires in 5m)`, 'info');
+    loadStagedOrders();
+  } catch (err) {
+    showToast(`Stage error: ${err.message}`, 'error');
+  }
+}
+
+async function loadStagedOrders() {
+  try {
+    const r = await fetch('/api/staged-orders');
+    if (!r.ok) return;
+    const d = await r.json();
+    stagedOrdersCache = Array.isArray(d.orders) ? d.orders : [];
+    renderStagedOrders();
+  } catch (_) {}
+}
+
+function renderStagedOrders() {
+  const card = document.getElementById('staged-orders-card');
+  const list = document.getElementById('staged-orders-list');
+  if (!card || !list) return;
+  const now = Date.now();
+  stagedOrdersCache = stagedOrdersCache.filter(o => o.expiresAt > now);
+  if (stagedOrdersCache.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  list.innerHTML = stagedOrdersCache.map(o => {
+    const remSec = Math.max(0, Math.floor((o.expiresAt - now) / 1000));
+    const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
+    const ss = String(remSec % 60).padStart(2, '0');
+    const sideCol = o.side === 'BUY' ? 'var(--grn)' : 'var(--red)';
+    return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span><strong style="color:${sideCol}">${o.side}</strong> <strong style="color:var(--tx)">${o.symbol}</strong> ×${o.qty}</span>
+        <span class="stg-ttl" data-exp="${o.expiresAt}" style="color:var(--amb)">⏱ ${mm}:${ss}</span>
+      </div>
+      <div style="color:var(--txd);margin-bottom:5px">Ent ₹${o.entry} · SL ₹${o.sl}${o.target ? ` · T1 ₹${o.target}` : ''} · Risk ₹${o.estRisk}</div>
+      <div style="display:flex;gap:4px">
+        <button onclick="executeStagedOrder('${o.id}', false)" style="flex:1;background:var(--bg4);border:1px solid var(--brl);color:var(--tx);border-radius:4px;padding:3px 6px;font-size:9px;font-family:var(--fm);font-weight:700;cursor:pointer">📝 Paper</button>
+        <button onclick="executeStagedOrder('${o.id}', true)" style="flex:1;background:var(--goldbg);border:1px solid rgba(245,197,66,0.45);color:var(--gold);border-radius:4px;padding:3px 6px;font-size:9px;font-family:var(--fm);font-weight:700;cursor:pointer">⚡ Kite</button>
+        <button onclick="discardStagedOrder('${o.id}')" style="background:transparent;border:1px solid var(--br);color:var(--txd);border-radius:4px;padding:3px 7px;font-size:9px;font-family:var(--fm);cursor:pointer">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function executeStagedOrder(id, isKite = false) {
+  const ord = stagedOrdersCache.find(o => o.id === id);
+  if (!ord) {
+    showToast('Staged order expired or not found.', 'warn');
+    renderStagedOrders();
+    return;
+  }
+  const sEl = document.getElementById('b-side'); if (sEl) sEl.value = ord.side;
+  const eEl = document.getElementById('b-jEnt'); if (eEl) eEl.value = ord.entry;
+  const slEl = document.getElementById('b-jSL'); if (slEl) slEl.value = ord.sl;
+  const tEl = document.getElementById('b-jTgt'); if (tEl) tEl.value = ord.target || '';
+  const qEl = document.getElementById('b-jQty'); if (qEl) qEl.value = ord.qty;
+  const pEl = document.getElementById('b-prod'); if (pEl) pEl.value = ord.product || 'NRML';
+  updateSizingFeedback();
+  await discardStagedOrder(id, true);
+  await executeManualTrade(isKite);
+}
+
+async function discardStagedOrder(id, silent = false) {
+  try {
+    const qs = id ? `?id=${encodeURIComponent(id)}` : '';
+    await fetch(`/api/staged-orders${qs}`, { method: 'DELETE' });
+  } catch (_) {}
+  if (id) stagedOrdersCache = stagedOrdersCache.filter(o => o.id !== id);
+  else stagedOrdersCache = [];
+  renderStagedOrders();
+  if (!silent) showToast(id ? 'Staged order discarded.' : 'Cleared all staged orders.', 'info');
+}
+
 function toggleFocusMode(forceState = null) {
   const next = forceState != null ? Boolean(forceState) : !document.body.classList.contains('focus-mode');
   document.body.classList.toggle('focus-mode', next);
@@ -3794,6 +3999,8 @@ function _boot(){
   if (localStorage.getItem('mcx_focus_mode') === '1') toggleFocusMode(true);
   loadBacktestStatsBeg();
   loadAccountProfile();
+  syncKillSwitchState();
+  loadStagedOrders();
   hydrateJournalFromSqlite();
   fetchTradeLessons();
   updateAdaptiveRiskStance(false);
@@ -3801,14 +4008,26 @@ function _boot(){
   setInterval(updateSession, 10000);
   setInterval(reconcileKiteDesk, 15000);
 
-  // Live 1-second 5m candle countdown tick for Olymp Trade card
+  // Live 1-second 5m candle countdown tick for Olymp Trade card + Staged Order expiry timers
   setInterval(() => {
     const cdEl = document.getElementById('b-olymp-5m-cd');
-    if (!cdEl) return;
-    const remSec = Math.max(0, 300 - (Math.floor(Date.now() / 1000) % 300));
-    const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
-    const ss = String(remSec % 60).padStart(2, '0');
-    cdEl.textContent = `${mm}:${ss}`;
+    if (cdEl) {
+      const remSec = Math.max(0, 300 - (Math.floor(Date.now() / 1000) % 300));
+      const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
+      const ss = String(remSec % 60).padStart(2, '0');
+      cdEl.textContent = `${mm}:${ss}`;
+    }
+    if (stagedOrdersCache.length > 0) {
+      const now = Date.now();
+      let expiredAny = false;
+      document.querySelectorAll('.stg-ttl').forEach(el => {
+        const exp = Number(el.getAttribute('data-exp') || 0);
+        const rem = Math.max(0, Math.floor((exp - now) / 1000));
+        if (rem <= 0) expiredAny = true;
+        el.textContent = `⏱ ${String(Math.floor(rem / 60)).padStart(2, '0')}:${String(rem % 60).padStart(2, '0')}`;
+      });
+      if (expiredAny) renderStagedOrders();
+    }
   }, 1000);
 
   // Global keyboard shortcuts (ignored while typing in inputs/selects)

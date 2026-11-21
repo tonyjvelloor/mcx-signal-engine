@@ -100,8 +100,12 @@
     }
 
     const actCol = t.action === 'BUY' ? '#22C55E' : t.action === 'SELL' ? '#EF4444' : '#6A6880';
-    const isBlocked = Boolean(t.blockedReason || t.usdCircuitTripped || String(t.debateVerdict || '').includes('VETO'));
+    const isKillSwitch = Boolean(t.killSwitchActive);
+    const isBlocked = isKillSwitch || Boolean(t.blockedReason || t.usdCircuitTripped || String(t.debateVerdict || '').includes('VETO'));
     const stake = t.olympMultiplier?.stakeUsd || t.sizing?.stake2Pct || 2;
+    const blockLabel = isKillSwitch
+      ? `KILL SWITCH ACTIVE${t.killSwitchReason ? ': ' + t.killSwitchReason : ' — ALL EXECUTION HALTED'}`
+      : (t.blockedReason || 'VETO / Circuit Breaker');
 
     bodyEl.innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:5px">
@@ -116,7 +120,7 @@
       </div>
       <div style="color:#F59E0B;font-size:10px;margin-bottom:7px">⏱ 5m Candle: <strong>${t.entryTiming?.countdownFormatted || '—'}</strong> · Losses: ${t.usdConsecLosses || 0}/2</div>
       ${isBlocked
-        ? `<div style="background:rgba(239,68,68,0.12);border:1px solid #EF4444;color:#EF4444;padding:5px 7px;border-radius:5px;font-size:10px">🛑 LOCKED: ${t.blockedReason || 'VETO / Circuit Breaker'}</div>`
+        ? `<div style="background:rgba(239,68,68,0.12);border:1px solid #EF4444;color:#EF4444;padding:5px 7px;border-radius:5px;font-size:10px">🛑 LOCKED: ${blockLabel}</div>`
         : `<button id="mcx-autofill-btn" style="width:100%;background:rgba(34,197,94,0.15);border:1px solid #22C55E;color:#22C55E;border-radius:6px;padding:6px;font-family:inherit;font-weight:700;cursor:pointer">⚡ Auto-Fill $${stake} Stake (Human Confirm Click)</button>`
       }
     `;
