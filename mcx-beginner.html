@@ -408,25 +408,28 @@
         <div class="bcap" style="margin-bottom:12px;padding:10px 12px">
           <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:9px;margin-bottom:5px">
             <span style="color:var(--txd);font-weight:700">⛽ DAILY RISK FUEL GAUGE</span>
-            <strong id="b-risk-gauge-txt" style="color:var(--grn)">₹300 / ₹300 left (0/2 losses)</strong>
+            <strong id="b-risk-gauge-txt" style="color:var(--grn)">₹375/₹375 · 0/4 trades · 0/2 losses</strong>
           </div>
           <div style="height:6px;background:var(--bg4);border-radius:4px;overflow:hidden">
             <div id="b-risk-gauge-fill" style="height:100%;width:100%;background:var(--grn);border-radius:4px;transition:width .35s ease,background .35s ease"></div>
           </div>
         </div>
 
-        <!-- Autonomous Monday–Friday Paper Pilot Status & Telemetry -->
+        <!-- Autonomous Monday–Friday Best-Stock & Commodity Paper Pilot (₹15,000 Budget) -->
         <div class="bcap" id="auto-pilot-card" style="margin-bottom:12px;padding:10px 12px;border-color:rgba(34,197,94,0.35)">
-          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:9px;margin-bottom:6px;gap:6px">
-            <span style="color:var(--grn);font-weight:700" id="ap-title">🤖 AUTO-PAPER PILOT: ARMED</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:9px;margin-bottom:6px;gap:4px">
+            <span style="color:var(--grn);font-weight:700" id="ap-title">🤖 AUTO-PILOT (₹15K): ARMED</span>
             <div style="display:flex;gap:4px">
-              <button onclick="runAutoPilotScanNow()" style="background:var(--bg4);border:1px solid var(--brl);color:var(--cya);border-radius:4px;padding:2px 6px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Run 5-commodity evaluation & position check now">▶ Scan</button>
+              <button onclick="runAutoPilotScanNow(false)" style="background:var(--bg4);border:1px solid var(--brl);color:var(--cya);border-radius:4px;padding:2px 6px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Scan & rank 12 NSE stocks + 5 commodities now">▶ Scan</button>
+              <button onclick="runAutoPilotScanNow(true)" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.45);color:var(--gold);border-radius:4px;padding:2px 6px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Test auto-execute paper trade on #1 ranked stock/setup now">⚡ Auto-Trade #1</button>
               <button id="ap-toggle-btn" onclick="toggleAutoPilot()" style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.45);color:var(--grn);border-radius:4px;padding:2px 7px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:700">ON</button>
             </div>
           </div>
           <div id="ap-status-sub" style="font-family:var(--fm);font-size:8.5px;color:var(--txd);margin-bottom:6px;line-height:1.4">
-            Auto-executes qualifying BUY/SELL setups (Mon–Fri 09:15–23:15 IST) via ₹10K Route + Debate Gate + +1R Breakeven trail.
+            ₹15,000 Budget · Identifies Top 3 NSE Stocks &amp; MCX setups daily (09:15–15:20 / 23:20 IST) · Max ₹150 risk/trade.
           </div>
+          <div style="font-family:var(--fm);font-size:8px;color:var(--gold);font-weight:700;margin-bottom:4px">🏆 TODAY'S TOP 3 BEST NSE STOCKS (5x MIS · ₹15K BUDGET):</div>
+          <div id="ap-top-stocks" style="display:flex;flex-direction:column;gap:4px;font-family:var(--fm);font-size:8.5px;margin-bottom:6px"></div>
           <div id="ap-eval-pills" style="display:flex;flex-wrap:wrap;gap:4px;font-family:var(--fm);font-size:8px"></div>
         </div>
 
@@ -600,9 +603,9 @@ let newsData   = null;
 let journal    = [];
 let olympJournal = [];
 try { olympJournal = JSON.parse(localStorage.getItem('mcx_olymp_v1') || '[]'); } catch(_) { olympJournal = []; }
-window.userCapital = 10000;
-window.maxRiskPerTrade = 125;
-window.dailyLossLimit = 300;
+window.userCapital = 15000;
+window.maxRiskPerTrade = 150;
+window.dailyLossLimit = 375;
 window.activeRouteOverride = null;
 window.kiteTicks = {};
 let isBusy     = false;
@@ -1630,11 +1633,11 @@ function updateSizingFeedback(){
   // 2. Evaluate Daily Risk Circuit Breaker + Update Daily Risk Fuel Gauge
   let isCircuitTripped = false;
   const circuitBanner = document.getElementById('circuit-breaker-banner');
-  const dailyLimit = window.dailyLossLimit || 300.0;
+  const dailyLimit = window.dailyLossLimit || 375.0;
   const gaugeTxt = document.getElementById('b-risk-gauge-txt');
   const gaugeFill = document.getElementById('b-risk-gauge-fill');
   if (window.CircuitBreaker && window.CircuitBreaker.evaluateCircuitBreaker) {
-    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: dailyLimit, maxConsecutiveLosses: 2, maxDailyTrades: 3 });
+    const cb = window.CircuitBreaker.evaluateCircuitBreaker({ trades: journal, dailyLossLimit: dailyLimit, maxConsecutiveLosses: 2, maxDailyTrades: 4 });
     const usedLoss = cb && cb.dailyNetPnl < 0 ? Math.abs(cb.dailyNetPnl) : 0;
     const remBudget = Math.max(0, Math.round(dailyLimit - usedLoss));
     const remPct = cb?.tripped ? 0 : Math.max(0, Math.min(100, Math.round((remBudget / dailyLimit) * 100)));
@@ -3669,6 +3672,33 @@ async function reconcileKiteDesk() {
 }
 
 window.autoPilotEnabled = true;
+window.lastTopStocks = [];
+
+function loadTopStockIntoTicket(idx) {
+  const s = window.lastTopStocks[idx];
+  if (!s || !s.executionPlan) return;
+  const p = s.executionPlan;
+  window.activeRouteOverride = {
+    comId: activeC?.id,
+    symbol: p.tradingsymbol,
+    tradingsymbol: p.tradingsymbol,
+    exchange: 'NSE',
+    segment: 'equity',
+    product: 'MIS',
+    multiplier: 1,
+    estPrice: p.entryPrice,
+    recommendedQty: p.qty
+  };
+  const sEl = document.getElementById('b-side'); if (sEl) sEl.value = p.side;
+  const eEl = document.getElementById('b-jEnt'); if (eEl) eEl.value = p.entryPrice;
+  const slEl = document.getElementById('b-jSL'); if (slEl) slEl.value = p.stopLoss;
+  const tEl = document.getElementById('b-jTgt'); if (tEl) tEl.value = p.target1;
+  const qEl = document.getElementById('b-jQty'); if (qEl) qEl.value = p.qty;
+  const pEl = document.getElementById('b-prod'); if (pEl) pEl.value = 'MIS';
+  updateContractSpecDisplay();
+  updateSizingFeedback();
+  showToast(`🏆 Loaded #${s.rank} ${p.tradingsymbol} (${p.side} ×${p.qty} shares @ ₹${p.entryPrice} · Margin ₹${p.marginRequired}) into Execution Ticket`, 'info');
+}
 
 function renderAutoPilotCard(d) {
   if (!d) return;
@@ -3677,6 +3707,7 @@ function renderAutoPilotCard(d) {
   const titleEl = document.getElementById('ap-title');
   const btnEl = document.getElementById('ap-toggle-btn');
   const subEl = document.getElementById('ap-status-sub');
+  const topStocksEl = document.getElementById('ap-top-stocks');
   const pillsEl = document.getElementById('ap-eval-pills');
 
   const isArmed = window.autoPilotEnabled && !d.killSwitchActive;
@@ -3686,12 +3717,12 @@ function renderAutoPilotCard(d) {
   }
   if (titleEl) {
     titleEl.textContent = d.killSwitchActive
-      ? '🤖 AUTO-PAPER PILOT: HALTED'
+      ? '🤖 AUTO-PILOT (₹15K): HALTED'
       : !window.autoPilotEnabled
-        ? '🤖 AUTO-PAPER PILOT: PAUSED'
+        ? '🤖 AUTO-PILOT (₹15K): PAUSED'
         : sessOpen
-          ? '🤖 AUTO-PAPER PILOT: LIVE SCANNING'
-          : '🤖 AUTO-PAPER PILOT: ARMED (MON 09:15)';
+          ? '🤖 AUTO-PILOT (₹15K): LIVE TRADING'
+          : '🤖 AUTO-PILOT (₹15K): ARMED (MON 09:15)';
     titleEl.style.color = !isArmed ? 'var(--txd)' : (sessOpen ? 'var(--grn)' : 'var(--gold)');
   }
   if (btnEl) {
@@ -3705,7 +3736,23 @@ function renderAutoPilotCard(d) {
     const scanStr = d.lastScanAt ? new Date(d.lastScanAt).toLocaleTimeString('en-IN', { hour12: false }) : 'pending';
     subEl.innerHTML = lastLog
       ? `<span style="color:var(--cya)">[${lastLog.istTime || scanStr}]</span> ${lastLog.message}`
-      : `Last scan: <strong style="color:var(--tx)">${scanStr}</strong> · Open auto-trades: <strong style="color:var(--gold)">${d.openTradesCount || 0}/${d.maxConcurrentOpen || 2}</strong> · Mon–Fri 09:15–23:15 IST`;
+      : `Last scan: <strong style="color:var(--tx)">${scanStr}</strong> · Open auto-trades: <strong style="color:var(--gold)">${d.openTradesCount || 0}/${d.maxConcurrentOpen || 3}</strong> · Budget: <strong style="color:var(--grn)">₹15,000</strong>`;
+  }
+  if (topStocksEl && Array.isArray(d.topStocks)) {
+    window.lastTopStocks = d.topStocks.slice(0, 3);
+    topStocksEl.innerHTML = window.lastTopStocks.map((s, idx) => {
+      const p = s.executionPlan || {};
+      const isBuy = p.side === 'BUY';
+      const sCol = s.qualifiesForAutoExec ? (isBuy ? 'var(--grn)' : 'var(--red)') : (s.action !== 'WAIT' ? 'var(--amb)' : 'var(--cya)');
+      const badge = s.qualifiesForAutoExec ? `✔ AUTO-${p.side}` : `${p.side} (${s.debateVerdict})`;
+      return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:5px;padding:5px 7px;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div style="min-width:0">
+          <div><strong style="color:var(--gold)">#${s.rank} ${s.symbol}</strong> <span style="color:${sCol};font-weight:700">${badge}</span> <span style="color:var(--txd)">Score ${s.compositeRankScore}/100</span></div>
+          <div style="color:var(--txd);font-size:8px">×${p.qty} sh @ ₹${p.entryPrice} · SL ₹${p.stopLoss} · T1 ₹${p.target1} · Mgn ₹${Math.round(p.marginRequired || 0)} · R:R 1:${p.netRR}</div>
+        </div>
+        <button onclick="loadTopStockIntoTicket(${idx})" style="background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;padding:2px 6px;font-size:8px;font-family:var(--fm);cursor:pointer;flex-shrink:0">⚡ Load</button>
+      </div>`;
+    }).join('');
   }
   if (pillsEl && Array.isArray(d.evaluations)) {
     pillsEl.innerHTML = d.evaluations.map(ev => {
@@ -3742,7 +3789,7 @@ async function toggleAutoPilot() {
     renderAutoPilotCard(d);
     showToast(
       next
-        ? '🤖 Auto-Paper Pilot ARMED — Will auto-execute qualifying setups starting Monday 09:15 IST.'
+        ? '🤖 Auto-Paper Pilot ARMED (₹15,000 budget) — Will auto-trade Top NSE Stocks & MCX starting Monday 09:15 IST.'
         : '⏸ Auto-Paper Pilot PAUSED.',
       next ? 'success' : 'warn'
     );
@@ -3751,25 +3798,25 @@ async function toggleAutoPilot() {
   }
 }
 
-async function runAutoPilotScanNow() {
+async function runAutoPilotScanNow(allowForceEntry = false) {
   try {
-    showToast('🤖 Running 5-commodity Auto-Paper Pilot scan...', 'info');
+    showToast(allowForceEntry ? '⚡ Auto-executing paper trade on #1 Ranked Best Stock...' : '🤖 Scanning & ranking 12 NSE Large-Cap Stocks + 5 Commodities...', 'info');
     const r = await fetch('/api/auto-pilot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'SCAN_NOW' })
+      body: JSON.stringify({ action: 'SCAN_NOW', allowForceEntry: Boolean(allowForceEntry) })
     });
     const d = await r.json();
     renderAutoPilotCard(d);
-    hydrateJournalFromSqlite();
-    const quals = (d.evaluations || []).filter(e => e.qualifiesForAutoExec);
+    await hydrateJournalFromSqlite();
     const opened = d.scanReport?.openedTrades || [];
+    const top1 = d.topStocks && d.topStocks[0];
     if (opened.length > 0) {
-      showToast(`🤖 Auto-Opened ${opened.length} Paper Trade(s): ${opened.map(o => `${o.symbol} ${o.side} @ ₹${o.entryPrice}`).join(', ')}`, 'success');
-    } else if (quals.length > 0) {
-      showToast(`🤖 Scan complete: ${quals.length} setup(s) qualify (${quals.map(q => q.name + ' ' + q.action).join(', ')}). Waiting for Monday 09:15 IST live session window.`, 'info');
+      showToast(`🤖 Auto-Executed ${opened.length} Paper Trade(s):\n${opened.map(o => `${o.exchange}:${o.symbol} ${o.side} ×${o.qty} @ ₹${o.entryPrice} (SL ₹${o.stopLoss} · T1 ₹${o.target})`).join('\n')}`, 'success');
+    } else if (top1) {
+      showToast(`🏆 Top Ranked Stock: #1 ${top1.symbol} (Score ${top1.compositeRankScore}/100 · ${top1.executionPlan?.side} ×${top1.executionPlan?.qty} @ ₹${top1.executionPlan?.entryPrice}). Armed for Monday 09:15 IST!`, 'info');
     } else {
-      showToast('🤖 Scan complete across GOLD, SILVER, CRUDE, NATGAS & COPPER: No setup currently passes all Regime + Fee + Debate gates.', 'info');
+      showToast('🤖 Scan complete across 12 NSE Stocks & 5 Commodities.', 'info');
     }
   } catch (err) {
     showToast(`Auto-Pilot scan error: ${err.message}`, 'error');

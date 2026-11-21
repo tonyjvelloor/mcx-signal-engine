@@ -84,13 +84,16 @@ function pruneExpiredStagedOrders() {
   }
 }
 
-// Autonomous Paper-Trading Pilot State (Armed for Monday–Friday Live Sessions)
+// Autonomous Paper-Trading Pilot State (Armed for Monday–Friday Live Sessions on ₹15,000 Budget)
 let autoPilotState = {
   enabled: true,
-  maxConcurrentOpen: 2,
+  maxConcurrentOpen: 3,
+  maxDailyTrades: 4,
   cooldownMinutes: 30,
   lastScanAt: null,
   lastSessionStatus: null,
+  topStocks: [],
+  stockEvaluations: [],
   lastEvaluations: [],
   activityLog: [],
   symbolLastEntryMs: {}
@@ -197,17 +200,17 @@ try {
     );
     CREATE TABLE IF NOT EXISTS account_settings (
       id INTEGER PRIMARY KEY,
-      capital REAL DEFAULT 10000,
-      max_risk_per_trade REAL DEFAULT 125,
-      daily_loss_limit REAL DEFAULT 300,
-      pilot_drawdown_limit REAL DEFAULT 600,
+      capital REAL DEFAULT 15000,
+      max_risk_per_trade REAL DEFAULT 150,
+      daily_loss_limit REAL DEFAULT 375,
+      pilot_drawdown_limit REAL DEFAULT 750,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     INSERT OR IGNORE INTO account_settings (id, capital, max_risk_per_trade, daily_loss_limit, pilot_drawdown_limit)
-    VALUES (1, 10000, 125, 300, 600);
+    VALUES (1, 15000, 150, 375, 750);
     UPDATE account_settings
-    SET capital = 10000, max_risk_per_trade = 125, daily_loss_limit = 300, pilot_drawdown_limit = 600, updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1 AND capital = 15000 AND max_risk_per_trade = 50;
+    SET capital = 15000, max_risk_per_trade = 150, daily_loss_limit = 375, pilot_drawdown_limit = 750, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1 AND (capital = 10000 OR max_risk_per_trade = 50);
     CREATE TABLE IF NOT EXISTS trade_lessons (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       symbol TEXT NOT NULL,
@@ -227,7 +230,7 @@ try {
 }
 
 function getAccountProfile() {
-  const defaults = { capital: 10000, maxRiskPerTrade: 125, dailyLossLimit: 300, pilotDrawdownLimit: 600, currency: 'INR' };
+  const defaults = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375, pilotDrawdownLimit: 750, currency: 'INR' };
   if (!db) return defaults;
   try {
     const row = db.prepare('SELECT * FROM account_settings WHERE id = 1').get();
@@ -2140,10 +2143,11 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 7d7. Autonomous Paper-Trading Pilot API (Monday–Friday Auto-Execution & Lifecycle Telemetry)
+    // 7d7. Autonomous Paper-Trading Pilot API (Monday–Friday Best-Stock & Commodity Auto-Trader)
     if (pathname === '/api/auto-pilot') {
       if (req.method === 'GET') {
         const sessionInfo = autoPilot.getMarketSessionWindow();
+        const accProfile = getAccountProfile();
         let openAutoTrades = [];
         if (db) {
           try {
@@ -2155,11 +2159,15 @@ const server = http.createServer(async (req, res) => {
           ok: true,
           enabled: autoPilotState.enabled,
           killSwitchActive: killSwitchState.active,
+          account: accProfile,
           maxConcurrentOpen: autoPilotState.maxConcurrentOpen,
+          maxDailyTrades: autoPilotState.maxDailyTrades,
           lastScanAt: autoPilotState.lastScanAt,
           session: sessionInfo,
           openTradesCount: openAutoTrades.length,
           openTrades: openAutoTrades,
+          topStocks: autoPilotState.topStocks,
+          stockEvaluations: autoPilotState.stockEvaluations,
           evaluations: autoPilotState.lastEvaluations,
           activityLog: autoPilotState.activityLog.slice(0, 20)
         }));
@@ -2175,7 +2183,7 @@ const server = http.createServer(async (req, res) => {
               logAutoPilotEvent(
                 d.enabled ? 'ARMED' : 'PAUSED',
                 d.enabled
-                  ? 'Auto-Paper Pilot ARMED for Monday–Friday live sessions (09:15–23:15 IST).'
+                  ? 'Auto-Paper Pilot ARMED (₹15,000 budget · Top NSE Stocks + MCX Commodities · Mon–Fri 09:15 IST).'
                   : 'Auto-Paper Pilot paused by user.'
               );
             }
@@ -2190,8 +2198,11 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({
               ok: true,
               enabled: autoPilotState.enabled,
+              account: getAccountProfile(),
               lastScanAt: autoPilotState.lastScanAt,
               session: autoPilot.getMarketSessionWindow(),
+              topStocks: autoPilotState.topStocks,
+              stockEvaluations: autoPilotState.stockEvaluations,
               evaluations: autoPilotState.lastEvaluations,
               activityLog: autoPilotState.activityLog.slice(0, 20),
               scanReport
@@ -2620,48 +2631,50 @@ async function evaluateGttBreakevenGuards() {
 setInterval(evaluateGttBreakevenGuards, 10000);
 
 // ─────────────────────────────────────────────────────────────
-// AUTONOMOUS PAPER-TRADING PILOT ENGINE (MONDAY–FRIDAY LIVE LOOP)
-// Scans Gold, Silver, Crude, NatGas & Copper every 60s during market hours,
-// manages +1R breakeven & SL/Target exits, and auto-executes paper trades
-// that pass Regime + Fee Hurdle + Bull/Bear Debate + ₹10K Risk Guardrails.
+// AUTONOMOUS PAPER-TRADING PILOT ENGINE (₹15,000 BUDGET · BEST STOCKS & COMMODITIES)
+// Scans 12 Nifty-50 Large-Cap Stocks + 5 Commodities every 60s during market hours,
+// identifies & ranks Today's Top Best Stocks, manages +1R breakeven & SL/Target/EOD exits,
+// and auto-executes paper trades within the ₹15,000 capital / ₹150 risk-per-trade guardrails.
 // ─────────────────────────────────────────────────────────────
 let autoPilotBusy = false;
 
-async function loadCandlesForAutoPilotAsset(asset) {
-  // 1. Try fresh Yahoo Finance 5m bars (fast 3s timeout) and persist to SQLite
-  try {
-    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.ticker)}?interval=5m&range=5d`;
-    const yfResp = await fetchJson(yfUrl, { timeout: 3000 });
-    const res0 = yfResp?.data?.chart?.result?.[0];
-    if (res0 && Array.isArray(res0.timestamp) && res0.indicators?.quote?.[0]) {
-      const q = res0.indicators.quote[0];
-      const rows = [];
-      for (let i = 0; i < res0.timestamp.length; i++) {
-        const cl = q.close?.[i], hi = q.high?.[i], lo = q.low?.[i];
-        const op = q.open?.[i] != null ? q.open[i] : cl;
-        const vl = q.volume?.[i] || 0;
-        if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
-          rows.push({ time: res0.timestamp[i], open: op, high: hi, low: lo, close: cl, volume: vl });
+async function loadCandlesForAutoPilotSymbol({ ticker, dbSym, fetchLive = false }) {
+  // 1. When market is open (fetchLive=true), fetch fresh Yahoo 5m bars and update SQLite
+  if (fetchLive) {
+    try {
+      const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&range=5d`;
+      const yfResp = await fetchJson(yfUrl, { timeout: 2800 });
+      const res0 = yfResp?.data?.chart?.result?.[0];
+      if (res0 && Array.isArray(res0.timestamp) && res0.indicators?.quote?.[0]) {
+        const q = res0.indicators.quote[0];
+        const rows = [];
+        for (let i = 0; i < res0.timestamp.length; i++) {
+          const cl = q.close?.[i], hi = q.high?.[i], lo = q.low?.[i];
+          const op = q.open?.[i] != null ? q.open[i] : cl;
+          const vl = q.volume?.[i] || 0;
+          if (cl != null && isFinite(cl) && hi != null && isFinite(hi) && lo != null && isFinite(lo) && cl > 0) {
+            rows.push({ time: res0.timestamp[i], open: op, high: hi, low: lo, close: cl, volume: vl });
+          }
+        }
+        if (rows.length >= 25) {
+          if (db) {
+            try {
+              const ins = db.prepare(`INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume) VALUES (?, '5m', ?, ?, ?, ?, ?, ?)`);
+              for (const c of rows.slice(-60)) ins.run(dbSym, c.time, c.open, c.high, c.low, c.close, c.volume);
+            } catch (_) {}
+          }
+          return rows.slice(-240);
         }
       }
-      if (rows.length >= 25) {
-        if (db) {
-          try {
-            const ins = db.prepare(`INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume) VALUES (?, '5m', ?, ?, ?, ?, ?, ?)`);
-            for (const c of rows.slice(-60)) ins.run(asset.dbSym, c.time, c.open, c.high, c.low, c.close, c.volume);
-          } catch (_) {}
-        }
-        return rows.slice(-240);
-      }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
-  // 2. Fallback to local SQLite 5m archive
+  // 2. Instant read from local SQLite 5m archive (135,000+ bars across 12 NSE stocks & 5 commodities)
   if (db) {
     try {
       const rows = db.prepare(
         `SELECT time, open, high, low, close, volume FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 240`
-      ).all(asset.dbSym).reverse();
+      ).all(dbSym).reverse();
       if (rows.length >= 25) return rows;
     } catch (_) {}
   }
@@ -2688,15 +2701,52 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       ? db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all()
       : [];
     const recentLessons = db
-      ? db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 25`).all()
+      ? db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 40`).all()
       : [];
     const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null);
 
+    const stockEvaluations = [];
     const evaluations = [];
     const latestPrices = {};
 
+    // 1. Scan & Rank All 12 Nifty-50 Large-Cap NSE Stocks for the ₹15,000 Budget
+    for (const stock of autoPilot.AUTO_PILOT_STOCKS) {
+      const rawCandles = await loadCandlesForAutoPilotSymbol({
+        ticker: stock.ticker,
+        dbSym: stock.symbol,
+        fetchLive: sessionInfo.isNseHours
+      });
+      const stockLessons = recentLessons.filter(l => String(l.symbol || '').includes(stock.symbol));
+      const sev = autoPilot.evaluateStockForAutoPilot({
+        stock,
+        rawCandles,
+        recentLessons: stockLessons,
+        geoIntel,
+        accountProfile: accProfile,
+        todayTrades
+      });
+      stockEvaluations.push(sev);
+      if (sev.executionPlan && sev.executionPlan.entryPrice > 0) {
+        latestPrices[stock.symbol] = {
+          price: sev.executionPlan.entryPrice,
+          high: sev.executionPlan.currentHigh || sev.executionPlan.entryPrice,
+          low: sev.executionPlan.currentLow || sev.executionPlan.entryPrice,
+          regime: sev.regime,
+          sessionWindow: sev.sessionWindow,
+          paritySignal: sev.paritySignal
+        };
+      }
+    }
+
+    const topStocks = autoPilot.rankBestStocksOfDay(stockEvaluations, 5);
+
+    // 2. Scan All 5 Core MCX Commodities
     for (const asset of autoPilot.AUTO_PILOT_ASSETS) {
-      const rawCandles = await loadCandlesForAutoPilotAsset(asset);
+      const rawCandles = await loadCandlesForAutoPilotSymbol({
+        ticker: asset.ticker,
+        dbSym: asset.dbSym,
+        fetchLive: sessionInfo.isMcxHours
+      });
       const assetLessons = recentLessons.filter(l => String(l.symbol || '').includes(asset.dbSym) || String(l.symbol || '').includes(asset.name));
       const ev = autoPilot.evaluateCommodityForAutoPilot({
         asset,
@@ -2725,9 +2775,11 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     }
 
     autoPilotState.lastScanAt = new Date().toISOString();
+    autoPilotState.stockEvaluations = stockEvaluations;
+    autoPilotState.topStocks = topStocks;
     autoPilotState.lastEvaluations = evaluations;
 
-    // Step 1: Manage existing open paper positions (+1R Breakeven + SL/Target/EOD Auto-Close + Reflection Lessons)
+    // Step A: Manage existing open paper positions (+1R Breakeven + SL/Target/EOD Auto-Close + Reflection Lessons)
     const lifecycle = autoPilot.manageOpenPaperPositions({
       db,
       latestPrices,
@@ -2740,7 +2792,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       logAutoPilotEvent('AUTO_CLOSED', `Closed ${cl.symbol} ${cl.side} (#${cl.tradeId}) via ${cl.exitReason} @ ₹${cl.exitPrice} | Net P&L: ₹${cl.netPnl}`, cl);
     }
 
-    // Step 2: Evaluate New Auto-Paper Entries (only when session is open or allowForceEntry=true)
+    // Step B: Evaluate New Auto-Paper Entries (prioritizing Top Qualifying NSE Stocks, then Commodities)
     const openedTrades = [];
     const canEnterNow = (sessionInfo.isAnySessionOpen || allowForceEntry) && autoPilotState.enabled && !killSwitchState.active;
 
@@ -2750,31 +2802,37 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         trades: freshTodayTrades,
         dailyLossLimit: accProfile.dailyLossLimit,
         maxConsecutiveLosses: 2,
-        maxDailyTrades: 3
+        maxDailyTrades: autoPilotState.maxDailyTrades || 4
       });
 
       if (!cb.tripped) {
         const openNow = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
         const openSyms = new Set(openNow.map(t => String(t.symbol).toUpperCase()));
         let slotsLeft = Math.max(0, autoPilotState.maxConcurrentOpen - openNow.length);
-        let dailyTradesLeft = Math.max(0, (cb.maxDailyTrades || 3) - (cb.todayTradeCount || 0));
+        let dailyTradesLeft = Math.max(0, (cb.maxDailyTrades || 4) - (cb.todayTradeCount || 0));
 
-        const candidates = evaluations
-          .filter(e => e.qualifiesForAutoExec && e.executionPlan)
-          .sort((a, b) => b.confidence - a.confidence);
+        // Combine qualifying Top Stocks first, followed by qualifying Commodities
+        let candidates = [
+          ...topStocks.filter(s => s.qualifiesForAutoExec && s.executionPlan),
+          ...evaluations.filter(e => e.qualifiesForAutoExec && e.executionPlan).sort((a, b) => b.confidence - a.confidence)
+        ];
+
+        // If user explicitly clicked "Force Paper Test" (allowForceEntry=true) and no strict setup is live right now,
+        // use the #1 ranked Best Stock of the Day (provided Debate did not VETO it) so they can test paper execution immediately
+        if (allowForceEntry && candidates.length === 0 && topStocks.length > 0 && topStocks[0].debateVerdict !== 'VETO') {
+          candidates = [topStocks[0]];
+        }
 
         for (const cand of candidates) {
           if (slotsLeft <= 0 || dailyTradesLeft <= 0) break;
           const p = cand.executionPlan;
-          if (openSyms.has(p.tradingsymbol)) continue;
+          if (!p || openSyms.has(p.tradingsymbol)) continue;
 
-          // Respect session hours by exchange unless allowForceEntry is true
           if (!allowForceEntry) {
             if (p.exchange === 'NSE' && !sessionInfo.isNseHours) continue;
             if (p.exchange === 'MCX' && !sessionInfo.isMcxHours) continue;
           }
 
-          // 30-minute per-symbol entry cooldown
           const lastEntryMs = autoPilotState.symbolLastEntryMs[p.tradingsymbol] || 0;
           if (!allowForceEntry && (Date.now() - lastEntryMs) < autoPilotState.cooldownMinutes * 60 * 1000) {
             continue;
@@ -2810,7 +2868,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
               p.stopLoss,
               p.target1,
               p.target2,
-              `[AUTO-PILOT ${cand.debateVerdict}] ${cand.regime} · ${cand.sessionWindow} · Net R:R 1:${p.netRR}`
+              `[AUTO-PILOT ${cand.assetType || 'STOCK'} ${cand.debateVerdict}] ${cand.regime} · Net R:R 1:${p.netRR}`
             );
           } catch (_) {}
 
@@ -2821,6 +2879,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
 
           const opened = {
             tradeId,
+            assetType: cand.assetType || 'STOCK',
             symbol: p.tradingsymbol,
             exchange: p.exchange,
             side: p.side,
@@ -2828,15 +2887,17 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             entryPrice: p.entryPrice,
             stopLoss: p.stopLoss,
             target: p.target1,
+            marginRequired: p.marginRequired || null,
             plannedLoss: p.plannedLoss,
             netRR: p.netRR,
             confidence: cand.confidence,
+            compositeRankScore: cand.compositeRankScore || cand.confidence,
             debateVerdict: cand.debateVerdict
           };
           openedTrades.push(opened);
           logAutoPilotEvent(
             'AUTO_OPENED',
-            `Opened #${tradeId} ${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR} · Debate: ${cand.debateVerdict})`,
+            `Opened #${tradeId} ${p.exchange}:${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR})`,
             opened
           );
         }
@@ -2849,6 +2910,8 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       session: sessionInfo,
       lifecycle,
       openedTrades,
+      topStocks,
+      stockEvaluations,
       evaluations
     };
   } finally {

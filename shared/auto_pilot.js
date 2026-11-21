@@ -1,21 +1,19 @@
 /**
- * shared/auto_pilot.js — Autonomous Paper-Trading Execution & Position Lifecycle Engine
+ * shared/auto_pilot.js — Autonomous Paper-Trading Execution, Best-Stock Selector & Position Lifecycle Engine
  *
- * Designed for Monday–Friday live MCX (09:15–23:25 IST) & NSE Proxy (09:15–15:20 IST) sessions:
- * 1. Scans all 5 core commodities (Gold, Silver, Crude, NatGas, Copper) every 5m candle.
- * 2. Runs the full institutional pipeline:
- *    - 17-indicator technical + Wilder ADX regime + 1H HTF alignment + 15m Opening Range Guard
- *    - Dual-Feed COMEX/NYMEX parity lag + IST session window quality
- *    - Institutional SMC Order Block / FVG / Liquidity Sweep scanner
- *    - Statutory Fee-to-Target Hurdle Gate (>= 3.5x fees & >= 1.35 Net R:R)
- *    - Tauric Bull vs. Bear Devil's Advocate Debate + SQLite Reflection Memory Veto
- *    - Adaptive Risk Stance (₹125 Balanced -> ₹75 Auto-Step-Down after 1 loss)
- *    - ₹10,000 Smart Margin Router (MCX:GOLDPETAL, NSE:SILVERBEES, NSE:ONGC, MCX:NATGASM, NSE:HINDCOPPER)
- * 3. Automatically opens qualifying paper trades in SQLite `paper_trades` (respecting Kill Switch,
- *    Macro Blackout Shield, ₹300 / 2-loss / 3-trade/day Circuit Breaker, and max 2 concurrent open trades).
- * 4. Manages open paper positions on every tick/scan:
+ * Configured for a ₹15,000 Starting Budget (₹150 max risk/trade, ₹375 daily circuit breaker, 4 max trades/day):
+ * 1. Best NSE Stock Identifier & Daily Auto-Trader (09:15–15:20 IST):
+ *    - Scans all 12 liquid Nifty-50 large-caps in SQLite (RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK,
+ *      BHARTIARTL, SBIN, ITC, LT, KOTAKBANK, AXISBANK, MARUTI).
+ *    - Ranks them by a 4-Pillar Composite Conviction Score (17-Indicator Regime + 1H HTF + SMC Order Blocks/FVGs
+ *      + Geopolitical Sector Impact + Tauric Bull/Bear Debate & Reflection Memory + Net R:R after Zerodha MIS fees).
+ *    - Sizes share quantity under Zerodha MIS (5x intraday leverage, max 45% capital margin = ₹6,750/trade)
+ *      and caps net loss at Stop Loss to ₹150 (or ₹90 auto-recovery after 1 loss).
+ * 2. Commodity Auto-Trader (09:15–23:20 IST):
+ *    - Scans Gold, Silver, Crude, NatGas, Copper and routes to ₹15,000-compatible contracts (GOLDPETAL, NATGASM, etc.).
+ * 3. Autonomous Position Lifecycle Manager (Every 60s):
  *    - +1R Fee-Covered Breakeven Stop Trailing
- *    - Auto-Close on SL / Target / EOD Square-Off
+ *    - Auto-Close on SL / Target / Mandatory 15:20 IST (NSE MIS) & 23:20 IST (MCX) EOD Square-Off
  *    - Auto-inserts Post-Trade Reflection Lessons into `trade_lessons` to train Edge Finder.
  */
 
@@ -27,6 +25,21 @@ const patternEngine = require('./pattern_engine');
 const signalEngine = require('./signal_engine');
 const debateEngine = require('./debate_engine');
 const nseHolidays = require('./nse_holidays');
+
+const AUTO_PILOT_STOCKS = [
+  { id: 'reliance',   symbol: 'RELIANCE',   ticker: 'RELIANCE.NS',   name: 'Reliance Ind',   sector: 'Energy/Telecom', sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'tcs',        symbol: 'TCS',        ticker: 'TCS.NS',        name: 'TCS',            sector: 'IT Services',    sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'infy',       symbol: 'INFY',       ticker: 'INFY.NS',       name: 'Infosys',        sector: 'IT Services',    sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'hdfcbank',   symbol: 'HDFCBANK',   ticker: 'HDFCBANK.NS',   name: 'HDFC Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'icicibank',  symbol: 'ICICIBANK',  ticker: 'ICICIBANK.NS',  name: 'ICICI Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'bhartiartl', symbol: 'BHARTIARTL', ticker: 'BHARTIARTL.NS', name: 'Bharti Airtel',  sector: 'Telecom',        sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'sbin',       symbol: 'SBIN',       ticker: 'SBIN.NS',       name: 'State Bank',     sector: 'PSU Banking',    sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'itc',        symbol: 'ITC',        ticker: 'ITC.NS',        name: 'ITC Ltd',        sector: 'FMCG',           sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'lt',         symbol: 'LT',         ticker: 'LT.NS',         name: 'Larsen & Toubro',sector: 'Infrastructure', sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'kotakbank',  symbol: 'KOTAKBANK',  ticker: 'KOTAKBANK.NS',  name: 'Kotak Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'axisbank',   symbol: 'AXISBANK',   ticker: 'AXISBANK.NS',   name: 'Axis Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
+  { id: 'maruti',     symbol: 'MARUTI',     ticker: 'MARUTI.NS',     name: 'Maruti Suzuki',  sector: 'Auto',           sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 }
+];
 
 const AUTO_PILOT_ASSETS = [
   {
@@ -157,7 +170,6 @@ function getMarketSessionWindow(nowDate = new Date()) {
   const holidayReason = isNseDay ? null : nseHolidays.getHolidayReason(kt.dateStr);
   const mins = kt.hour * 60 + kt.minute;
 
-  // MCX trades 09:00–23:30 IST on weekdays; we start auto-entries at 09:15 (after 15m Opening Range) through 23:15 IST
   const isWeekday = kt.dayOfWeek >= 1 && kt.dayOfWeek <= 5;
   const isMcxHours = isWeekday && mins >= (9 * 60 + 15) && mins <= (23 * 60 + 15);
   const isNseHours = isNseDay && mins >= (9 * 60 + 15) && mins <= (15 * 60 + 15);
@@ -180,8 +192,318 @@ function getMarketSessionWindow(nowDate = new Date()) {
 }
 
 /**
+ * Evaluates an NSE Large-Cap Stock through the 4-Pillar Multi-Factor Pipeline for a ₹15,000 Budget
+ * (MIS 5x intraday leverage, max 45% capital margin per trade = ₹6,750, max ₹150 net risk at SL).
+ */
+function evaluateStockForAutoPilot({
+  stock,
+  rawCandles = [],
+  recentLessons = [],
+  geoIntel = null,
+  accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
+  todayTrades = [],
+  nowDate = new Date()
+}) {
+  if (!stock || !Array.isArray(rawCandles) || rawCandles.length < 25) {
+    return {
+      assetType: 'STOCK',
+      commodityId: stock?.id || 'unknown',
+      symbol: stock?.symbol || 'UNKNOWN',
+      name: stock?.name || 'UNKNOWN',
+      sector: stock?.sector || 'Equity',
+      action: 'WAIT',
+      confidence: 0,
+      compositeRankScore: 0,
+      qualifiesForAutoExec: false,
+      vetoReason: 'Insufficient 5m candle history (<25 bars)'
+    };
+  }
+
+  const opens = rawCandles.map(r => Number(r.open || r.close));
+  const highs = rawCandles.map(r => Number(r.high || r.close));
+  const lows = rawCandles.map(r => Number(r.low || r.close));
+  const closes = rawCandles.map(r => Number(r.close));
+  const vols = rawCandles.map(r => Number(r.volume || 0));
+  const timestamps = rawCandles.map(r => Number(r.time || 0));
+
+  const price = +(closes[closes.length - 1]).toFixed(2);
+  const prevClose = closes[0] || price;
+  const dayChgPct = prevClose > 0 ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0;
+
+  const ema9 = ema(closes, 9);
+  const ema21 = ema(closes, 21);
+  const ema50 = ema(closes, 50);
+  const ema200 = ema(closes, 200);
+  const rsi = calcRSI(closes, 14);
+  const macd = calcMACD(closes);
+  const bb = calcBB(closes, 20, 2);
+  const atr = Math.max(price * 0.003, calcATR(closes, highs, lows, 14));
+  const stoch = calcStoch(closes, highs, lows, 14);
+  const adx = signalEngine.calcADX(closes, highs, lows, 14);
+  const obv = signalEngine.calcOBV(closes, vols);
+  const vwap = signalEngine.calcSessionVWAP(closes, highs, lows, vols, 30);
+
+  const last5 = closes.slice(-5), prev5 = closes.slice(-10, -5);
+  const lA = last5.reduce((a, b) => a + b, 0) / (last5.length || 1);
+  const pA = prev5.reduce((a, b) => a + b, 0) / (prev5.length || 1);
+  const mom = pA ? ((lA - pA) / pA) * 100 : 0;
+  const structTrend = mom > 0.2 ? 'BUY' : mom < -0.2 ? 'SELL' : 'NEUTRAL';
+
+  const sigs = {
+    rsi: rsi < 38 ? 'BUY' : rsi > 64 ? 'SELL' : 'NEUTRAL',
+    macd_hist: macd.hist > 0 ? 'BUY' : 'SELL',
+    bb: price < bb.lower ? 'BUY' : price > bb.upper ? 'SELL' : 'NEUTRAL',
+    ema_cross: ema9 > ema21 && ema21 > ema50 ? 'BUY' : ema9 < ema21 && ema21 < ema50 ? 'SELL' : (ema9 > ema21 ? 'BUY' : 'SELL'),
+    ema9: price > ema9 ? 'BUY' : 'SELL',
+    ema21: price > ema21 ? 'BUY' : 'SELL',
+    ema50: price > ema50 ? 'BUY' : 'SELL',
+    ema200: price > ema200 ? 'BUY' : 'SELL',
+    stoch: stoch.k < 25 ? 'BUY' : stoch.k > 75 ? 'SELL' : 'NEUTRAL',
+    adx: adx.plus > adx.minus ? 'BUY' : 'SELL',
+    cci: price > bb.mid ? 'BUY' : 'SELL',
+    willr: stoch.k < 20 ? 'BUY' : stoch.k > 80 ? 'SELL' : 'NEUTRAL',
+    obv: obv.trend,
+    vwap: price > vwap ? 'BUY' : 'SELL',
+    ich: price > ema21 && ema9 > ema21 ? 'BUY' : price < ema21 && ema9 < ema21 ? 'SELL' : 'NEUTRAL',
+    mfi: rsi < 32 ? 'BUY' : rsi > 68 ? 'SELL' : 'NEUTRAL',
+    struct: structTrend
+  };
+
+  // Geopolitical & Macro Sector Catalyst Score
+  let newsScore = 50;
+  const geoStock = geoIntel?.stockImpacts?.[stock.symbol];
+  if (geoStock && geoStock.impact) {
+    const imp = String(geoStock.impact).toUpperCase();
+    if (imp.includes('BULLISH')) newsScore = 70;
+    else if (imp.includes('BEARISH')) newsScore = 30;
+  }
+
+  const smc = patternEngine.scanPatterns({ opens, closes, highs, lows, volumes: vols });
+  const htfTrend = signalEngine.computeHTFTrend(closes, highs, lows);
+  const openingRangeGuard = signalEngine.checkOpeningRangeGuard(timestamps, closes, highs, lows, atr);
+  const isOverextended = atr > 0 ? Math.abs(price - ema21) > 1.9 * atr : false;
+
+  const preliminarySide = sigs.ema_cross === 'SELL' ? 'SELL' : 'BUY';
+  const prelimLevels = signalEngine.computeStructuralLevels({
+    action: preliminarySide,
+    price,
+    atr,
+    slAtrMult: stock.sl_atr || 1.8,
+    t1AtrMult: stock.t1_atr || 3.2,
+    t2AtrMult: stock.t2_atr || 5.0,
+    smc
+  });
+
+  // Estimate round-trip Zerodha NSE MIS fees for ~₹20,000 notional position (~12-18 ₹)
+  const estNotionalShares = Math.max(1, Math.floor(20000 / Math.max(1, price)));
+  const estRoundTripFee = riskEngine.calculateZerodhaFees({
+    segment: 'equity',
+    buyPrice: preliminarySide === 'BUY' ? prelimLevels.entry : prelimLevels.t1,
+    sellPrice: preliminarySide === 'BUY' ? prelimLevels.t1 : prelimLevels.entry,
+    qty: estNotionalShares,
+    lotMultiplier: 1
+  }).totalFees;
+  const perShareFee = estRoundTripFee / estNotionalShares;
+
+  const gate = signalEngine.evaluateRegimeAndFeeGate({
+    sigs,
+    adxObj: adx,
+    smc,
+    newsScore,
+    volConfirmed: true,
+    entry: prelimLevels.entry,
+    sl: prelimLevels.sl,
+    t1: prelimLevels.t1,
+    lotMultiplier: estNotionalShares,
+    roundTripFee: estRoundTripFee,
+    minGrossTargetMultiple: 3.0,
+    minNetRR: 1.35,
+    threshold: 62,
+    htfTrend,
+    openingRangeGuard,
+    isOverextended,
+    dualFeed: { sessionWindow: 'ASIA_MORNING', paritySignal: 'NEUTRAL', microstructureScore: 55 }
+  });
+
+  const action = gate.action;
+  const confidence = action === 'BUY'
+    ? gate.combined
+    : action === 'SELL'
+      ? (100 - gate.combined)
+      : Math.max(gate.combined, 100 - gate.combined);
+
+  const debate = debateEngine.buildQuantitativeDebate({
+    symbol: stock.symbol,
+    commodityId: stock.id,
+    action,
+    confidence,
+    regime: gate.regime,
+    htfTrend,
+    dualFeed: { sessionWindow: 'ASIA_MORNING', paritySignal: 'NEUTRAL' },
+    smc,
+    geoIntel,
+    recentLessons,
+    netRR: gate.netRR
+  });
+
+  const stance = debateEngine.evaluateAdaptiveRiskStance({
+    trades: todayTrades,
+    baseRisk: accountProfile.maxRiskPerTrade || 150,
+    dailyLossLimit: accountProfile.dailyLossLimit || 375,
+    requestedStance: 'AUTO'
+  });
+
+  const capital = Number(accountProfile.capital) || 15000;
+  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1)));
+
+  const finalSide = action === 'SELL' ? 'SELL' : 'BUY';
+  const finalLevels = signalEngine.computeStructuralLevels({
+    action: finalSide,
+    price,
+    atr,
+    slAtrMult: stock.sl_atr || 1.8,
+    t1AtrMult: stock.t1_atr || 3.2,
+    t2AtrMult: stock.t2_atr || 5.0,
+    smc
+  });
+
+  // Cap share quantity by both:
+  // (A) Net risk budget at SL (₹150 balanced / ₹90 recovery) via riskEngine.sizeTrade
+  // (B) 45% of ₹15,000 capital under 5x MIS leverage (= ₹6,750 max margin = ₹33,750 max notional per stock)
+  const misLeverage = 5;
+  const maxMarginPerTrade = Math.round(capital * 0.45); // ₹6,750 on ₹15,000 capital
+  const maxNotionalPerTrade = maxMarginPerTrade * misLeverage; // ₹33,750 notional
+  const maxSharesByMargin = Math.max(1, Math.floor(maxNotionalPerTrade / Math.max(1, price)));
+
+  const sized = riskEngine.sizeTrade({
+    side: finalSide,
+    entry: finalLevels.entry,
+    sl: finalLevels.sl,
+    target: finalLevels.t1,
+    lotMultiplier: 1,
+    segment: 'equity',
+    maxLossTotal: effectiveBudget,
+    minNetRR: 1.35
+  });
+
+  const rawQty = sized.ok ? Number(sized.qty ?? sized.lots ?? 1) : 0;
+  const finalQty = rawQty > 0 ? Math.min(rawQty, maxSharesByMargin) : 0;
+  const marginRequired = +(finalQty * (price / misLeverage)).toFixed(2);
+
+  // Recalculate exact planned loss & Net R:R for finalQty
+  let plannedLoss = null;
+  let actualStopFees = estRoundTripFee;
+  let finalNetRR = gate.netRR;
+  if (finalQty >= 1) {
+    const slFees = riskEngine.calculateZerodhaFees({
+      segment: 'equity',
+      buyPrice: finalSide === 'BUY' ? finalLevels.entry : finalLevels.sl,
+      sellPrice: finalSide === 'BUY' ? finalLevels.sl : finalLevels.entry,
+      qty: finalQty,
+      lotMultiplier: 1
+    }).totalFees;
+    const t1Fees = riskEngine.calculateZerodhaFees({
+      segment: 'equity',
+      buyPrice: finalSide === 'BUY' ? finalLevels.entry : finalLevels.t1,
+      sellPrice: finalSide === 'BUY' ? finalLevels.t1 : finalLevels.entry,
+      qty: finalQty,
+      lotMultiplier: 1
+    }).totalFees;
+    actualStopFees = slFees;
+    const grossRisk = Math.abs(finalLevels.entry - finalLevels.sl) * finalQty;
+    const grossReward = Math.abs(finalLevels.t1 - finalLevels.entry) * finalQty;
+    plannedLoss = +(grossRisk + slFees).toFixed(2);
+    finalNetRR = +((grossReward - t1Fees) / Math.max(1, grossRisk + slFees)).toFixed(2);
+  }
+
+  let vetoReason = gate.vetoReason || null;
+  let qualifiesForAutoExec = false;
+  if (action === 'WAIT') {
+    vetoReason = vetoReason || 'Conviction below 62% threshold';
+  } else if (debate.verdict === 'VETO') {
+    vetoReason = `Bull/Bear Debate VETO: ${debate.rationale}`;
+  } else if (!sized.ok || finalQty < 1 || finalNetRR < 1.35) {
+    vetoReason = `Risk/Fee Veto: ${sized.reason || 'Net R:R ' + finalNetRR + ' below 1.35 hurdle'}`;
+  } else {
+    qualifiesForAutoExec = true;
+  }
+
+  // 4-Pillar Composite Rank Score (0-100) to rank the Best Stocks of the Day
+  const smcScore = (smc && typeof smc.confluenceScore === 'number') ? smc.confluenceScore : 50;
+  const smcDirectional = finalSide === 'BUY' ? smcScore : (100 - smcScore);
+  const debateEdge = clamp(50 + ((debate.bullScore || 50) - (debate.bearScore || 50)) * (finalSide === 'BUY' ? 0.5 : -0.5), 10, 95);
+  const rrBonus = clamp(finalNetRR * 35, 0, 100);
+  const compositeRankScore = Math.round(
+    confidence * 0.50 +
+    smcDirectional * 0.20 +
+    debateEdge * 0.20 +
+    rrBonus * 0.10
+  );
+
+  return {
+    assetType: 'STOCK',
+    commodityId: stock.id,
+    symbol: stock.symbol,
+    name: stock.name,
+    sector: stock.sector,
+    price,
+    dayChgPct,
+    action,
+    confidence,
+    compositeRankScore,
+    regime: gate.regime,
+    sessionWindow: 'NSE_INTRADAY',
+    paritySignal: geoStock?.impact || 'NEUTRAL',
+    htfBias: htfTrend.bias,
+    smcState: smc?.structure?.state || 'RANGING',
+    debateVerdict: debate.verdict,
+    debateRationale: debate.rationale,
+    riskStance: stance.stance,
+    effectiveBudget,
+    qualifiesForAutoExec,
+    vetoReason,
+    executionPlan: {
+      tradingsymbol: stock.symbol,
+      exchange: 'NSE',
+      segment: 'equity',
+      product: 'MIS',
+      side: action === 'WAIT' ? finalSide : action,
+      qty: Math.max(1, finalQty),
+      lotMultiplier: 1,
+      entryPrice: finalLevels.entry,
+      currentHigh: highs[highs.length - 1],
+      currentLow: lows[lows.length - 1],
+      stopLoss: finalLevels.sl,
+      target1: finalLevels.t1,
+      target2: finalLevels.t2,
+      marginRequired: finalQty >= 1 ? marginRequired : +(price / misLeverage).toFixed(2),
+      plannedLoss,
+      stopFees: +(actualStopFees || perShareFee).toFixed(2),
+      netRR: finalNetRR
+    }
+  };
+}
+
+/**
+ * Ranks all evaluated NSE stocks and returns the Top Best Stocks of the Day for ₹15,000 capital.
+ */
+function rankBestStocksOfDay(stockEvaluations = [], topN = 5) {
+  const sorted = [...stockEvaluations].sort((a, b) => {
+    if (a.qualifiesForAutoExec && !b.qualifiesForAutoExec) return -1;
+    if (!a.qualifiesForAutoExec && b.qualifiesForAutoExec) return 1;
+    if (a.action !== 'WAIT' && b.action === 'WAIT') return -1;
+    if (a.action === 'WAIT' && b.action !== 'WAIT') return 1;
+    return (b.compositeRankScore || 0) - (a.compositeRankScore || 0) || (b.confidence || 0) - (a.confidence || 0);
+  });
+  return sorted.slice(0, topN).map((s, idx) => ({
+    rank: idx + 1,
+    ...s
+  }));
+}
+
+/**
  * Evaluates a single commodity's 5m candle series through the full institutional pipeline
- * and returns the signal, Bull/Bear debate verdict, and ₹10K-compliant execution plan.
+ * and returns the signal, Bull/Bear debate verdict, and ₹15K-compliant execution plan.
  */
 function evaluateCommodityForAutoPilot({
   asset,
@@ -190,12 +512,13 @@ function evaluateCommodityForAutoPilot({
   newsScore = 50,
   recentLessons = [],
   geoIntel = null,
-  accountProfile = { capital: 10000, maxRiskPerTrade: 125, dailyLossLimit: 300 },
+  accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
   todayTrades = [],
   nowDate = new Date()
 }) {
   if (!asset || !Array.isArray(rawCandles) || rawCandles.length < 25) {
     return {
+      assetType: 'COMMODITY',
       commodityId: asset?.id || 'unknown',
       name: asset?.name || 'UNKNOWN',
       action: 'WAIT',
@@ -269,12 +592,12 @@ function evaluateCommodityForAutoPilot({
     timestamps
   });
 
-  // Determine ₹10,000 Smart Margin Route & Contract Spec
+  // Determine Smart Margin Route & Contract Spec for user capital (default ₹15,000)
   const route = riskEngine.getTenKExecutionRoute({
     commodityId: asset.id,
-    capital: accountProfile.capital || 10000,
+    capital: accountProfile.capital || 15000,
     price,
-    riskBudget: accountProfile.maxRiskPerTrade || 125
+    riskBudget: accountProfile.maxRiskPerTrade || 150
   });
   const primaryRoute = (route && (route.tenKRoute || route.recommended)) || { symbol: asset.dbSym, exchange: 'MCX', multiplier: 1, segment: 'commodity', product: 'NRML' };
   const resolvedContract = primaryRoute.exchange === 'MCX'
@@ -301,7 +624,7 @@ function evaluateCommodityForAutoPilot({
     segment: primaryRoute.segment || 'commodity'
   }).total;
 
-  // Note: For ₹10K routed micro/proxy contracts (GOLDPETAL 1g, SILVERBEES, ONGC, HINDCOPPER), scale levels proportionally
+  // Note: For routed micro/proxy contracts (GOLDPETAL 1g, SILVERBEES, ONGC, HINDCOPPER), scale levels proportionally
   let scaleFactor = 1.0;
   if (primaryRoute.symbol === 'GOLDPETAL' && price > 50000) {
     scaleFactor = 0.1; // 1g vs 10g
@@ -354,11 +677,11 @@ function evaluateCommodityForAutoPilot({
     netRR: gate.netRR
   });
 
-  // Evaluate Adaptive Risk Stance (₹125 Balanced -> ₹75 Recovery on 1 loss)
+  // Evaluate Adaptive Risk Stance (₹150 Balanced -> ₹90 Recovery on 1 loss)
   const stance = debateEngine.evaluateAdaptiveRiskStance({
     trades: todayTrades,
-    baseRisk: accountProfile.maxRiskPerTrade || 125,
-    dailyLossLimit: accountProfile.dailyLossLimit || 300,
+    baseRisk: accountProfile.maxRiskPerTrade || 150,
+    dailyLossLimit: accountProfile.dailyLossLimit || 375,
     requestedStance: 'AUTO'
   });
 
@@ -396,7 +719,6 @@ function evaluateCommodityForAutoPilot({
 
   let vetoReason = gate.vetoReason || null;
   let qualifiesForAutoExec = false;
-
   const sizedQty = Number(sized.qty ?? sized.lots ?? 0);
 
   if (action === 'WAIT') {
@@ -412,6 +734,7 @@ function evaluateCommodityForAutoPilot({
   }
 
   return {
+    assetType: 'COMMODITY',
     commodityId: asset.id,
     name: asset.name,
     action,
@@ -607,8 +930,11 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
 }
 
 module.exports = {
+  AUTO_PILOT_STOCKS,
   AUTO_PILOT_ASSETS,
   getMarketSessionWindow,
+  evaluateStockForAutoPilot,
+  rankBestStocksOfDay,
   evaluateCommodityForAutoPilot,
   manageOpenPaperPositions
 };

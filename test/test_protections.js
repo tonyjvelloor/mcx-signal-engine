@@ -394,6 +394,23 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.ok(goldEval.executionPlan && goldEval.executionPlan.tradingsymbol.startsWith('GOLDPETAL'), '₹10K Auto-Pilot must route Gold to GOLDPETAL');
   assert.ok(goldEval.executionPlan.entryPrice > 5000 && goldEval.executionPlan.entryPrice < 20000, 'GOLDPETAL price must be scaled to 1g (~₹8k-₹12k)');
 
+  // Verify ₹15,000 Budget Best-Stock Evaluation & Ranking (AUTO_PILOT_STOCKS)
+  const relStock = autoPilot.AUTO_PILOT_STOCKS.find(s => s.symbol === 'RELIANCE');
+  const stockEval = autoPilot.evaluateStockForAutoPilot({
+    stock: relStock,
+    rawCandles: trendBars,
+    accountProfile: { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
+    todayTrades: [],
+    nowDate: monMorning
+  });
+  assert.strictEqual(stockEval.assetType, 'STOCK');
+  assert.strictEqual(stockEval.executionPlan.tradingsymbol, 'RELIANCE');
+  assert.strictEqual(stockEval.executionPlan.product, 'MIS');
+  assert.ok(stockEval.executionPlan.marginRequired <= 6750, '5x MIS margin per stock must not exceed 45% of ₹15,000 budget (₹6,750)');
+  const ranked = autoPilot.rankBestStocksOfDay([stockEval], 3);
+  assert.strictEqual(ranked[0].rank, 1);
+  assert.strictEqual(ranked[0].symbol, 'RELIANCE');
+
   // Verify SQLite lifecycle manager (+1R breakeven trail + AUTO_TARGET close + trade_lessons insertion)
   const { DatabaseSync } = require('node:sqlite');
   const memDb = new DatabaseSync(':memory:');
