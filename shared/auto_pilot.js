@@ -25,6 +25,7 @@ const patternEngine = require('./pattern_engine');
 const signalEngine = require('./signal_engine');
 const debateEngine = require('./debate_engine');
 const nseHolidays = require('./nse_holidays');
+const nseMcpClient = require('./nse_mcp_client');
 
 const AUTO_PILOT_STOCKS = [
   { id: 'reliance',   symbol: 'RELIANCE',   ticker: 'RELIANCE.NS',   name: 'Reliance Ind',   sector: 'Energy/Telecom', sl_atr: 1.8, t1_atr: 3.2, t2_atr: 5.0 },
@@ -198,6 +199,8 @@ function getMarketSessionWindow(nowDate = new Date()) {
 function evaluateStockForAutoPilot({
   stock,
   rawCandles = [],
+  nseMcpQuote = null,
+  nseMcpOverview = null,
   recentLessons = [],
   geoIntel = null,
   accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
@@ -226,9 +229,19 @@ function evaluateStockForAutoPilot({
   const vols = rawCandles.map(r => Number(r.volume || 0));
   const timestamps = rawCandles.map(r => Number(r.time || 0));
 
+  // If official live NSE MCP quote is available, sync the latest bar to real-time NSE LTP
+  if (nseMcpQuote && Number.isFinite(nseMcpQuote.ltp) && nseMcpQuote.ltp > 0) {
+    const lastIdx = closes.length - 1;
+    closes[lastIdx] = nseMcpQuote.ltp;
+    highs[lastIdx] = Math.max(highs[lastIdx], nseMcpQuote.ltp);
+    lows[lastIdx] = Math.min(lows[lastIdx], nseMcpQuote.ltp);
+  }
+
   const price = +(closes[closes.length - 1]).toFixed(2);
-  const prevClose = closes[0] || price;
-  const dayChgPct = prevClose > 0 ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0;
+  const prevClose = (nseMcpQuote && nseMcpQuote.prevClose > 0) ? nseMcpQuote.prevClose : (closes[0] || price);
+  const dayChgPct = (nseMcpQuote && Number.isFinite(nseMcpQuote.perChange))
+    ? Number(nseMcpQuote.perChange)
+    : (prevClose > 0 ? +(((price - prevClose) / prevClose) * 100).toFixed(2) : 0);
 
   const ema9 = ema(closes, 9);
   const ema21 = ema(closes, 21);
@@ -269,14 +282,25 @@ function evaluateStockForAutoPilot({
     struct: structTrend
   };
 
-  // Geopolitical & Macro Sector Catalyst Score
+  // Geopolitical & Official NSE MCP Exchange Flow Catalyst Score (5th Pillar)
   let newsScore = 50;
   const geoStock = geoIntel?.stockImpacts?.[stock.symbol];
   if (geoStock && geoStock.impact) {
     const imp = String(geoStock.impact).toUpperCase();
-    if (imp.includes('BULLISH')) newsScore = 70;
-    else if (imp.includes('BEARISH')) newsScore = 30;
+    if (imp.includes('BULLISH')) newsScore = 68;
+    else if (imp.includes('BEARISH')) newsScore = 32;
   }
+
+  const nseEdge = nseMcpClient.computeNseMcpStockEdge({
+    symbol: stock.symbol,
+    sector: stock.sector,
+    liveQuote: nseMcpQuote,
+    marketOverview: nseMcpOverview
+  });
+  if (nseEdge.available) {
+    newsScore = clamp(Math.round(newsScore + nseEdge.scoreDelta), 12, 88);
+  }
+  const nseMicroScore = nseEdge.available ? clamp(Math.round(50 + nseEdge.scoreDelta * 1.4), 10, 90) : 55;
 
   const smc = patternEngine.scanPatterns({ opens, closes, highs, lows, volumes: vols });
   const htfTrend = signalEngine.computeHTFTrend(closes, highs, lows);
@@ -322,7 +346,11 @@ function evaluateStockForAutoPilot({
     htfTrend,
     openingRangeGuard,
     isOverextended,
-    dualFeed: { sessionWindow: 'ASIA_MORNING', paritySignal: 'NEUTRAL', microstructureScore: 55 }
+    dualFeed: {
+      sessionWindow: 'NSE_INTRADAY',
+      paritySignal: nseEdge.bias !== 'NEUTRAL' ? nseEdge.bias : 'NEUTRAL',
+      microstructureScore: nseMicroScore
+    }
   });
 
   const action = gate.action;
@@ -420,6 +448,10 @@ function evaluateStockForAutoPilot({
   let qualifiesForAutoExec = false;
   if (action === 'WAIT') {
     vetoReason = vetoReason || 'Conviction below 62% threshold';
+  } else if (nseEdge.available && action === 'BUY' && (nseEdge.isTopLoser || nseEdge.stockPct <= -1.5)) {
+    vetoReason = `NSE MCP Flow Veto: Stock is down ${nseEdge.stockPct}% on official NSE tape`;
+  } else if (nseEdge.available && action === 'SELL' && (nseEdge.isTopGainer || nseEdge.stockPct >= 1.5)) {
+    vetoReason = `NSE MCP Flow Veto: Stock is up +${nseEdge.stockPct}% on official NSE tape`;
   } else if (debate.verdict === 'VETO') {
     vetoReason = `Bull/Bear Debate VETO: ${debate.rationale}`;
   } else if (!sized.ok || finalQty < 1 || finalNetRR < 1.35) {
@@ -428,15 +460,19 @@ function evaluateStockForAutoPilot({
     qualifiesForAutoExec = true;
   }
 
-  // 4-Pillar Composite Rank Score (0-100) to rank the Best Stocks of the Day
+  // 5-Pillar Composite Rank Score (0-100) including Official NSE MCP Flow & Relative Strength
   const smcScore = (smc && typeof smc.confluenceScore === 'number') ? smc.confluenceScore : 50;
   const smcDirectional = finalSide === 'BUY' ? smcScore : (100 - smcScore);
   const debateEdge = clamp(50 + ((debate.bullScore || 50) - (debate.bearScore || 50)) * (finalSide === 'BUY' ? 0.5 : -0.5), 10, 95);
+  const nseFlowDirectional = nseEdge.available
+    ? clamp(50 + (finalSide === 'BUY' ? nseEdge.scoreDelta * 2 : -nseEdge.scoreDelta * 2), 10, 98)
+    : 50;
   const rrBonus = clamp(finalNetRR * 35, 0, 100);
   const compositeRankScore = Math.round(
-    confidence * 0.50 +
-    smcDirectional * 0.20 +
-    debateEdge * 0.20 +
+    confidence * 0.42 +
+    smcDirectional * 0.16 +
+    debateEdge * 0.16 +
+    nseFlowDirectional * 0.16 +
     rrBonus * 0.10
   );
 
@@ -453,7 +489,8 @@ function evaluateStockForAutoPilot({
     compositeRankScore,
     regime: gate.regime,
     sessionWindow: 'NSE_INTRADAY',
-    paritySignal: geoStock?.impact || 'NEUTRAL',
+    paritySignal: nseEdge.available ? nseEdge.bias : (geoStock?.impact || 'NEUTRAL'),
+    nseMcp: nseEdge,
     htfBias: htfTrend.bias,
     smcState: smc?.structure?.state || 'RANGING',
     debateVerdict: debate.verdict,

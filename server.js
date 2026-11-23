@@ -27,6 +27,7 @@ const patternEngine = require('./shared/pattern_engine');
 const debateEngine = require('./shared/debate_engine');
 const nseHolidays = require('./shared/nse_holidays');
 const autoPilot = require('./shared/auto_pilot');
+const nseMcpClient = require('./shared/nse_mcp_client');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -95,6 +96,7 @@ let autoPilotState = {
   topStocks: [],
   stockEvaluations: [],
   lastEvaluations: [],
+  nseMcpOverview: null,
   activityLog: [],
   symbolLastEntryMs: {}
 };
@@ -2143,7 +2145,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 7d7. Autonomous Paper-Trading Pilot API (Monday–Friday Best-Stock & Commodity Auto-Trader)
+    // 7d7. Autonomous Paper-Trading Pilot API (Monday–Friday Best-Stock & Commodity Auto-Trader + NSE MCP Live MTM)
     if (pathname === '/api/auto-pilot') {
       if (req.method === 'GET') {
         const sessionInfo = autoPilot.getMarketSessionWindow();
@@ -2154,6 +2156,26 @@ const server = http.createServer(async (req, res) => {
             openAutoTrades = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN' ORDER BY id DESC`).all();
           } catch (_) {}
         }
+        // Enrich open paper trades with official NSE MCP live LTP & unrealized MTM P&L
+        const openSyms = openAutoTrades.map(t => String(t.symbol || '').toUpperCase());
+        const liveQuotes = openSyms.length > 0 ? await nseMcpClient.getBatchStockQuotes(openSyms).catch(() => ({})) : {};
+        let totalUnrealizedPnl = 0;
+        const enrichedOpenTrades = openAutoTrades.map(t => {
+          const q = liveQuotes[String(t.symbol || '').toUpperCase()];
+          const ltp = q?.ltp || Number(t.entry_price);
+          const grossMtm = (t.side === 'BUY' ? (ltp - Number(t.entry_price)) : (Number(t.entry_price) - ltp)) * Number(t.qty || 1);
+          const fees = Number(t.brokerage || 0) + Number(t.stt_gst || 0);
+          const netMtm = Math.round((grossMtm - fees) * 100) / 100;
+          totalUnrealizedPnl += netMtm;
+          return {
+            ...t,
+            liveLtp: ltp,
+            livePerChange: q?.perChange ?? null,
+            grossMtm: Math.round(grossMtm * 100) / 100,
+            netMtm
+          };
+        });
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           ok: true,
@@ -2164,8 +2186,10 @@ const server = http.createServer(async (req, res) => {
           maxDailyTrades: autoPilotState.maxDailyTrades,
           lastScanAt: autoPilotState.lastScanAt,
           session: sessionInfo,
-          openTradesCount: openAutoTrades.length,
-          openTrades: openAutoTrades,
+          openTradesCount: enrichedOpenTrades.length,
+          totalUnrealizedPnl: Math.round(totalUnrealizedPnl * 100) / 100,
+          openTrades: enrichedOpenTrades,
+          nseMcpOverview: autoPilotState.nseMcpOverview,
           topStocks: autoPilotState.topStocks,
           stockEvaluations: autoPilotState.stockEvaluations,
           evaluations: autoPilotState.lastEvaluations,
@@ -2183,7 +2207,7 @@ const server = http.createServer(async (req, res) => {
               logAutoPilotEvent(
                 d.enabled ? 'ARMED' : 'PAUSED',
                 d.enabled
-                  ? 'Auto-Paper Pilot ARMED (₹15,000 budget · Top NSE Stocks + MCX Commodities · Mon–Fri 09:15 IST).'
+                  ? 'Auto-Paper Pilot ARMED (₹15,000 budget · Official NSE MCP Live + MCX · Mon–Fri 09:15 IST).'
                   : 'Auto-Paper Pilot paused by user.'
               );
             }
@@ -2201,6 +2225,7 @@ const server = http.createServer(async (req, res) => {
               account: getAccountProfile(),
               lastScanAt: autoPilotState.lastScanAt,
               session: autoPilot.getMarketSessionWindow(),
+              nseMcpOverview: autoPilotState.nseMcpOverview,
               topStocks: autoPilotState.topStocks,
               stockEvaluations: autoPilotState.stockEvaluations,
               evaluations: autoPilotState.lastEvaluations,
@@ -2213,6 +2238,23 @@ const server = http.createServer(async (req, res) => {
           }
         });
         return;
+      }
+    }
+
+    // 7d8. Direct Official NSE MCP Intelligence Endpoint (/api/nse-mcp/live)
+    if (pathname === '/api/nse-mcp/live' && req.method === 'GET') {
+      try {
+        const force = query.force === '1' || query.force === 'true';
+        const symbol = query.symbol ? String(query.symbol).toUpperCase().trim() : null;
+        const [overview, quote] = await Promise.all([
+          nseMcpClient.getLiveMarketOverview(force),
+          symbol ? nseMcpClient.getLiveStockQuote(symbol) : Promise.resolve(null)
+        ]);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, overview, quote }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
       }
     }
 
@@ -2703,13 +2745,20 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     const recentLessons = db
       ? db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 40`).all()
       : [];
-    const geoIntel = await geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null);
+    const [geoIntel, nseMcpOverview, nseMcpQuotes] = await Promise.all([
+      geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null),
+      nseMcpClient.getLiveMarketOverview(false).catch(() => null),
+      nseMcpClient.getBatchStockQuotes(autoPilot.AUTO_PILOT_STOCKS.map(s => s.symbol)).catch(() => ({}))
+    ]);
+    if (nseMcpOverview) {
+      autoPilotState.nseMcpOverview = nseMcpOverview;
+    }
 
     const stockEvaluations = [];
     const evaluations = [];
     const latestPrices = {};
 
-    // 1. Scan & Rank All 12 Nifty-50 Large-Cap NSE Stocks for the ₹15,000 Budget
+    // 1. Scan & Rank All 12 Nifty-50 Large-Cap NSE Stocks for the ₹15,000 Budget (powered by Official NSE MCP Live Feed)
     for (const stock of autoPilot.AUTO_PILOT_STOCKS) {
       const rawCandles = await loadCandlesForAutoPilotSymbol({
         ticker: stock.ticker,
@@ -2717,9 +2766,12 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         fetchLive: sessionInfo.isNseHours
       });
       const stockLessons = recentLessons.filter(l => String(l.symbol || '').includes(stock.symbol));
+      const mcpQuote = nseMcpQuotes[stock.symbol] || null;
       const sev = autoPilot.evaluateStockForAutoPilot({
         stock,
         rawCandles,
+        nseMcpQuote: mcpQuote,
+        nseMcpOverview,
         recentLessons: stockLessons,
         geoIntel,
         accountProfile: accProfile,
@@ -2727,10 +2779,11 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       });
       stockEvaluations.push(sev);
       if (sev.executionPlan && sev.executionPlan.entryPrice > 0) {
+        const livePx = mcpQuote?.ltp || sev.executionPlan.entryPrice;
         latestPrices[stock.symbol] = {
-          price: sev.executionPlan.entryPrice,
-          high: sev.executionPlan.currentHigh || sev.executionPlan.entryPrice,
-          low: sev.executionPlan.currentLow || sev.executionPlan.entryPrice,
+          price: livePx,
+          high: livePx,
+          low: livePx,
           regime: sev.regime,
           sessionWindow: sev.sessionWindow,
           paritySignal: sev.paritySignal

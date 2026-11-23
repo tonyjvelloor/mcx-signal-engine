@@ -411,6 +411,24 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.strictEqual(ranked[0].rank, 1);
   assert.strictEqual(ranked[0].symbol, 'RELIANCE');
 
+  // Verify Official NSE MCP Client Bridge (shared/nse_mcp_client.js)
+  const nseMcpClient = require('../shared/nse_mcp_client');
+  const nseEdge = nseMcpClient.computeNseMcpStockEdge({
+    symbol: 'ICICIBANK',
+    sector: 'Banking',
+    liveQuote: { ltp: 1610.7, perChange: -1.7, turnoverCr: 921.8 },
+    marketOverview: {
+      nifty50: { last: 25552, percChange: -0.96 },
+      sectorMap: { 'NIFTY BANK': { last: 63347, percChange: -1.99 } },
+      topGainers: [{ symbol: 'TCS', perChange: 4.35 }],
+      topLosers: [{ symbol: 'ICICIBANK', perChange: -1.7 }],
+      breadth: { advPct: 37.2, reading: 'broad decline' }
+    }
+  });
+  assert.strictEqual(nseEdge.available, true);
+  assert.strictEqual(nseEdge.bias, 'BEARISH_NSE_FLOW');
+  assert.ok(nseEdge.scoreDelta <= -15, 'Weak NIFTY BANK + Top Loser + negative RS must produce strong bearish NSE MCP scoreDelta');
+
   // Verify SQLite lifecycle manager (+1R breakeven trail + AUTO_TARGET close + trade_lessons insertion)
   const { DatabaseSync } = require('node:sqlite');
   const memDb = new DatabaseSync(':memory:');
