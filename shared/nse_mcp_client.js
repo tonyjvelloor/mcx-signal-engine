@@ -517,6 +517,93 @@ async function getSwingDailyProfile(symbol, liveLtp = 0) {
   }
 }
 
+/**
+ * Fetches multi-year official NSE Bhavcopy daily OHLCV history by chaining 3-month chunks
+ * via `get_stock_history` (`next_end_date`) and automatically back-adjusts corporate-action
+ * split/bonus price discontinuities (>22% single-day drop with split/bonus ratio) so
+ * multi-year backtests have zero false split crashes.
+ */
+async function getMultiYearDailyHistory(symbol, chunks = 10) {
+  const sym = String(symbol || '').toUpperCase().replace('.NS', '').trim();
+  if (!sym) return { symbol: sym, bars: [], adjustments: [] };
+
+  const byDate = new Map();
+  let endDate = 'today';
+
+  for (let i = 0; i < chunks; i++) {
+    try {
+      const res = await callNseMcpTool('bhavcopy', 'get_stock_history', {
+        symbol: sym,
+        months: 3,
+        endDate
+      }, 6000);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      if (rows.length === 0) break;
+      for (const r of rows) {
+        if (!r || !r.date || !(Number(r.close) > 0)) continue;
+        byDate.set(r.date, {
+          symbol: sym,
+          date: r.date,
+          open: Number(r.open || r.close),
+          high: Number(r.high || r.close),
+          low: Number(r.low || r.close),
+          close: Number(r.close),
+          prevClose: Number(r.prevClose || 0),
+          volume: Number(r.volume || 0),
+          turnover: Number(r.totalTradedValue || 0)
+        });
+      }
+      if (!res.next_end_date || res.next_end_date === endDate) break;
+      endDate = res.next_end_date;
+    } catch (_) {
+      break;
+    }
+  }
+
+  const bars = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const adjustments = [];
+
+  // Auto back-adjust raw unadjusted Bhavcopy splits/bonuses (e.g. 1:1 bonus = -50%, 1:2 split = -50%, 1:5 split = -80%)
+  // Walk backwards so multiple corporate actions compound accurately onto earlier bars.
+  for (let i = bars.length - 1; i >= 1; i--) {
+    const cur = bars[i];
+    const prev = bars[i - 1];
+    if (prev.close > 0 && cur.open > 0) {
+      const dropRatio = cur.open / prev.close;
+      // Only treat as split/bonus if overnight drop exceeds 24% AND matches a clean split/bonus adjustment
+      // (NSE Bhavcopy also resets prevClose on ex-date to the adjusted close, so cur.prevClose << prev.close!)
+      const bhavAdjustedPrev = cur.prevClose > 0 && (cur.prevClose / prev.close) < 0.78;
+      if (bhavAdjustedPrev || dropRatio < 0.65) {
+        const factor = bhavAdjustedPrev ? (cur.prevClose / prev.close) : dropRatio;
+        if (factor > 0.05 && factor < 0.85) {
+          adjustments.push({
+            date: cur.date,
+            factor: +factor.toFixed(4),
+            prevCloseBefore: prev.close,
+            openAfter: cur.open
+          });
+          for (let j = 0; j < i; j++) {
+            bars[j].open = +(bars[j].open * factor).toFixed(2);
+            bars[j].high = +(bars[j].high * factor).toFixed(2);
+            bars[j].low = +(bars[j].low * factor).toFixed(2);
+            bars[j].close = +(bars[j].close * factor).toFixed(2);
+            bars[j].volume = Math.round(bars[j].volume / factor);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    symbol: sym,
+    tradingDays: bars.length,
+    fromDate: bars[0]?.date || null,
+    toDate: bars[bars.length - 1]?.date || null,
+    adjustments,
+    bars
+  };
+}
+
 module.exports = {
   NSE_MCP_ENDPOINTS,
   callNseMcpTool,
@@ -525,5 +612,6 @@ module.exports = {
   getLiveMarketOverview,
   computeNseMcpStockEdge,
   getCorporateActionShield,
-  getSwingDailyProfile
+  getSwingDailyProfile,
+  getMultiYearDailyHistory
 };

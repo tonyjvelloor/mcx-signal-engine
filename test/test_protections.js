@@ -535,5 +535,36 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     sessionInfo: autoPilot.getMarketSessionWindow(eodMon)
   });
   assert.strictEqual(eodRes.closed.length, 0, 'CNC_SWING delivery trade must NOT be auto-squared-off at 15:20 IST');
-  console.log('✓ Test 16 Passed: 4-Layer Profitability Upgrade (Dual-Archetype, Midday Chop Shield, 2-Bucket CNC Swing, Corporate Action Shield) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 16 Passed: 4-Layer Profitability Upgrade (Dual-Archetype, Midday Chop Shield, 2-Bucket CNC Swing, Corporate Action Shield) verified.');
+
+  // ── Test 17: Multi-Year Official NSE Bhavcopy CNC Swing Backtester & Multi-Year Gate ──
+  const swingBt = require('../shared/swing_backtest');
+  const synthDaily = [];
+  let px = 500;
+  for (let d = 0; d < 260; d++) {
+    // Periodic pullback to 20-DMA every ~25 days inside a steady uptrend
+    const wave = (d % 25 >= 18 && d % 25 <= 20) ? -8 : 1.8;
+    const open = px;
+    const close = +(Math.max(100, px + wave)).toFixed(2);
+    const high = +(Math.max(open, close) + 4).toFixed(2);
+    const low = +(Math.min(open, close) - 4).toFixed(2);
+    const dt = new Date(Date.UTC(2025, 0, 1 + d)).toISOString().slice(0, 10);
+    synthDaily.push({ date: dt, open, high, low, close, volume: 1000000 + (d % 5) * 200000 });
+    px = close;
+  }
+  const btRes = swingBt.backtestStockMultiYear('SYNTH_NSE', synthDaily);
+  assert.strictEqual(btRes.symbol, 'SYNTH_NSE');
+  assert.ok(btRes.trades >= 1, 'Multi-year daily backtester must detect swing setups on uptrend pullbacks');
+  assert.ok(['SWING_PULLBACK', 'SWING_BREAKOUT'].includes(btRes.bestArchetype));
+
+  // Verify failing multiYearSwingEdge blocks CNC_SWING bucket routing even if current 20/50 DMA is bullish
+  const failedMyEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock,
+    rawCandles: sbinBars,
+    swingProfile: { corporateActionBlocked: false, qualifiesForCncSwing: true, swingScore: 85 },
+    multiYearSwingEdge: { provenEdge: false, profitFactor: 0.45, winRate: 33, trades: 15 },
+    nowDate: morningMon
+  });
+  assert.strictEqual(failedMyEv.executionPlan.bucket, 'MIS_INTRADAY', 'Stock failing 2.5Y CNC backtest must NOT route to CNC_SWING bucket');
+  console.log('✓ Test 17 Passed: Multi-Year Official NSE Bhavcopy CNC Swing Backtester & Champion Gate verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

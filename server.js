@@ -28,6 +28,7 @@ const debateEngine = require('./shared/debate_engine');
 const nseHolidays = require('./shared/nse_holidays');
 const autoPilot = require('./shared/auto_pilot');
 const nseMcpClient = require('./shared/nse_mcp_client');
+const swingBacktest = require('./shared/swing_backtest');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1061,6 +1062,34 @@ const server = http.createServer(async (req, res) => {
       };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(fallback));
+    }
+
+    // 1d2b. Multi-Year Official NSE Bhavcopy CNC Swing Backtest (₹0 Brokerage)
+    if (pathname === '/api/swing-backtest' && req.method === 'GET') {
+      try {
+        let data = swingBacktest.loadCachedSwingBacktest();
+        if (!data && db) {
+          data = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(data || { ok: false, stocks: [] }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    if (pathname === '/api/swing-backtest/run' && req.method === 'POST') {
+      try {
+        const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
+        await archiveDailyNseHistory({ db, chunks: 10 });
+        const data = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, ...data }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
     }
 
     // 1d3. Trigger Daily Historical Archiver On-Demand
@@ -2199,6 +2228,18 @@ const server = http.createServer(async (req, res) => {
           totalUnrealizedPnl: Math.round(totalUnrealizedPnl * 100) / 100,
           openTrades: enrichedOpenTrades,
           nseMcpOverview: autoPilotState.nseMcpOverview,
+          swingBacktestSummary: (() => {
+            const sb = swingBacktest.loadCachedSwingBacktest();
+            if (!sb) return null;
+            return {
+              updatedAt: sb.updatedAt,
+              totalStocksTested: sb.totalStocksTested,
+              provenChampionsCount: sb.provenChampionsCount,
+              provenChampions: sb.provenChampions,
+              avgChampionWinRate: sb.avgChampionWinRate,
+              avgChampionPF: sb.avgChampionPF
+            };
+          })(),
           topStocks: autoPilotState.topStocks,
           stockEvaluations: autoPilotState.stockEvaluations,
           evaluations: autoPilotState.lastEvaluations,
@@ -2801,12 +2842,14 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           );
         } catch (_) {}
       }
+      const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
       const sev = autoPilot.evaluateStockForAutoPilot({
         stock,
         rawCandles,
         nseMcpQuote: mcpQuote,
         nseMcpOverview,
         swingProfile: swingProfiles[stock.symbol] || null,
+        multiYearSwingEdge: cachedSwingBt?.bySymbol?.[stock.symbol] || null,
         recentLessons: stockLessons,
         geoIntel,
         accountProfile: accProfile,

@@ -338,6 +338,7 @@ function evaluateStockForAutoPilot({
   nseMcpQuote = null,
   nseMcpOverview = null,
   swingProfile = null,
+  multiYearSwingEdge = null,
   recentLessons = [],
   geoIntel = null,
   accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
@@ -607,8 +608,9 @@ function evaluateStockForAutoPilot({
   // - Bucket 1 (₹10,000 CNC Swing — ₹0 brokerage): Up to ₹5,000 per multi-day BUY position when above 20/50 DMA & near 52W high
   // - Bucket 2 (₹5,000 MIS Intraday — 5x = ₹25,000 buying power): Max ₹2,500 margin per intraday sniper trade
   const sessionInfo = getMarketSessionWindow(nowDate);
+  const multiYearPasses = !multiYearSwingEdge || multiYearSwingEdge.provenEdge === true;
   const isCncSwingEligible = Boolean(
-    swingProfile && swingProfile.qualifiesForCncSwing && finalSide === 'BUY' && price <= 5000
+    swingProfile && swingProfile.qualifiesForCncSwing && multiYearPasses && finalSide === 'BUY' && price <= 5000
   );
   const assignedBucket = isCncSwingEligible ? 'CNC_SWING' : 'MIS_INTRADAY';
   const assignedProduct = isCncSwingEligible ? 'CNC' : 'MIS';
@@ -661,14 +663,16 @@ function evaluateStockForAutoPilot({
     : 50;
   const histScore = clamp(Math.round(histEdge.winRate * 0.65 + Math.min(3.0, histEdge.profitFactor) * 12), 20, 98);
   const rrBonus = clamp(execNetRR * 35, 0, 100);
-  const compositeRankScore = Math.round(
+  const multiYearBonus = (multiYearSwingEdge && multiYearSwingEdge.provenEdge) ? 6 : 0;
+  const compositeRankScore = clamp(Math.round(
     confidence * 0.34 +
     histScore * 0.18 +
     smcDirectional * 0.14 +
     debateEdge * 0.14 +
     nseFlowDirectional * 0.12 +
-    rrBonus * 0.08
-  );
+    rrBonus * 0.08 +
+    multiYearBonus
+  ), 0, 100);
 
   return {
     assetType: 'STOCK',
@@ -688,6 +692,7 @@ function evaluateStockForAutoPilot({
     paritySignal: nseEdge.available ? nseEdge.bias : (geoStock?.impact || 'NEUTRAL'),
     nseMcp: nseEdge,
     swingProfile: swingProfile || null,
+    multiYearSwingEdge: multiYearSwingEdge || null,
     corporateActionBlocked: Boolean(swingProfile && swingProfile.corporateActionBlocked),
     corporateActionReason: (swingProfile && swingProfile.corporateActionReason) || null,
     historicalEdge: histEdge,
