@@ -41,6 +41,40 @@
   }
 
   /**
+   * Unlock AudioContext on first user interaction so background auto-trade
+   * profit/loss alerts always play reliably in Chrome/Safari.
+   */
+  function unlockAudio() {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    return ctx;
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    const _unlockOnce = () => {
+      unlockAudio();
+      window.removeEventListener('pointerdown', _unlockOnce);
+      window.removeEventListener('keydown', _unlockOnce);
+    };
+    window.addEventListener('pointerdown', _unlockOnce, { passive: true });
+    window.addEventListener('keydown', _unlockOnce, { passive: true });
+  }
+
+  function toggleMute() {
+    const nextEnabled = !isAudioEnabled();
+    setAudioEnabled(nextEnabled);
+    return !nextEnabled; // returns isMuted
+  }
+
+  function requestDesktopPermission() {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+
+  /**
    * Synthesize a tone with exponential volume decay.
    */
   function playTone(freq, startTime, duration, type = 'sine', gainVal = 0.15) {
@@ -63,6 +97,45 @@
       osc.start(startTime);
       osc.stop(startTime + duration);
     } catch (_) {}
+  }
+
+  /**
+   * Dedicated PROFIT Sound:
+   * Bright ascending major-chord bell chime (C5 -> E5 -> G5 -> sparkling C6).
+   */
+  function playProfitSound() {
+    if (!isAudioEnabled()) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    playTone(523.25, now, 0.16, 'sine', 0.22);          // C5
+    playTone(659.25, now + 0.09, 0.18, 'sine', 0.24);   // E5
+    playTone(783.99, now + 0.18, 0.22, 'triangle', 0.26); // G5
+    playTone(1046.50, now + 0.27, 0.55, 'sine', 0.28);  // C6 bright bell
+    playTone(2093.00, now + 0.27, 0.35, 'sine', 0.08);  // C7 shimmer overtone
+  }
+
+  /**
+   * Dedicated LOSS Beep Sound:
+   * Clear, unmistakable double low warning beep (330Hz -> 220Hz).
+   */
+  function playLossBeep() {
+    if (!isAudioEnabled()) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    // First crisp beep
+    playTone(330.00, now, 0.15, 'square', 0.14);
+    playTone(330.00, now, 0.15, 'triangle', 0.18);
+    // Second lower beep after brief pause
+    playTone(220.00, now + 0.21, 0.28, 'square', 0.14);
+    playTone(220.00, now + 0.21, 0.28, 'triangle', 0.20);
+  }
+
+  function playAlertTone() {
+    playProfitSound();
   }
 
   /**
@@ -124,8 +197,14 @@
   }
 
   return {
+    playProfitSound,
+    playLossBeep,
     playSignalChime,
     playWarningChime,
+    playAlertTone,
+    toggleMute,
+    unlockAudio,
+    requestDesktopPermission,
     isAudioEnabled,
     setAudioEnabled,
     notifyDesktop

@@ -419,7 +419,9 @@
         <div class="bcap" id="auto-pilot-card" style="margin-bottom:12px;padding:10px 12px;border-color:rgba(34,197,94,0.35)">
           <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--fm);font-size:9px;margin-bottom:6px;gap:4px">
             <span style="color:var(--grn);font-weight:700" id="ap-title">🤖 AUTO-PILOT (₹15K): ARMED</span>
-            <div style="display:flex;gap:4px">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+              <button onclick="if(window.AudioAlerts){window.AudioAlerts.unlockAudio();window.AudioAlerts.playProfitSound();showToast('🔊 Profit Chime Test','success');}" style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.35);color:var(--grn);border-radius:4px;padding:2px 5px;font-size:8px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Preview Profit sound & unlock browser audio">🔊 Win</button>
+              <button onclick="if(window.AudioAlerts){window.AudioAlerts.unlockAudio();window.AudioAlerts.playLossBeep();showToast('🔉 Loss Beep Test','warn');}" style="background:var(--redbg);border:1px solid rgba(239,68,68,0.35);color:var(--red);border-radius:4px;padding:2px 5px;font-size:8px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Preview Loss beep & unlock browser audio">🔉 Loss</button>
               <button onclick="runAutoPilotScanNow(false)" style="background:var(--bg4);border:1px solid var(--brl);color:var(--cya);border-radius:4px;padding:2px 6px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Scan & rank 12 NSE stocks + 5 commodities now">▶ Scan</button>
               <button onclick="runAutoPilotScanNow(true)" style="background:var(--goldbg);border:1px solid rgba(245,197,66,0.45);color:var(--gold);border-radius:4px;padding:2px 6px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:600" title="Test auto-execute paper trade on #1 ranked stock/setup now">⚡ Auto-Trade #1</button>
               <button id="ap-toggle-btn" onclick="toggleAutoPilot()" style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.45);color:var(--grn);border-radius:4px;padding:2px 7px;font-size:8.5px;font-family:var(--fm);cursor:pointer;font-weight:700">ON</button>
@@ -2049,6 +2051,10 @@ function confirmCloseTradeModal(){
   pendingCloseTradeId = null;
   if (!t || t.status === 'CLOSED') return;
   finalizeJournalClose(t, exitPrice, 'MANUAL_CLOSE');
+  if (window.AudioAlerts) {
+    if ((t.pnl || 0) >= 0) window.AudioAlerts.playProfitSound();
+    else window.AudioAlerts.playLossBeep();
+  }
   showToast(`✔ Closed ${t.com} ${t.type} @ ₹${exitPrice} | Net P&L: ${t.pnl >= 0 ? '+' : ''}₹${t.pnl}`, t.pnl >= 0 ? 'success' : 'warn');
 }
 
@@ -2096,10 +2102,9 @@ function checkOpenPaperPositions(){
     if (hitReason) {
       finalizeJournalClose(t, fillPrice, hitReason);
       if (window.AudioAlerts) {
-        window.AudioAlerts.playSignalChime(hitReason === 'AUTO_TARGET' ? 'BUY' : 'SELL');
-        window.AudioAlerts.notifyDesktop(`Paper ${hitReason}: ${t.com}`, {
-          body: `Closed ${t.type} @ ₹${fillPrice} | Net P&L: ₹${t.pnl}`
-        });
+        if ((t.pnl || 0) >= 0) window.AudioAlerts.playProfitSound();
+        else window.AudioAlerts.playLossBeep();
+        window.AudioAlerts.notifyDesktop(`Paper ${hitReason}: ${t.com}`, `Closed ${t.type} @ ₹${fillPrice} | Net P&L: ₹${t.pnl}`);
       }
     }
   }
@@ -3824,6 +3829,32 @@ function renderAutoPilotCard(d) {
       return `<span title="${ev.vetoReason || ('Ready: ' + sym + ' ' + ev.action + ' Net R:R 1:' + (ev.executionPlan?.netRR || 0))}" style="background:${bg};border:1px solid var(--br);color:${col};padding:2px 5px;border-radius:4px">${ev.name}: <strong>${ev.action}</strong> (${ev.debateVerdict || 'WAIT'})</span>`;
     }).join('');
   }
+
+  // Real-time Open-Position MTM Profit/Loss Sound Alert (debounced 2m per trade on zone flip)
+  if (Array.isArray(d.openTrades) && window.AudioAlerts) {
+    if (!window._openTradeMtmZone) window._openTradeMtmZone = {};
+    if (!window._openTradeSoundAt) window._openTradeSoundAt = {};
+    const nowMs = Date.now();
+    for (const t of d.openTrades) {
+      const mtm = Number(t.netMtm || 0);
+      const zone = mtm >= 10 ? 'PROFIT' : (mtm <= -10 ? 'LOSS' : 'FLAT');
+      const prevZone = window._openTradeMtmZone[t.id];
+      const lastSound = window._openTradeSoundAt[t.id] || 0;
+      if (prevZone && zone !== 'FLAT' && zone !== prevZone && (nowMs - lastSound) > 120000) {
+        window._openTradeSoundAt[t.id] = nowMs;
+        if (zone === 'PROFIT') {
+          window.AudioAlerts.playProfitSound();
+          showToast(`🔊 ${t.symbol} #${t.id} moved into PROFIT (+₹${mtm.toFixed(2)})`, 'success');
+        } else {
+          window.AudioAlerts.playLossBeep();
+          showToast(`🔉 ${t.symbol} #${t.id} moved into LOSS (₹${mtm.toFixed(2)})`, 'warn');
+        }
+      }
+      if (zone !== 'FLAT' || !prevZone) {
+        window._openTradeMtmZone[t.id] = zone;
+      }
+    }
+  }
 }
 
 async function syncAutoPilotStatus() {
@@ -3832,6 +3863,7 @@ async function syncAutoPilotStatus() {
     if (!r.ok) return;
     const d = await r.json();
     renderAutoPilotCard(d);
+    hydrateJournalFromSqlite();
   } catch (_) {}
 }
 
@@ -3927,6 +3959,33 @@ async function hydrateJournalFromSqlite() {
         exitReason: r.exit_reason || null
       };
     });
+
+    // Detect newly closed server-side Auto-Pilot trades & trigger Profit Chime / Loss Beep
+    if (!window._knownClosedTradeIds) {
+      // Seed existing closed trades silently on initial page load
+      window._knownClosedTradeIds = new Set(mapped.filter(t => t.status === 'CLOSED').map(t => Number(t.id)));
+    } else {
+      for (const t of mapped) {
+        if (t.status === 'CLOSED' && !window._knownClosedTradeIds.has(Number(t.id))) {
+          window._knownClosedTradeIds.add(Number(t.id));
+          const isWin = (t.pnl || 0) >= 0;
+          if (window.AudioAlerts) {
+            if (isWin) window.AudioAlerts.playProfitSound();
+            else window.AudioAlerts.playLossBeep();
+            window.AudioAlerts.notifyDesktop(
+              isWin ? `💰 PROFIT: ${t.com} (+₹${t.pnl})` : `🔴 LOSS: ${t.com} (₹${t.pnl})`,
+              `${t.type} ×${t.qty} closed @ ₹${t.ex} (${t.exitReason || 'AUTO'})`
+            );
+          }
+          showToast(
+            isWin
+              ? `💰 PROFIT CLOSED: #${t.id} ${t.com} (+₹${t.pnl})`
+              : `🔴 LOSS CLOSED: #${t.id} ${t.com} (₹${t.pnl})`,
+            isWin ? 'success' : 'warn'
+          );
+        }
+      }
+    }
 
     // Keep any non-SQLite local entries and merge SQLite authoritative rows
     const localOnly = journal.filter(t => t.dbId == null);
