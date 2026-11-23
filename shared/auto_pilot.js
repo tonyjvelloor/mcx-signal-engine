@@ -177,6 +177,14 @@ function getMarketSessionWindow(nowDate = new Date()) {
   const isMcxEodSquareOff = isWeekday && mins >= (23 * 60 + 20) && mins <= (23 * 60 + 35);
   const isNseEodSquareOff = isNseDay && mins >= (15 * 60 + 20) && mins <= (15 * 60 + 35);
 
+  let nseSessionPhase = 'CLOSED';
+  if (isNseDay) {
+    if (mins >= (9 * 60 + 20) && mins < (11 * 60 + 15)) nseSessionPhase = 'MORNING_DRIVE';
+    else if (mins >= (11 * 60 + 15) && mins < (13 * 60 + 30)) nseSessionPhase = 'MIDDAY_CHOP';
+    else if (mins >= (13 * 60 + 30) && mins < (14 * 60 + 45)) nseSessionPhase = 'AFTERNOON_DRIVE';
+    else if (mins >= (14 * 60 + 45) && mins <= (15 * 60 + 30)) nseSessionPhase = 'CLOSING_CUTOFF';
+  }
+
   return {
     istDate: kt.dateStr,
     istTime: `${String(kt.hour).padStart(2, '0')}:${String(kt.minute).padStart(2, '0')}`,
@@ -186,6 +194,8 @@ function getMarketSessionWindow(nowDate = new Date()) {
     holidayReason,
     isMcxHours,
     isNseHours,
+    nseSessionPhase,
+    isMiddayChop: nseSessionPhase === 'MIDDAY_CHOP',
     isMcxEodSquareOff,
     isNseEodSquareOff,
     isAnySessionOpen: isMcxHours || isNseHours
@@ -193,11 +203,12 @@ function getMarketSessionWindow(nowDate = new Date()) {
 }
 
 /**
- * Walk-Forward Historical Chart Backtest Gate (`computeHistoricalSetupEdge`)
- * Scans the stock's own historical 5m candles in SQLite for past occurrences of the proposed
- * directional setup (EMA9/EMA21 alignment + momentum) and simulates forward with our
- * 3-Stage Progressive Profit Ratchet (+0.70R -> BE, +1.15R -> +0.55R lock, +1.50R -> +1.00R lock).
- * Ensures we ONLY auto-bet on setups with proven historical positive expectancy on that stock's chart.
+ * Dual-Archetype Walk-Forward Historical Chart Backtest Gate (`computeHistoricalSetupEdge`)
+ * Tests BOTH:
+ *  1) TREND_RUNNER (EMA9/21 continuation + momentum)
+ *  2) MEAN_REVERTER (VWAP/EMA21 Snap-Back from >1.25 ATR stretch + reversal candle)
+ * on the stock's own historical 5m candles using our 3-Stage Progressive Profit Ratchet,
+ * and automatically selects the stock's highest-expectancy proven archetype.
  */
 function computeHistoricalSetupEdge({
   closes = [],
@@ -205,21 +216,14 @@ function computeHistoricalSetupEdge({
   lows = [],
   action = 'BUY',
   slAtrMult = 1.8,
-  t1AtrMult = 2.6
+  t1AtrMult = 2.8
 }) {
   const n = Math.min(closes.length, highs.length, lows.length);
   if (n < 45 || (action !== 'BUY' && action !== 'SELL')) {
-    return { samples: 0, wins: 0, losses: 0, winRate: 55, profitFactor: 1.35, expectancyR: 0.25, provenEdge: true };
+    return { archetype: 'TREND_RUNNER', samples: 0, wins: 0, losses: 0, winRate: 55, profitFactor: 1.35, expectancyR: 0.25, provenEdge: true };
   }
 
   const targetR = +(t1AtrMult / Math.max(0.5, slAtrMult)).toFixed(2);
-  let samples = 0;
-  let wins = 0;
-  let losses = 0;
-  let grossWinR = 0;
-  let grossLossR = 0;
-
-  // Precompute fast EMA9 & EMA21 series across the history
   const k9 = 2 / 10, k21 = 2 / 22;
   const e9 = [closes[0]], e21 = [closes[0]];
   for (let i = 1; i < n; i++) {
@@ -227,88 +231,100 @@ function computeHistoricalSetupEdge({
     e21.push(closes[i] * k21 + e21[i - 1] * (1 - k21));
   }
 
-  // Step through historical bars leaving at least 16 bars of forward lookahead
-  let i = 25;
-  while (i < n - 16) {
-    const isBuySetup = e9[i] > e21[i] && closes[i] > e9[i] && closes[i] > closes[i - 3];
-    const isSellSetup = e9[i] < e21[i] && closes[i] < e9[i] && closes[i] < closes[i - 3];
-    const matches = (action === 'BUY' && isBuySetup) || (action === 'SELL' && isSellSetup);
-
-    if (!matches) {
-      i++;
-      continue;
-    }
-
-    // Compute local 14-bar ATR at bar i
-    let trSum = 0;
-    for (let j = i - 13; j <= i; j++) {
-      trSum += Math.max(highs[j] - lows[j], Math.abs(highs[j] - closes[j - 1]), Math.abs(lows[j] - closes[j - 1]));
-    }
-    const localAtr = Math.max(closes[i] * 0.0025, trSum / 14);
-    const riskPts = localAtr * slAtrMult;
-    const entry = closes[i];
-
-    // Simulate forward up to 24 bars (2 hours intraday) with 3-Stage Progressive Profit Ratchet
-    let lockedR = -1.0; // Initial stop at -1.0R
-    let outcomeR = null;
-
-    for (let f = i + 1; f <= Math.min(n - 1, i + 24); f++) {
-      const favPts = action === 'BUY' ? (highs[f] - entry) : (entry - lows[f]);
-      const advPts = action === 'BUY' ? (entry - lows[f]) : (highs[f] - entry);
-      const favR = favPts / riskPts;
-      const advR = advPts / riskPts;
-
-      // Check if current ratcheted stop was hit
-      if (-advR <= lockedR) {
-        outcomeR = lockedR;
-        break;
+  const simulateArchetype = (mode) => {
+    let samples = 0, wins = 0, losses = 0, grossWinR = 0, grossLossR = 0;
+    let i = 25;
+    while (i < n - 16) {
+      let trSum = 0;
+      for (let j = i - 13; j <= i; j++) {
+        trSum += Math.max(highs[j] - lows[j], Math.abs(highs[j] - closes[j - 1]), Math.abs(lows[j] - closes[j - 1]));
       }
-      // Check if Target 1 was hit
-      if (favR >= targetR) {
-        outcomeR = targetR - 0.08; // Deduct ~0.08R statutory fee drag
-        break;
+      const localAtr = Math.max(closes[i] * 0.0025, trSum / 14);
+
+      let matches = false;
+      if (mode === 'TREND_RUNNER') {
+        const isBuy = e9[i] > e21[i] && closes[i] > e9[i] && closes[i] > closes[i - 3];
+        const isSell = e9[i] < e21[i] && closes[i] < e9[i] && closes[i] < closes[i - 3];
+        matches = (action === 'BUY' && isBuy) || (action === 'SELL' && isSell);
+      } else {
+        // MEAN_REVERTER: Snap-back from >1.15 ATR stretch away from EMA21 with reversal tick
+        const distFromEma = (closes[i] - e21[i]) / localAtr;
+        const isBuyRevert = distFromEma <= -1.15 && closes[i] > closes[i - 1];
+        const isSellRevert = distFromEma >= 1.15 && closes[i] < closes[i - 1];
+        matches = (action === 'BUY' && isBuyRevert) || (action === 'SELL' && isSellRevert);
       }
-      // 3-Stage Progressive Profit Ratchet
-      if (favR >= 1.50 && lockedR < 0.95) lockedR = 0.95;
-      else if (favR >= 1.15 && lockedR < 0.50) lockedR = 0.50;
-      else if (favR >= 0.70 && lockedR < 0.05) lockedR = 0.05; // Fee-covered breakeven at +0.70R
+
+      if (!matches) {
+        i++;
+        continue;
+      }
+
+      const riskPts = localAtr * slAtrMult;
+      const entry = closes[i];
+      let lockedR = -1.0;
+      let outcomeR = null;
+
+      for (let f = i + 1; f <= Math.min(n - 1, i + 24); f++) {
+        const favPts = action === 'BUY' ? (highs[f] - entry) : (entry - lows[f]);
+        const advPts = action === 'BUY' ? (entry - lows[f]) : (highs[f] - entry);
+        const favR = favPts / riskPts;
+        const advR = advPts / riskPts;
+
+        if (-advR <= lockedR) {
+          outcomeR = lockedR;
+          break;
+        }
+        if (favR >= targetR) {
+          outcomeR = targetR - 0.08;
+          break;
+        }
+        if (favR >= 1.50 && lockedR < 0.95) lockedR = 0.95;
+        else if (favR >= 1.15 && lockedR < 0.50) lockedR = 0.50;
+        else if (favR >= 0.70 && lockedR < 0.05) lockedR = 0.05;
+      }
+
+      if (outcomeR === null) {
+        const endExit = closes[Math.min(n - 1, i + 24)];
+        const rawEndR = ((action === 'BUY' ? (endExit - entry) : (entry - endExit)) / riskPts) - 0.08;
+        outcomeR = Math.max(lockedR, rawEndR);
+      }
+
+      samples++;
+      if (outcomeR > 0) {
+        wins++;
+        grossWinR += outcomeR;
+      } else {
+        losses++;
+        grossLossR += Math.abs(outcomeR);
+      }
+      i += 6;
     }
 
-    if (outcomeR === null) {
-      const endExit = closes[Math.min(n - 1, i + 24)];
-      const rawEndR = ((action === 'BUY' ? (endExit - entry) : (entry - endExit)) / riskPts) - 0.08;
-      outcomeR = Math.max(lockedR, rawEndR);
+    if (samples === 0) {
+      return { archetype: mode, samples: 0, wins: 0, losses: 0, winRate: 50, profitFactor: 1.0, expectancyR: 0, provenEdge: false };
     }
+    const winRate = Math.round((wins / samples) * 100);
+    const profitFactor = grossLossR > 0 ? +(grossWinR / grossLossR).toFixed(2) : +(grossWinR || 2.0).toFixed(2);
+    const expectancyR = +((grossWinR - grossLossR) / samples).toFixed(2);
+    const provenEdge = samples < 4 ? (winRate >= 50) : (winRate >= 50 && profitFactor >= 1.15);
+    return { archetype: mode, samples, wins, losses, winRate, profitFactor, expectancyR, provenEdge };
+  };
 
-    samples++;
-    if (outcomeR > 0) {
-      wins++;
-      grossWinR += outcomeR;
-    } else {
-      losses++;
-      grossLossR += Math.abs(outcomeR);
-    }
+  const trendEdge = simulateArchetype('TREND_RUNNER');
+  const revertEdge = simulateArchetype('MEAN_REVERTER');
 
-    i += 6; // Skip 6 bars (30m) to avoid overlapping identical signal clusters
+  // Pick whichever archetype has stronger proven Profit Factor / Expectancy on this stock
+  let best = trendEdge;
+  if (revertEdge.samples >= 4 && revertEdge.provenEdge && (!trendEdge.provenEdge || revertEdge.profitFactor > trendEdge.profitFactor * 1.15)) {
+    best = revertEdge;
+  } else if (trendEdge.samples === 0 && revertEdge.samples === 0) {
+    best = { archetype: 'TREND_RUNNER', samples: 0, wins: 0, losses: 0, winRate: 55, profitFactor: 1.35, expectancyR: 0.25, provenEdge: true };
   }
-
-  if (samples === 0) {
-    return { samples: 0, wins: 0, losses: 0, winRate: 55, profitFactor: 1.35, expectancyR: 0.25, provenEdge: true };
-  }
-
-  const winRate = Math.round((wins / samples) * 100);
-  const profitFactor = grossLossR > 0 ? +(grossWinR / grossLossR).toFixed(2) : +(grossWinR || 2.0).toFixed(2);
-  const expectancyR = +(((grossWinR - grossLossR) / samples)).toFixed(2);
-  const provenEdge = samples < 5 || (winRate >= 50 && profitFactor >= 1.15);
 
   return {
-    samples,
-    wins,
-    losses,
-    winRate,
-    profitFactor,
-    expectancyR,
-    provenEdge
+    ...best,
+    trendEdge: { samples: trendEdge.samples, winRate: trendEdge.winRate, profitFactor: trendEdge.profitFactor },
+    revertEdge: { samples: revertEdge.samples, winRate: revertEdge.winRate, profitFactor: revertEdge.profitFactor }
   };
 }
 
@@ -321,6 +337,7 @@ function evaluateStockForAutoPilot({
   rawCandles = [],
   nseMcpQuote = null,
   nseMcpOverview = null,
+  swingProfile = null,
   recentLessons = [],
   geoIntel = null,
   accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
@@ -576,35 +593,66 @@ function evaluateStockForAutoPilot({
     finalNetRR = +((grossReward - t1Fees) / Math.max(1, grossRisk + slFees)).toFixed(2);
   }
 
-  // 6th Pillar: Walk-Forward Historical Chart Backtest Gate (on this stock's own 5m candle history)
+  // 6th Pillar: Dual-Archetype Walk-Forward Historical Chart Backtest Gate (`TREND_RUNNER` vs `MEAN_REVERTER`)
   const histEdge = computeHistoricalSetupEdge({
     closes,
     highs,
     lows,
     action: finalSide,
     slAtrMult: stock.sl_atr || 1.8,
-    t1AtrMult: stock.t1_atr || 2.6
+    t1AtrMult: stock.t1_atr || 2.8
   });
+
+  // 2-Bucket ₹15,000 Capital Allocator:
+  // - Bucket 1 (₹10,000 CNC Swing — ₹0 brokerage): Up to ₹5,000 per multi-day BUY position when above 20/50 DMA & near 52W high
+  // - Bucket 2 (₹5,000 MIS Intraday — 5x = ₹25,000 buying power): Max ₹2,500 margin per intraday sniper trade
+  const sessionInfo = getMarketSessionWindow(nowDate);
+  const isCncSwingEligible = Boolean(
+    swingProfile && swingProfile.qualifiesForCncSwing && finalSide === 'BUY' && price <= 5000
+  );
+  const assignedBucket = isCncSwingEligible ? 'CNC_SWING' : 'MIS_INTRADAY';
+  const assignedProduct = isCncSwingEligible ? 'CNC' : 'MIS';
+
+  let execQty = Math.max(1, finalQty);
+  let execSl = finalLevels.sl;
+  let execT1 = finalLevels.t1;
+  let execMargin = finalQty >= 1 ? marginRequired : +(price / misLeverage).toFixed(2);
+  let execNetRR = finalNetRR;
+
+  if (isCncSwingEligible) {
+    // ₹5,000 per CNC Swing slot (2 slots = ₹10,000 Swing Bucket), ₹0 delivery brokerage, -2.0% SL / +4.5% Target
+    execQty = Math.max(1, Math.floor(5000 / Math.max(1, price)));
+    execSl = +(price * 0.98).toFixed(2);
+    execT1 = +(price * 1.045).toFixed(2);
+    execMargin = +(execQty * price).toFixed(2);
+    execNetRR = 2.15;
+  }
 
   let vetoReason = gate.vetoReason || null;
   let qualifiesForAutoExec = false;
-  if (action === 'WAIT') {
+  if (swingProfile && swingProfile.corporateActionBlocked) {
+    vetoReason = `Corporate Action Shield: ${swingProfile.corporateActionEvent?.purpose || 'Ex-date'} on ${swingProfile.corporateActionEvent?.exDate}`;
+  } else if (action === 'WAIT') {
     vetoReason = vetoReason || 'Conviction below 62% threshold';
   } else if (!histEdge.provenEdge) {
-    vetoReason = `Historical Chart Veto: Past setup win rate ${histEdge.winRate}% (PF ${histEdge.profitFactor}x over ${histEdge.samples} setups) below 50% / 1.15x threshold`;
+    vetoReason = `Historical Chart Veto (${histEdge.archetype}): Past setup win rate ${histEdge.winRate}% (PF ${histEdge.profitFactor}x over ${histEdge.samples} setups) below 50% / 1.15x threshold`;
+  } else if (!isCncSwingEligible && sessionInfo.isMiddayChop && (histEdge.archetype !== 'MEAN_REVERTER' || histEdge.profitFactor < 1.60)) {
+    vetoReason = `Midday Chop Shield (11:15–13:30 IST): Trend breakouts paused during thin liquidity; only A+ Mean-Reversion (PF ≥ 1.6x) or CNC Swing allowed`;
+  } else if (!isCncSwingEligible && sessionInfo.nseSessionPhase === 'CLOSING_CUTOFF') {
+    vetoReason = `Closing Cutoff (14:45–15:20 IST): No new intraday MIS entries near square-off`;
   } else if (nseEdge.available && action === 'BUY' && (nseEdge.isTopLoser || nseEdge.stockPct <= -1.5)) {
     vetoReason = `NSE MCP Flow Veto: Stock is down ${nseEdge.stockPct}% on official NSE tape`;
   } else if (nseEdge.available && action === 'SELL' && (nseEdge.isTopGainer || nseEdge.stockPct >= 1.5)) {
     vetoReason = `NSE MCP Flow Veto: Stock is up +${nseEdge.stockPct}% on official NSE tape`;
   } else if (debate.verdict === 'VETO') {
     vetoReason = `Bull/Bear Debate VETO: ${debate.rationale}`;
-  } else if (!sized.ok || finalQty < 1 || finalNetRR < 1.25) {
-    vetoReason = `Risk/Fee Veto: ${sized.reason || 'Net R:R ' + finalNetRR + ' below 1.25 hurdle'}`;
+  } else if (!isCncSwingEligible && (!sized.ok || finalQty < 1 || finalNetRR < 1.20)) {
+    vetoReason = `Risk/Fee Veto: ${sized.reason || 'Net R:R ' + finalNetRR + ' below 1.20 hurdle'}`;
   } else {
     qualifiesForAutoExec = true;
   }
 
-  // 6-Pillar Composite Rank Score (0-100) including Historical Chart Win-Rate/PF & Official NSE MCP Flow
+  // 6-Pillar Composite Rank Score (0-100) including Dual-Archetype Historical Edge, CNC Swing & Official NSE MCP Flow
   const smcScore = (smc && typeof smc.confluenceScore === 'number') ? smc.confluenceScore : 50;
   const smcDirectional = finalSide === 'BUY' ? smcScore : (100 - smcScore);
   const debateEdge = clamp(50 + ((debate.bullScore || 50) - (debate.bearScore || 50)) * (finalSide === 'BUY' ? 0.5 : -0.5), 10, 95);
@@ -612,7 +660,7 @@ function evaluateStockForAutoPilot({
     ? clamp(50 + (finalSide === 'BUY' ? nseEdge.scoreDelta * 2 : -nseEdge.scoreDelta * 2), 10, 98)
     : 50;
   const histScore = clamp(Math.round(histEdge.winRate * 0.65 + Math.min(3.0, histEdge.profitFactor) * 12), 20, 98);
-  const rrBonus = clamp(finalNetRR * 35, 0, 100);
+  const rrBonus = clamp(execNetRR * 35, 0, 100);
   const compositeRankScore = Math.round(
     confidence * 0.34 +
     histScore * 0.18 +
@@ -633,10 +681,15 @@ function evaluateStockForAutoPilot({
     action,
     confidence,
     compositeRankScore,
+    archetype: histEdge.archetype,
+    bucket: assignedBucket,
     regime: gate.regime,
-    sessionWindow: 'NSE_INTRADAY',
+    sessionWindow: sessionInfo.nseSessionPhase,
     paritySignal: nseEdge.available ? nseEdge.bias : (geoStock?.impact || 'NEUTRAL'),
     nseMcp: nseEdge,
+    swingProfile: swingProfile || null,
+    corporateActionBlocked: Boolean(swingProfile && swingProfile.corporateActionBlocked),
+    corporateActionReason: (swingProfile && swingProfile.corporateActionReason) || null,
     historicalEdge: histEdge,
     htfBias: htfTrend.bias,
     smcState: smc?.structure?.state || 'RANGING',
@@ -650,20 +703,21 @@ function evaluateStockForAutoPilot({
       tradingsymbol: stock.symbol,
       exchange: 'NSE',
       segment: 'equity',
-      product: 'MIS',
+      product: assignedProduct,
+      bucket: assignedBucket,
       side: action === 'WAIT' ? finalSide : action,
-      qty: Math.max(1, finalQty),
+      qty: execQty,
       lotMultiplier: 1,
       entryPrice: finalLevels.entry,
       currentHigh: highs[highs.length - 1],
       currentLow: lows[lows.length - 1],
-      stopLoss: finalLevels.sl,
-      target1: finalLevels.t1,
+      stopLoss: execSl,
+      target1: execT1,
       target2: finalLevels.t2,
-      marginRequired: finalQty >= 1 ? marginRequired : +(price / misLeverage).toFixed(2),
-      plannedLoss,
-      stopFees: +(actualStopFees || perShareFee).toFixed(2),
-      netRR: finalNetRR
+      marginRequired: execMargin,
+      plannedLoss: isCncSwingEligible ? +(execQty * (price - execSl)).toFixed(2) : plannedLoss,
+      stopFees: isCncSwingEligible ? 0 : +(actualStopFees || perShareFee).toFixed(2),
+      netRR: execNetRR
     }
   };
 }
@@ -1060,7 +1114,9 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
 
     if (!exitReason && sessionInfo) {
       const isEq = segment === 'equity';
-      if ((isEq && sessionInfo.isNseEodSquareOff) || (!isEq && sessionInfo.isMcxEodSquareOff)) {
+      const isCncSwing = curReason.includes('CNC_SWING');
+      // Exempt Bucket 1 (CNC_SWING multi-day delivery) from 15:20 IST intraday square-off
+      if ((isEq && !isCncSwing && sessionInfo.isNseEodSquareOff) || (!isEq && sessionInfo.isMcxEodSquareOff)) {
         exitReason = 'AUTO_EOD_SQUARE_OFF';
         fillPrice = curPrice;
       }

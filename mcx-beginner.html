@@ -3757,6 +3757,15 @@ function renderAutoPilotCard(d) {
       const mCol = t.netMtm > 0 ? 'var(--grn)' : t.netMtm < 0 ? 'var(--red)' : 'var(--txd)';
       return `<span style="background:var(--bg4);border:1px solid var(--br);padding:1px 5px;border-radius:3px">${t.symbol} ${t.side} ×${t.qty}: LTP ₹${t.liveLtp || t.entry_price} (<strong style="color:${mCol}">${t.netMtm >= 0 ? '+' : ''}₹${t.netMtm}</strong>)</span>`;
     }).join(' ') : '';
+    const phase = d.session?.nseSessionPhase || 'CLOSED';
+    const phaseMap = {
+      MORNING_DRIVE: { label: '⚡ MORNING DRIVE (09:20–11:15)', col: 'var(--grn)' },
+      MIDDAY_CHOP: { label: '🛡️ MIDDAY CHOP SHIELD (11:15–13:30)', col: 'var(--amb)' },
+      AFTERNOON_DRIVE: { label: '⚡ AFTERNOON DRIVE (13:30–14:45)', col: 'var(--grn)' },
+      CLOSING_CUTOFF: { label: '⏳ CLOSING CUTOFF (14:45–15:20)', col: 'var(--txd)' },
+      CLOSED: { label: '🌙 NSE CLOSED', col: 'var(--txd)' }
+    };
+    const phaseMeta = phaseMap[phase] || phaseMap.CLOSED;
     if (n50 || g1) {
       const n50Col = (n50?.percChange || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
       const nBkCol = (nBk?.percChange || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
@@ -3764,6 +3773,10 @@ function renderAutoPilotCard(d) {
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
           <span>🏛️ <strong style="color:var(--cya)">NSE MCP LIVE</strong>: NIFTY <strong style="color:${n50Col}">${n50 ? n50.last + ' (' + (n50.percChange >= 0 ? '+' : '') + n50.percChange + '%)' : '—'}</strong> · BANK <strong style="color:${nBkCol}">${nBk ? nBk.last + ' (' + (nBk.percChange >= 0 ? '+' : '') + nBk.percChange + '%)' : '—'}</strong></span>
           <span>Live MTM: <strong style="color:${mtmCol}">${mtm >= 0 ? '+' : ''}₹${mtm.toFixed(2)}</strong></span>
+        </div>
+        <div style="margin-top:3px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:8.5px">
+          <span style="color:${phaseMeta.col};font-weight:700">${phaseMeta.label}</span>
+          <span style="color:var(--txd)">2-Bucket: <strong style="color:var(--grn)">₹10K CNC</strong> (₹0 Brok) + <strong style="color:var(--cya)">₹5K MIS</strong></span>
         </div>
         ${(g1 || l1) ? `<div style="margin-top:2px">Movers: ${g1 ? `<span style="color:var(--grn)">▲ ${g1.symbol} +${g1.perChange}%</span>` : ''} ${l1 ? `· <span style="color:var(--red)">▼ ${l1.symbol} ${l1.perChange}%</span>` : ''} · Breadth: <strong style="color:var(--tx)">${ov?.breadth?.reading || '—'}</strong></div>` : ''}
         ${openRows ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${openRows}</div>` : ''}
@@ -3777,15 +3790,23 @@ function renderAutoPilotCard(d) {
       const isBuy = p.side === 'BUY';
       const sCol = s.qualifiesForAutoExec ? (isBuy ? 'var(--grn)' : 'var(--red)') : (s.action !== 'WAIT' ? 'var(--amb)' : 'var(--cya)');
       const badge = s.qualifiesForAutoExec ? `✔ AUTO-${p.side}` : `${p.side} (${s.debateVerdict})`;
+      const isCnc = (p.bucket === 'CNC_SWING' || p.product === 'CNC');
+      const bucketTag = isCnc
+        ? `<span style="background:rgba(34,197,94,0.16);color:var(--grn);border:1px solid rgba(34,197,94,0.35);padding:0 4px;border-radius:3px;font-size:7.5px;font-weight:700">CNC SWING</span>`
+        : `<span style="background:var(--bg4);color:var(--txd);border:1px solid var(--br);padding:0 4px;border-radius:3px;font-size:7.5px">MIS</span>`;
+      const archLabel = s.archetype === 'MEAN_REVERTER' ? 'REVERT' : 'TREND';
+      const archCol = s.archetype === 'MEAN_REVERTER' ? 'var(--cya)' : 'var(--gold)';
+      const archTag = `<span style="color:${archCol};font-size:7.5px;font-weight:700">${archLabel}</span>`;
+      const caTag = s.corporateActionBlocked ? ` <span style="color:var(--red);font-size:7.5px;font-weight:700" title="${s.corporateActionReason || 'Corporate action shield'}">⚠️ CORP-ACT</span>` : '';
       const nseNote = s.nseMcp?.available ? ` · <span style="color:var(--cya)">NSE ${s.dayChgPct >= 0 ? '+' : ''}${s.dayChgPct}%</span>` : '';
       const hEdge = s.historicalEdge;
       const histNote = (hEdge && hEdge.samples > 0)
-        ? ` · <span style="color:${hEdge.provenEdge ? 'var(--grn)' : 'var(--red)'}" title="Walk-forward 60d historical backtest on ${s.symbol} 5m chart (${hEdge.samples} occurrences)">Hist ${hEdge.winRate}% (PF ${hEdge.profitFactor}x)</span>`
+        ? ` · <span style="color:${hEdge.provenEdge ? 'var(--grn)' : 'var(--red)'}" title="Walk-forward 60d Dual-Archetype backtest on ${s.symbol} 5m chart (${hEdge.samples} occurrences · ${archLabel})">Hist ${hEdge.winRate}% (PF ${hEdge.profitFactor}x)</span>`
         : '';
       return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:5px;padding:5px 7px;display:flex;align-items:center;justify-content:space-between;gap:6px">
         <div style="min-width:0">
-          <div><strong style="color:var(--gold)">#${s.rank} ${s.symbol}</strong> <span style="color:${sCol};font-weight:700">${badge}</span> <span style="color:var(--txd)">Score ${s.compositeRankScore}/100</span>${nseNote}${histNote}</div>
-          <div style="color:var(--txd);font-size:8px">×${p.qty} sh @ ₹${p.entryPrice} · SL ₹${p.stopLoss} · T1 ₹${p.target1} · Mgn ₹${Math.round(p.marginRequired || 0)} · R:R 1:${p.netRR}</div>
+          <div><strong style="color:var(--gold)">#${s.rank} ${s.symbol}</strong> ${bucketTag} ${archTag}${caTag} <span style="color:${sCol};font-weight:700">${badge}</span> <span style="color:var(--txd)">${s.compositeRankScore}/100</span>${nseNote}${histNote}</div>
+          <div style="color:var(--txd);font-size:8px">×${p.qty} sh @ ₹${p.entryPrice} · SL ₹${p.stopLoss} · T1 ₹${p.target1} · ${isCnc ? 'Cap' : 'Mgn'} ₹${Math.round(p.marginRequired || 0)} · R:R 1:${p.netRR}</div>
         </div>
         <button onclick="loadTopStockIntoTicket(${idx})" style="background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;padding:2px 6px;font-size:8px;font-family:var(--fm);cursor:pointer;flex-shrink:0">⚡ Load</button>
       </div>`;

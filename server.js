@@ -2763,6 +2763,18 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       autoPilotState.nseMcpOverview = nseMcpOverview;
     }
 
+    // Fetch 20/50 DMA + 52W High/Low + Corporate Action Shield profiles (30m cached per symbol) in chunks of 4
+    const swingProfiles = {};
+    for (let i = 0; i < autoPilot.AUTO_PILOT_STOCKS.length; i += 4) {
+      const chunk = autoPilot.AUTO_PILOT_STOCKS.slice(i, i + 4);
+      const chunkResults = await Promise.all(
+        chunk.map(s => nseMcpClient.getSwingDailyProfile(s.symbol, nseMcpQuotes[s.symbol]?.ltp || 0).catch(() => null))
+      );
+      chunk.forEach((s, idx) => {
+        if (chunkResults[idx]) swingProfiles[s.symbol] = chunkResults[idx];
+      });
+    }
+
     const stockEvaluations = [];
     const evaluations = [];
     const latestPrices = {};
@@ -2794,6 +2806,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         rawCandles,
         nseMcpQuote: mcpQuote,
         nseMcpOverview,
+        swingProfile: swingProfiles[stock.symbol] || null,
         recentLessons: stockLessons,
         geoIntel,
         accountProfile: accProfile,
@@ -2917,21 +2930,31 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             continue;
           }
 
-          const feesAtEntry = riskEngine.calculateZerodhaFees({
-            segment: p.segment,
-            buyPrice: p.side === 'BUY' ? p.entryPrice : p.stopLoss,
-            sellPrice: p.side === 'BUY' ? p.stopLoss : p.entryPrice,
-            qty: p.qty,
-            lotMultiplier: p.lotMultiplier
-          });
-          const brokerage = feesAtEntry.brokerage;
-          const sttGst = Math.round((feesAtEntry.totalFees - brokerage) * 100) / 100;
+          const isCncSwing = p.product === 'CNC' || p.bucket === 'CNC_SWING';
+          let brokerage = 0;
+          let sttGst = 0;
+          if (isCncSwing) {
+            // Zerodha CNC Equity Delivery: ₹0 brokerage, ~0.22% round-trip STT + stamp + exchange charges
+            brokerage = 0;
+            sttGst = Math.round(p.entryPrice * p.qty * 0.0022 * 100) / 100;
+          } else {
+            const feesAtEntry = riskEngine.calculateZerodhaFees({
+              segment: p.segment,
+              buyPrice: p.side === 'BUY' ? p.entryPrice : p.stopLoss,
+              sellPrice: p.side === 'BUY' ? p.stopLoss : p.entryPrice,
+              qty: p.qty,
+              lotMultiplier: p.lotMultiplier
+            });
+            brokerage = feesAtEntry.brokerage;
+            sttGst = Math.round((feesAtEntry.totalFees - brokerage) * 100) / 100;
+          }
 
+          const entryTag = isCncSwing ? 'AUTO_PILOT_CNC_SWING' : 'AUTO_PILOT';
           const ins = db.prepare(`
             INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', 'AUTO_PILOT')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
           `);
-          const info = ins.run(p.tradingsymbol, p.side, p.qty, p.entryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst);
+          const info = ins.run(p.tradingsymbol, p.side, p.qty, p.entryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst, entryTag);
           const tradeId = Number(info.lastInsertRowid);
 
           try {
@@ -2947,7 +2970,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
               p.stopLoss,
               p.target1,
               p.target2,
-              `[AUTO-PILOT ${cand.assetType || 'STOCK'} ${cand.debateVerdict}] ${cand.regime} · Net R:R 1:${p.netRR}`
+              `[AUTO-PILOT ${p.bucket || 'MIS_INTRADAY'} ${cand.archetype || 'TREND_RUNNER'} ${cand.debateVerdict}] ${cand.regime} · Net R:R 1:${p.netRR}`
             );
           } catch (_) {}
 
@@ -2959,6 +2982,9 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           const opened = {
             tradeId,
             assetType: cand.assetType || 'STOCK',
+            bucket: p.bucket || 'MIS_INTRADAY',
+            product: p.product || 'MIS',
+            archetype: cand.archetype || 'TREND_RUNNER',
             symbol: p.tradingsymbol,
             exchange: p.exchange,
             side: p.side,
@@ -2976,7 +3002,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           openedTrades.push(opened);
           logAutoPilotEvent(
             'AUTO_OPENED',
-            `Opened #${tradeId} ${p.exchange}:${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR})`,
+            `Opened #${tradeId} [${opened.bucket}/${opened.archetype}] ${p.exchange}:${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR})`,
             opened
           );
         }

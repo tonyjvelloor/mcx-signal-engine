@@ -477,5 +477,63 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.strictEqual(step2.closed[0].status, 'WIN');
   const lessonsInDb = memDb.prepare('SELECT * FROM trade_lessons').all();
   assert.strictEqual(lessonsInDb.length, 1, 'Auto-closed paper trade must write a reflection lesson into trade_lessons');
-  console.log('✓ Test 15 Passed: Autonomous Paper-Trading Pilot (5-commodity scan, ₹10K routing, +1R breakeven, auto-close & lesson extraction) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 15 Passed: Autonomous Paper-Trading Pilot (5-commodity scan, ₹15K routing, +0.70R ratchet, auto-close & lesson extraction) verified.');
+
+  // ── Test 16: 4-Layer Profitability Upgrade (Dual-Archetype, Midday Chop Shield, 2-Bucket CNC Swing, Corporate Action Shield) ──
+  const middayMon = new Date('2026-11-23T06:45:00Z'); // 12:15 IST Monday
+  const middaySess = autoPilot.getMarketSessionWindow(middayMon);
+  assert.strictEqual(middaySess.nseSessionPhase, 'MIDDAY_CHOP', '12:15 IST must classify as MIDDAY_CHOP');
+  assert.strictEqual(middaySess.isMiddayChop, true);
+
+  const morningMon = new Date('2026-11-23T04:30:00Z'); // 10:00 IST Monday
+  const morningSess = autoPilot.getMarketSessionWindow(morningMon);
+  assert.strictEqual(morningSess.nseSessionPhase, 'MORNING_DRIVE', '10:00 IST must classify as MORNING_DRIVE');
+  assert.strictEqual(morningSess.isMiddayChop, false);
+
+  // Dual-Archetype output verification
+  assert.ok(['TREND_RUNNER', 'MEAN_REVERTER'].includes(histEdge.archetype), 'computeHistoricalSetupEdge must return Dual-Archetype label');
+  assert.ok(histEdge.trendEdge && histEdge.revertEdge, 'Dual-Archetype must expose both trendEdge and revertEdge');
+
+  // Corporate Action Shield veto verification
+  const sbinStock = autoPilot.AUTO_PILOT_STOCKS.find(s => s.symbol === 'SBIN');
+  const sbinBars = trendBars.map((b, i) => ({
+    time: b.time,
+    open: 800 + i * 0.4,
+    high: 803 + i * 0.4,
+    low: 799 + i * 0.4,
+    close: 802 + i * 0.4,
+    volume: 10000
+  }));
+  const caBlockedEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock,
+    rawCandles: sbinBars,
+    swingProfile: { corporateActionBlocked: true, corporateActionReason: 'Ex-Dividend in 1d', qualifiesForCncSwing: true },
+    nowDate: morningMon
+  });
+  assert.strictEqual(caBlockedEv.qualifiesForAutoExec, false, 'Corporate Action Shield must veto auto-execution');
+  assert.strictEqual(caBlockedEv.corporateActionBlocked, true);
+
+  // 2-Bucket CNC Swing routing verification (price <= ₹5000 + qualifiesForCncSwing = true -> CNC_SWING)
+  const cncEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock,
+    rawCandles: sbinBars,
+    swingProfile: { corporateActionBlocked: false, qualifiesForCncSwing: true, swingScore: 85 },
+    nowDate: morningMon
+  });
+  assert.strictEqual(cncEv.executionPlan.bucket, 'CNC_SWING', 'Qualifying daily uptrend stock <= ₹5000 must route to CNC_SWING bucket');
+  assert.strictEqual(cncEv.executionPlan.product, 'CNC');
+
+  // Verify CNC_SWING position is exempt from 15:20 IST intraday EOD square-off
+  memDb.exec(`
+    INSERT INTO paper_trades (symbol, side, qty, entry_price, stop_loss, target, brokerage, stt_gst, status, exit_reason)
+    VALUES ('SBIN', 'BUY', 5, 840, 823.2, 877.8, 0, 9.24, 'OPEN', 'AUTO_PILOT_CNC_SWING');
+  `);
+  const eodMon = new Date('2026-11-23T09:52:00Z'); // 15:22 IST Monday
+  const eodRes = autoPilot.manageOpenPaperPositions({
+    db: memDb,
+    latestPrices: { SBIN: { price: 845, high: 846, low: 844, isLive: true } },
+    sessionInfo: autoPilot.getMarketSessionWindow(eodMon)
+  });
+  assert.strictEqual(eodRes.closed.length, 0, 'CNC_SWING delivery trade must NOT be auto-squared-off at 15:20 IST');
+  console.log('✓ Test 16 Passed: 4-Layer Profitability Upgrade (Dual-Archetype, Midday Chop Shield, 2-Bucket CNC Swing, Corporate Action Shield) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();
