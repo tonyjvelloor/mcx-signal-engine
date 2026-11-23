@@ -2057,9 +2057,12 @@ function checkOpenPaperPositions(){
   if (!openTrades.length) return;
 
   for (const t of openTrades) {
-    const cid = t.comId || (COMMS.find(c => t.com && t.com.includes(c.n.toUpperCase().replace(/\s+/g,'')))?.id);
-    const curPrice = cid ? (liveData[cid]?.price || priceCache[cid]) : null;
+    // Server-side Auto-Pilot & SQLite paper trades (`t.dbId`) are managed authoritatively by server.js / shared/auto_pilot.js
+    if (t.dbId != null || t.segment === 'equity' || !t.comId) continue;
+    const cid = t.comId;
+    let curPrice = cid ? (liveData[cid]?.price || priceCache[cid]) : null;
     if (!curPrice || !isFinite(curPrice)) continue;
+    if (String(t.com || '').includes('GOLDPETAL') && curPrice > 25000) curPrice = +(curPrice / 10).toFixed(2);
 
     // Auto-Breakeven Stop Trailing at +1R (protects capital + covers fees)
     const initRisk = Math.abs(t.ent - (t.initSl || t.sl || t.ent));
@@ -3866,13 +3869,15 @@ async function hydrateJournalFromSqlite() {
         ? window.RiskEngine.getContractSpec(r.symbol)
         : { multiplier: 1, segment: 'commodity' };
       const symU = String(r.symbol || '').toUpperCase();
-      let cid = 'gold';
-      if (symU.includes('SILVER')) cid = 'silver';
-      else if (symU.includes('CRUDE') || symU.includes('ONGC')) cid = 'crude';
-      else if (symU.includes('NATGAS') || symU.includes('GAIL')) cid = 'natgas';
-      else if (symU.includes('COPPER')) cid = 'copper';
-      else if (symU.includes('ZINC') || symU.includes('VEDL')) cid = 'zinc';
-      else if (symU.includes('ALUM')) cid = 'alum';
+      let cid = null;
+      if (symU.includes('GOLD')) cid = 'gold';
+      else if (symU.includes('SILVER')) cid = 'silver';
+      else if (symU.includes('CRUDE')) cid = 'crude';
+      else if (symU.includes('NATGAS')) cid = 'natgas';
+      else if (symU.includes('COPPER') && !symU.includes('HIND')) cid = 'copper';
+      else if (symU.includes('ZINC')) cid = 'zinc';
+      else if (symU.includes('ALUM') && !symU.includes('NATIONAL')) cid = 'alum';
+      else if (symU.includes('COTTON')) cid = 'cotton';
 
       const dt = new Date(r.exit_time || r.created_at || Date.now());
       return {
