@@ -449,13 +449,23 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     VALUES ('GOLDPETAL26NOVFUT', 'BUY', 1, 7800, 7740, 7950, 40, 5, 'OPEN', 'AUTO_PILOT');
   `);
 
-  // Step 1: Move to +1R (7865 >= 7800 + 60) -> should arm fee-covered breakeven SL (7845)
+  // Step 1: Move to +1.08R (7865 >= 7800 + 0.70*60) -> should arm fee-covered breakeven SL (7845)
   const step1 = autoPilot.manageOpenPaperPositions({
     db: memDb,
-    latestPrices: { GOLDPETAL26NOVFUT: { price: 7865, high: 7870, low: 7850 } }
+    latestPrices: { GOLDPETAL26NOVFUT: { price: 7862, high: 7865, low: 7850 } }
   });
-  assert.strictEqual(step1.breakevenArmed.length, 1, '+1R move must arm fee-covered breakeven SL');
+  assert.strictEqual(step1.breakevenArmed.length, 1, '+0.70R..1.14R move must arm fee-covered breakeven SL');
   assert.strictEqual(step1.breakevenArmed[0].newSl, 7845);
+
+  // Verify Walk-Forward Historical Chart Backtest Gate (computeHistoricalSetupEdge)
+  const histEdge = autoPilot.computeHistoricalSetupEdge({
+    closes: trendBars.map(b => b.close),
+    highs: trendBars.map(b => b.high),
+    lows: trendBars.map(b => b.low),
+    action: 'BUY'
+  });
+  assert.strictEqual(histEdge.provenEdge, true, 'Steady uptrend must pass Walk-Forward Historical Chart Backtest Gate');
+  assert.ok(histEdge.winRate >= 50);
 
   // Step 2: Move to Target (7955 >= 7950) -> should auto-close at 7950 & write reflection lesson
   const step2 = autoPilot.manageOpenPaperPositions({

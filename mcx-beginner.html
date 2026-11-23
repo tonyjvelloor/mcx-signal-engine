@@ -3778,9 +3778,13 @@ function renderAutoPilotCard(d) {
       const sCol = s.qualifiesForAutoExec ? (isBuy ? 'var(--grn)' : 'var(--red)') : (s.action !== 'WAIT' ? 'var(--amb)' : 'var(--cya)');
       const badge = s.qualifiesForAutoExec ? `✔ AUTO-${p.side}` : `${p.side} (${s.debateVerdict})`;
       const nseNote = s.nseMcp?.available ? ` · <span style="color:var(--cya)">NSE ${s.dayChgPct >= 0 ? '+' : ''}${s.dayChgPct}%</span>` : '';
+      const hEdge = s.historicalEdge;
+      const histNote = (hEdge && hEdge.samples > 0)
+        ? ` · <span style="color:${hEdge.provenEdge ? 'var(--grn)' : 'var(--red)'}" title="Walk-forward 60d historical backtest on ${s.symbol} 5m chart (${hEdge.samples} occurrences)">Hist ${hEdge.winRate}% (PF ${hEdge.profitFactor}x)</span>`
+        : '';
       return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:5px;padding:5px 7px;display:flex;align-items:center;justify-content:space-between;gap:6px">
         <div style="min-width:0">
-          <div><strong style="color:var(--gold)">#${s.rank} ${s.symbol}</strong> <span style="color:${sCol};font-weight:700">${badge}</span> <span style="color:var(--txd)">Score ${s.compositeRankScore}/100</span>${nseNote}</div>
+          <div><strong style="color:var(--gold)">#${s.rank} ${s.symbol}</strong> <span style="color:${sCol};font-weight:700">${badge}</span> <span style="color:var(--txd)">Score ${s.compositeRankScore}/100</span>${nseNote}${histNote}</div>
           <div style="color:var(--txd);font-size:8px">×${p.qty} sh @ ₹${p.entryPrice} · SL ₹${p.stopLoss} · T1 ₹${p.target1} · Mgn ₹${Math.round(p.marginRequired || 0)} · R:R 1:${p.netRR}</div>
         </div>
         <button onclick="loadTopStockIntoTicket(${idx})" style="background:var(--bg4);border:1px solid var(--brl);color:var(--gold);border-radius:4px;padding:2px 6px;font-size:8px;font-family:var(--fm);cursor:pointer;flex-shrink:0">⚡ Load</button>

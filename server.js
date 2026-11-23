@@ -1268,6 +1268,15 @@ const server = http.createServer(async (req, res) => {
             const exitPrice = Number(data.exitPrice);
             const exitReason = String(data.exitReason || 'MANUAL_CLOSE').trim();
 
+            // Protect server-managed SQLite paper trades from client-side browser AUTO_SL / AUTO_TARGET loops
+            if (exitReason.startsWith('AUTO_')) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({
+                ignored: true,
+                reason: 'Server Auto-Pilot manages AUTO_SL, AUTO_PROFIT_LOCK and AUTO_TARGET exits authoritatively.'
+              }));
+            }
+
             if (!Number.isInteger(tradeId) || tradeId <= 0 || !Number.isFinite(exitPrice) || exitPrice <= 0) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ error: 'Valid positive tradeId and exitPrice are required.' }));
