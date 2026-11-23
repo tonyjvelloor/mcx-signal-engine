@@ -339,6 +339,7 @@ function evaluateStockForAutoPilot({
   nseMcpOverview = null,
   swingProfile = null,
   multiYearSwingEdge = null,
+  brainState = null,
   recentLessons = [],
   geoIntel = null,
   accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
@@ -532,7 +533,8 @@ function evaluateStockForAutoPilot({
   });
 
   const capital = Number(accountProfile.capital) || 15000;
-  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1)));
+  const regimeSizeMult = Number(brainState?.regime?.sizeMultiplier || 1.0);
+  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1) * regimeSizeMult));
 
   const finalSide = action === 'SELL' ? 'SELL' : 'BUY';
   const finalLevels = signalEngine.computeStructuralLevels({
@@ -630,9 +632,18 @@ function evaluateStockForAutoPilot({
     execNetRR = 2.15;
   }
 
+  const benchedEntry = (brainState?.execution?.autoBenchedSymbols || []).find(b => b.symbol === stock.symbol);
+  const regimeObj = brainState?.regime || null;
+
   let vetoReason = gate.vetoReason || null;
   let qualifiesForAutoExec = false;
-  if (swingProfile && swingProfile.corporateActionBlocked) {
+  if (benchedEntry) {
+    vetoReason = `Brain Auto-Bench Veto: ${benchedEntry.reason} (${benchedEntry.trades} trades, Net ₹${benchedEntry.netPnl})`;
+  } else if (regimeObj && action === 'BUY' && regimeObj.allowNewLongs === false) {
+    vetoReason = `Brain Regime Veto (${regimeObj.regime}): ${regimeObj.directive}`;
+  } else if (regimeObj && action === 'SELL' && regimeObj.allowNewShorts === false) {
+    vetoReason = `Brain Regime Veto (${regimeObj.regime}): ${regimeObj.directive}`;
+  } else if (swingProfile && swingProfile.corporateActionBlocked) {
     vetoReason = `Corporate Action Shield: ${swingProfile.corporateActionEvent?.purpose || 'Ex-date'} on ${swingProfile.corporateActionEvent?.exDate}`;
   } else if (action === 'WAIT') {
     vetoReason = vetoReason || 'Conviction below 62% threshold';
@@ -1198,9 +1209,35 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
   return { checked: openTrades.length, breakevenArmed, closed };
 }
 
+/**
+ * Dynamically merges the core 12 Nifty-50 watchlist with all Proven 2.5-Year Nifty-50
+ * CNC Swing Champions so Auto-Pilot actively monitors & trades every proven Champion.
+ */
+function buildDynamicStockUniverse(provenChampions = []) {
+  const existing = new Set(AUTO_PILOT_STOCKS.map(s => s.symbol));
+  const merged = [...AUTO_PILOT_STOCKS];
+  for (const rawSym of (provenChampions || [])) {
+    const sym = String(rawSym || '').toUpperCase().trim();
+    if (!sym || existing.has(sym)) continue;
+    existing.add(sym);
+    merged.push({
+      id: `nse_${sym.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      symbol: sym,
+      ticker: `${sym}.NS`,
+      name: sym,
+      sector: 'Nifty-50 Champion',
+      sl_atr: 1.8,
+      t1_atr: 2.8,
+      t2_atr: 5.0
+    });
+  }
+  return merged;
+}
+
 module.exports = {
   AUTO_PILOT_STOCKS,
   AUTO_PILOT_ASSETS,
+  buildDynamicStockUniverse,
   getMarketSessionWindow,
   computeHistoricalSetupEdge,
   evaluateStockForAutoPilot,

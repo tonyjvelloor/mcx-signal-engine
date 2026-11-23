@@ -29,6 +29,7 @@ const nseHolidays = require('./shared/nse_holidays');
 const autoPilot = require('./shared/auto_pilot');
 const nseMcpClient = require('./shared/nse_mcp_client');
 const swingBacktest = require('./shared/swing_backtest');
+const tradingBrain = require('./shared/trading_brain');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1086,6 +1087,24 @@ const server = http.createServer(async (req, res) => {
         const data = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: true, ...data }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 1d2c. Self-Auditing Trading Brain Endpoint (Market Regime + MFE/MAE Execution Audit + Auto-Bench)
+    if (pathname === '/api/brain' && req.method === 'GET') {
+      try {
+        const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+        const brainState = tradingBrain.evaluateBrainState({
+          db,
+          nseMcpOverview: autoPilotState.nseMcpOverview,
+          swingBacktestData: cachedSwingBt
+        });
+        autoPilotState.brainState = brainState;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, ...brainState }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: false, error: err.message }));
@@ -2228,6 +2247,11 @@ const server = http.createServer(async (req, res) => {
           totalUnrealizedPnl: Math.round(totalUnrealizedPnl * 100) / 100,
           openTrades: enrichedOpenTrades,
           nseMcpOverview: autoPilotState.nseMcpOverview,
+          brainState: autoPilotState.brainState || tradingBrain.evaluateBrainState({
+            db,
+            nseMcpOverview: autoPilotState.nseMcpOverview,
+            swingBacktestData: swingBacktest.loadCachedSwingBacktest()
+          }),
           swingBacktestSummary: (() => {
             const sb = swingBacktest.loadCachedSwingBacktest();
             if (!sb) return null;
@@ -2795,19 +2819,30 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     const recentLessons = db
       ? db.prepare(`SELECT * FROM trade_lessons ORDER BY id DESC LIMIT 40`).all()
       : [];
+    const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+    const activeStockUniverse = autoPilot.buildDynamicStockUniverse(cachedSwingBt?.provenChampions || []);
+
     const [geoIntel, nseMcpOverview, nseMcpQuotes] = await Promise.all([
       geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null),
       nseMcpClient.getLiveMarketOverview(false).catch(() => null),
-      nseMcpClient.getBatchStockQuotes(autoPilot.AUTO_PILOT_STOCKS.map(s => s.symbol)).catch(() => ({}))
+      nseMcpClient.getBatchStockQuotes(activeStockUniverse.map(s => s.symbol)).catch(() => ({}))
     ]);
     if (nseMcpOverview) {
       autoPilotState.nseMcpOverview = nseMcpOverview;
     }
 
+    // Evaluate Self-Auditing Trading Brain (Regime + MFE/MAE Execution Audit + Auto-Bench)
+    const brainState = tradingBrain.evaluateBrainState({
+      db,
+      nseMcpOverview,
+      swingBacktestData: cachedSwingBt
+    });
+    autoPilotState.brainState = brainState;
+
     // Fetch 20/50 DMA + 52W High/Low + Corporate Action Shield profiles (30m cached per symbol) in chunks of 4
     const swingProfiles = {};
-    for (let i = 0; i < autoPilot.AUTO_PILOT_STOCKS.length; i += 4) {
-      const chunk = autoPilot.AUTO_PILOT_STOCKS.slice(i, i + 4);
+    for (let i = 0; i < activeStockUniverse.length; i += 4) {
+      const chunk = activeStockUniverse.slice(i, i + 4);
       const chunkResults = await Promise.all(
         chunk.map(s => nseMcpClient.getSwingDailyProfile(s.symbol, nseMcpQuotes[s.symbol]?.ltp || 0).catch(() => null))
       );
@@ -2820,8 +2855,8 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     const evaluations = [];
     const latestPrices = {};
 
-    // 1. Scan & Rank All 12 Nifty-50 Large-Cap NSE Stocks for the ₹15,000 Budget (powered by Official NSE MCP Live Feed)
-    for (const stock of autoPilot.AUTO_PILOT_STOCKS) {
+    // 1. Scan & Rank Core + Proven Nifty-50 CNC Swing Champions for the ₹15,000 Budget (powered by Official NSE MCP Live Feed)
+    for (const stock of activeStockUniverse) {
       const rawCandles = await loadCandlesForAutoPilotSymbol({
         ticker: stock.ticker,
         dbSym: stock.symbol,
@@ -2842,7 +2877,6 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           );
         } catch (_) {}
       }
-      const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
       const sev = autoPilot.evaluateStockForAutoPilot({
         stock,
         rawCandles,
@@ -2850,6 +2884,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         nseMcpOverview,
         swingProfile: swingProfiles[stock.symbol] || null,
         multiYearSwingEdge: cachedSwingBt?.bySymbol?.[stock.symbol] || null,
+        brainState,
         recentLessons: stockLessons,
         geoIntel,
         accountProfile: accProfile,
@@ -2913,6 +2948,14 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     autoPilotState.stockEvaluations = stockEvaluations;
     autoPilotState.topStocks = topStocks;
     autoPilotState.lastEvaluations = evaluations;
+
+    // Step A0: Update live MFE/MAE in R-multiples for all open trades in SQLite Execution Auditor
+    if (db) {
+      try {
+        const openForAudit = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
+        tradingBrain.updateTradeExcursions(db, openForAudit, latestPrices);
+      } catch (_) {}
+    }
 
     // Step A: Manage existing open paper positions (+1R Breakeven + SL/Target/EOD Auto-Close + Reflection Lessons)
     const lifecycle = autoPilot.manageOpenPaperPositions({

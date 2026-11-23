@@ -566,5 +566,55 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     nowDate: morningMon
   });
   assert.strictEqual(failedMyEv.executionPlan.bucket, 'MIS_INTRADAY', 'Stock failing 2.5Y CNC backtest must NOT route to CNC_SWING bucket');
-  console.log('✓ Test 17 Passed: Multi-Year Official NSE Bhavcopy CNC Swing Backtester & Champion Gate verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 17 Passed: Multi-Year Official NSE Bhavcopy CNC Swing Backtester & Champion Gate verified.');
+
+  // ── Test 18: Self-Auditing Trading Brain (Market Regime, MFE/MAE Auditor, Auto-Bench & Dynamic Nifty-50 Champions) ──
+  const brain = require('../shared/trading_brain');
+  const panicRegime = brain.classifyMarketRegime({
+    nseMcpOverview: { nifty50: { percChange: -1.8 }, breadth: { advPct: 18 } }
+  });
+  assert.strictEqual(panicRegime.regime, 'HIGH_VOL_PANIC');
+  assert.strictEqual(panicRegime.allowNewLongs, false);
+  assert.strictEqual(panicRegime.sizeMultiplier, 0.5);
+
+  const bullRegime = brain.classifyMarketRegime({
+    nseMcpOverview: { nifty50: { percChange: 0.75 }, breadth: { advPct: 68 } }
+  });
+  assert.strictEqual(bullRegime.regime, 'BULL_TREND');
+  assert.strictEqual(bullRegime.allowNewLongs, true);
+
+  // Verify MFE/MAE tracking & Auto-Bench after 2 consecutive losses
+  brain.ensureBrainTables(memDb);
+  memDb.exec(`
+    INSERT INTO paper_trades (symbol, side, qty, entry_price, exit_price, stop_loss, target, net_pnl, brokerage, stt_gst, status, exit_reason)
+    VALUES ('BADSTOCK', 'BUY', 5, 500, 490, 490, 520, -65, 10, 5, 'LOSS', 'AUTO_SL'),
+           ('BADSTOCK', 'BUY', 5, 500, 490, 490, 520, -65, 10, 5, 'LOSS', 'AUTO_SL');
+  `);
+  const mfeUpd = brain.updateTradeExcursions(
+    memDb,
+    [{ id: 999, symbol: 'SBIN', side: 'BUY', entry_price: 800, stop_loss: 790, target: 830 }],
+    { SBIN: { price: 815 } }
+  );
+  assert.strictEqual(mfeUpd[0].mfeR, 1.5, 'MFE must compute +1.5R accurately');
+
+  const execAudit = brain.auditExecutionQuality(memDb);
+  assert.ok(execAudit.autoBenchedSymbols.some(b => b.symbol === 'BADSTOCK'), 'Brain must auto-bench symbol with 2 consecutive losses');
+
+  // Verify Brain Auto-Bench Veto & Regime Veto block auto-execution
+  const benchVetoEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock,
+    rawCandles: sbinBars,
+    brainState: {
+      regime: panicRegime,
+      execution: { ...execAudit, autoBenchedSymbols: [{ symbol: 'SBIN', trades: 2, netPnl: -130, reason: '2 consecutive losses' }] }
+    },
+    nowDate: morningMon
+  });
+  assert.strictEqual(benchVetoEv.qualifiesForAutoExec, false, 'Auto-Benched symbol must be vetoed by Trading Brain');
+  assert.ok(String(benchVetoEv.vetoReason || '').includes('Brain Auto-Bench Veto'));
+
+  // Verify dynamic Nifty-50 Champion universe expansion
+  const dynUniverse = autoPilot.buildDynamicStockUniverse(['SHRIRAMFIN', 'ETERNAL', 'KOTAKBANK']);
+  assert.ok(dynUniverse.some(s => s.symbol === 'SHRIRAMFIN') && dynUniverse.some(s => s.symbol === 'ETERNAL'), 'Dynamic universe must merge Nifty-50 Champions');
+  console.log('✓ Test 18 Passed: Self-Auditing Trading Brain (Regime, MFE/MAE, Auto-Bench & Nifty-50 Champions) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

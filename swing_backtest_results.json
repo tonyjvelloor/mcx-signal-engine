@@ -1,15 +1,293 @@
 {
-  "updatedAt": "2026-11-23T07:18:56.543Z",
+  "updatedAt": "2026-11-23T08:26:13.965Z",
   "methodology": "Official NSE Bhavcopy Multi-Year Daily (Split/Bonus Adjusted · Next-Day Open Fill · ₹0 Brokerage + 0.29% CNC Friction · ₹5,000 Slot)",
-  "totalStocksTested": 12,
-  "provenChampionsCount": 2,
+  "totalStocksTested": 49,
+  "provenChampionsCount": 9,
   "provenChampions": [
+    "SHRIRAMFIN",
+    "ETERNAL",
+    "HCLTECH",
+    "BAJFINANCE",
+    "BAJAJFINSV",
     "KOTAKBANK",
-    "ICICIBANK"
+    "SBILIFE",
+    "ICICIBANK",
+    "HINDALCO"
   ],
-  "avgChampionWinRate": 60,
-  "avgChampionPF": 1.51,
+  "avgChampionWinRate": 62,
+  "avgChampionPF": 1.88,
   "stocks": [
+    {
+      "symbol": "HEROMOTOCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 5536,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 8,
+      "winRate": 75,
+      "profitFactor": 3.81,
+      "avgReturnPct": 3.05,
+      "totalReturnPct": 25.69,
+      "expectancyRs": 149.22,
+      "maxDrawdownPct": 4.39,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.05
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 16.26
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 8.05
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 45,
+        "profitFactor": 1.36,
+        "totalReturnPct": 6.57
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 75,
+        "profitFactor": 3.81,
+        "totalReturnPct": 25.69
+      }
+    },
+    {
+      "symbol": "BAJAJ-AUTO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 10765,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 9,
+      "winRate": 78,
+      "profitFactor": 3.23,
+      "avgReturnPct": 1.87,
+      "totalReturnPct": 17.16,
+      "expectancyRs": 202.73,
+      "maxDrawdownPct": 4.21,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 15.97
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 3,
+          "netRetPct": 2.05
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -1.22
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 1.22,
+        "totalReturnPct": 5.08
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 78,
+        "profitFactor": 3.23,
+        "totalReturnPct": 17.16
+      }
+    },
+    {
+      "symbol": "SHRIRAMFIN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 972,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 9,
+      "winRate": 78,
+      "profitFactor": 3.21,
+      "avgReturnPct": 3.47,
+      "totalReturnPct": 33.14,
+      "expectancyRs": 156.49,
+      "maxDrawdownPct": 7.17,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 12.58
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 5,
+          "netRetPct": 25.51
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -6.88
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 40,
+        "profitFactor": 0.73,
+        "totalReturnPct": -16.47
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 78,
+        "profitFactor": 3.21,
+        "totalReturnPct": 33.14
+      }
+    },
+    {
+      "symbol": "ETERNAL",
+      "tradingDays": 399,
+      "fromDate": "2025-04-09",
+      "toDate": "2026-11-20",
+      "lastClose": 364,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 10,
+      "winRate": 70,
+      "profitFactor": 2.35,
+      "avgReturnPct": 2.48,
+      "totalReturnPct": 25.17,
+      "expectancyRs": 122.76,
+      "maxDrawdownPct": 10.97,
+      "yearly": {
+        "2025": {
+          "trades": 4,
+          "wins": 4,
+          "netRetPct": 16.51
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 3,
+          "netRetPct": 8.33
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 70,
+        "profitFactor": 2.35,
+        "totalReturnPct": 25.17
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 67,
+        "profitFactor": 1.57,
+        "totalReturnPct": 4.57
+      }
+    },
+    {
+      "symbol": "HCLTECH",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1344.4,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 11,
+      "winRate": 73,
+      "profitFactor": 1.9,
+      "avgReturnPct": 1.2,
+      "totalReturnPct": 12.65,
+      "expectancyRs": 63.43,
+      "maxDrawdownPct": 5.39,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 4,
+          "netRetPct": 15.62
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 2.88
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -5.33
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 73,
+        "profitFactor": 1.9,
+        "totalReturnPct": 12.65
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 22,
+        "profitFactor": 0.41,
+        "totalReturnPct": -16.3
+      }
+    },
+    {
+      "symbol": "BAJFINANCE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1122,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 17,
+      "winRate": 59,
+      "profitFactor": 1.77,
+      "avgReturnPct": 1.65,
+      "totalReturnPct": 27.41,
+      "expectancyRs": 72.36,
+      "maxDrawdownPct": 10.88,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": 3.46
+        },
+        "2025": {
+          "trades": 11,
+          "wins": 7,
+          "netRetPct": 25.84
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -1.24
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 59,
+        "profitFactor": 1.77,
+        "totalReturnPct": 27.41
+      },
+      "breakout": {
+        "trades": 10,
+        "winRate": 30,
+        "profitFactor": 0.49,
+        "totalReturnPct": -17.91
+      }
+    },
     {
       "symbol": "MARUTI",
       "tradingDays": 624,
@@ -54,6 +332,52 @@
         "winRate": 50,
         "profitFactor": 1.74,
         "totalReturnPct": 12.91
+      }
+    },
+    {
+      "symbol": "BAJAJFINSV",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1892,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 14,
+      "winRate": 50,
+      "profitFactor": 1.67,
+      "avgReturnPct": 1.27,
+      "totalReturnPct": 16.66,
+      "expectancyRs": 49.02,
+      "maxDrawdownPct": 15.38,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 9.12
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 5,
+          "netRetPct": 11
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 1,
+          "netRetPct": -2.33
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 50,
+        "profitFactor": 1.67,
+        "totalReturnPct": 16.66
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 44,
+        "profitFactor": 0.89,
+        "totalReturnPct": -3.85
       }
     },
     {
@@ -103,6 +427,52 @@
       }
     },
     {
+      "symbol": "SBILIFE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1826.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 6,
+      "winRate": 50,
+      "profitFactor": 1.6,
+      "avgReturnPct": 1.41,
+      "totalReturnPct": 7.47,
+      "expectancyRs": 61.05,
+      "maxDrawdownPct": 6.74,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 5.11
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": 7.48
+        },
+        "2026": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -4.14
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 0.71,
+        "totalReturnPct": -10.27
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 50,
+        "profitFactor": 1.6,
+        "totalReturnPct": 7.47
+      }
+    },
+    {
       "symbol": "ICICIBANK",
       "tradingDays": 624,
       "fromDate": "2024-05-14",
@@ -146,6 +516,180 @@
         "winRate": 55,
         "profitFactor": 1.02,
         "totalReturnPct": -0.53
+      }
+    },
+    {
+      "symbol": "HINDALCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 929.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 11,
+      "winRate": 55,
+      "profitFactor": 1.37,
+      "avgReturnPct": 0.77,
+      "totalReturnPct": 6.97,
+      "expectancyRs": 39.58,
+      "maxDrawdownPct": 17.7,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 2.14
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 4,
+          "netRetPct": 25.29
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -19.01
+        }
+      },
+      "pullback": {
+        "trades": 18,
+        "winRate": 44,
+        "profitFactor": 0.94,
+        "totalReturnPct": -6.29
+      },
+      "breakout": {
+        "trades": 11,
+        "winRate": 55,
+        "profitFactor": 1.37,
+        "totalReturnPct": 6.97
+      }
+    },
+    {
+      "symbol": "APOLLOHOSP",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 9200,
+      "slotEligible": false,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 20,
+      "winRate": 45,
+      "profitFactor": 1.36,
+      "avgReturnPct": 0.58,
+      "totalReturnPct": 10.05,
+      "expectancyRs": 33.65,
+      "maxDrawdownPct": 11.91,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 3,
+          "netRetPct": 11.81
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 3,
+          "netRetPct": -11.39
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": 11.17
+        }
+      },
+      "pullback": {
+        "trades": 20,
+        "winRate": 45,
+        "profitFactor": 1.36,
+        "totalReturnPct": 10.05
+      },
+      "breakout": {
+        "trades": 10,
+        "winRate": 30,
+        "profitFactor": 0.24,
+        "totalReturnPct": -16.82
+      }
+    },
+    {
+      "symbol": "TRENT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3256.1,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 5,
+      "winRate": 80,
+      "profitFactor": 3.49,
+      "avgReturnPct": 4.17,
+      "totalReturnPct": 20.68,
+      "expectancyRs": 161.99,
+      "maxDrawdownPct": 8.37,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 17.04
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -3.23
+        },
+        "2026": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 7.02
+        }
+      },
+      "pullback": {
+        "trades": 8,
+        "winRate": 63,
+        "profitFactor": 0.75,
+        "totalReturnPct": -17.63
+      },
+      "breakout": {
+        "trades": 5,
+        "winRate": 80,
+        "profitFactor": 3.49,
+        "totalReturnPct": 20.68
+      }
+    },
+    {
+      "symbol": "DRREDDY",
+      "tradingDays": 183,
+      "fromDate": "2026-02-23",
+      "toDate": "2026-11-20",
+      "lastClose": 1390.2,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 3,
+      "winRate": 67,
+      "profitFactor": 2.86,
+      "avgReturnPct": 3.41,
+      "totalReturnPct": 9.92,
+      "expectancyRs": 159.39,
+      "maxDrawdownPct": 5.5,
+      "yearly": {
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 10.22
+        }
+      },
+      "pullback": {
+        "trades": 3,
+        "winRate": 67,
+        "profitFactor": 2.86,
+        "totalReturnPct": 9.92
+      },
+      "breakout": {
+        "trades": 3,
+        "winRate": 33,
+        "profitFactor": 0.71,
+        "totalReturnPct": -2.76
       }
     },
     {
@@ -236,6 +780,144 @@
       }
     },
     {
+      "symbol": "EICHERMOT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 8113,
+      "slotEligible": false,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 22,
+      "winRate": 45,
+      "profitFactor": 1.19,
+      "avgReturnPct": 0.38,
+      "totalReturnPct": 5.43,
+      "expectancyRs": 10.54,
+      "maxDrawdownPct": 16,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": 1.86
+        },
+        "2025": {
+          "trades": 8,
+          "wins": 4,
+          "netRetPct": 9.8
+        },
+        "2026": {
+          "trades": 10,
+          "wins": 4,
+          "netRetPct": -3.31
+        }
+      },
+      "pullback": {
+        "trades": 22,
+        "winRate": 45,
+        "profitFactor": 1.19,
+        "totalReturnPct": 5.43
+      },
+      "breakout": {
+        "trades": 11,
+        "winRate": 45,
+        "profitFactor": 0.28,
+        "totalReturnPct": -16.99
+      }
+    },
+    {
+      "symbol": "TITAN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 4620,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 50,
+      "profitFactor": 1.13,
+      "avgReturnPct": 0.28,
+      "totalReturnPct": 1.3,
+      "expectancyRs": 16.15,
+      "maxDrawdownPct": 12.4,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 4.82
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -6.84
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": 4.29
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 50,
+        "profitFactor": 0.94,
+        "totalReturnPct": -3.95
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 50,
+        "profitFactor": 1.13,
+        "totalReturnPct": 1.3
+      }
+    },
+    {
+      "symbol": "HDFCLIFE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 588.65,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 18,
+      "winRate": 50,
+      "profitFactor": 1.09,
+      "avgReturnPct": 0.2,
+      "totalReturnPct": 0.76,
+      "expectancyRs": 9.81,
+      "maxDrawdownPct": 19.55,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -0.61
+        },
+        "2025": {
+          "trades": 10,
+          "wins": 5,
+          "netRetPct": -0.88
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 5.1
+        }
+      },
+      "pullback": {
+        "trades": 18,
+        "winRate": 50,
+        "profitFactor": 1.09,
+        "totalReturnPct": 0.76
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 33,
+        "profitFactor": 0.24,
+        "totalReturnPct": -12.75
+      }
+    },
+    {
       "symbol": "SBIN",
       "tradingDays": 624,
       "fromDate": "2024-05-14",
@@ -279,6 +961,328 @@
         "winRate": 50,
         "profitFactor": 0.71,
         "totalReturnPct": -7.15
+      }
+    },
+    {
+      "symbol": "LT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 4209.1,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 50,
+      "profitFactor": 1,
+      "avgReturnPct": 0,
+      "totalReturnPct": -1.39,
+      "expectancyRs": -7.01,
+      "maxDrawdownPct": 15.29,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 2.39
+        },
+        "2025": {
+          "trades": 7,
+          "wins": 5,
+          "netRetPct": 13.81
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 0,
+          "netRetPct": -16.24
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 50,
+        "profitFactor": 1,
+        "totalReturnPct": -1.39
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 44,
+        "profitFactor": 0.26,
+        "totalReturnPct": -12.85
+      }
+    },
+    {
+      "symbol": "INDUSINDBK",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1003,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 54,
+      "profitFactor": 0.99,
+      "avgReturnPct": -0.01,
+      "totalReturnPct": -1.83,
+      "expectancyRs": 5.35,
+      "maxDrawdownPct": 11.99,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -3.38
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -2.45
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 4,
+          "netRetPct": 5.65
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 54,
+        "profitFactor": 0.99,
+        "totalReturnPct": -1.83
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.74,
+        "totalReturnPct": -6.01
+      }
+    },
+    {
+      "symbol": "ONGC",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 223.46,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 11,
+      "winRate": 55,
+      "profitFactor": 0.97,
+      "avgReturnPct": -0.07,
+      "totalReturnPct": -2.23,
+      "expectancyRs": -2.28,
+      "maxDrawdownPct": 15.7,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -8.75
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -7.64
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 4,
+          "netRetPct": 15.64
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 55,
+        "profitFactor": 0.97,
+        "totalReturnPct": -2.23
+      },
+      "breakout": {
+        "trades": 5,
+        "winRate": 20,
+        "profitFactor": 0,
+        "totalReturnPct": -17.43
+      }
+    },
+    {
+      "symbol": "ADANIPORTS",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1917,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 46,
+      "profitFactor": 0.96,
+      "avgReturnPct": -0.09,
+      "totalReturnPct": -3.75,
+      "expectancyRs": -2.78,
+      "maxDrawdownPct": 20.47,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -6.23
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 4,
+          "netRetPct": 12.62
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 2,
+          "netRetPct": -7.56
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 46,
+        "profitFactor": 0.96,
+        "totalReturnPct": -3.75
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 25,
+        "profitFactor": 0.41,
+        "totalReturnPct": -16.2
+      }
+    },
+    {
+      "symbol": "JIOFIN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 224.97,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 31,
+      "profitFactor": 0.91,
+      "avgReturnPct": -0.26,
+      "totalReturnPct": -5.83,
+      "expectancyRs": -13.26,
+      "maxDrawdownPct": 18.65,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 0,
+          "netRetPct": -10.48
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 2,
+          "netRetPct": 10.56
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -3.5
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 31,
+        "profitFactor": 0.91,
+        "totalReturnPct": -5.83
+      },
+      "breakout": {
+        "trades": 2,
+        "winRate": 50,
+        "profitFactor": 2.13,
+        "totalReturnPct": 5.11
+      }
+    },
+    {
+      "symbol": "BEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 402,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 11,
+      "winRate": 64,
+      "profitFactor": 0.87,
+      "avgReturnPct": -0.27,
+      "totalReturnPct": -4.78,
+      "expectancyRs": -12.37,
+      "maxDrawdownPct": 10.77,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.05
+        },
+        "2025": {
+          "trades": 7,
+          "wins": 4,
+          "netRetPct": -2.59
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": -0.42
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 64,
+        "profitFactor": 0.87,
+        "totalReturnPct": -4.78
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 22,
+        "profitFactor": 0.49,
+        "totalReturnPct": -20.18
+      }
+    },
+    {
+      "symbol": "NESTLEIND",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1325,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 16,
+      "winRate": 38,
+      "profitFactor": 0.83,
+      "avgReturnPct": -0.35,
+      "totalReturnPct": -6.77,
+      "expectancyRs": -13.81,
+      "maxDrawdownPct": 19.87,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 5.37
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 5,
+          "netRetPct": 5.38
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 0,
+          "netRetPct": -16.32
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 38,
+        "profitFactor": 0.83,
+        "totalReturnPct": -6.77
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 38,
+        "profitFactor": 0.55,
+        "totalReturnPct": -10.03
       }
     },
     {
@@ -328,6 +1332,52 @@
       }
     },
     {
+      "symbol": "TATASTEEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 178,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 15,
+      "winRate": 40,
+      "profitFactor": 0.67,
+      "avgReturnPct": -0.89,
+      "totalReturnPct": -14.2,
+      "expectancyRs": -43.97,
+      "maxDrawdownPct": 19.4,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -5.91
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 4,
+          "netRetPct": -0.4
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -7.02
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 40,
+        "profitFactor": 0.67,
+        "totalReturnPct": -14.2
+      },
+      "breakout": {
+        "trades": 13,
+        "winRate": 15,
+        "profitFactor": 0.24,
+        "totalReturnPct": -35.05
+      }
+    },
+    {
       "symbol": "BHARTIARTL",
       "tradingDays": 624,
       "fromDate": "2024-05-14",
@@ -374,6 +1424,139 @@
       }
     },
     {
+      "symbol": "TECHM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1746.2,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 43,
+      "profitFactor": 0.65,
+      "avgReturnPct": -1.07,
+      "totalReturnPct": -15.7,
+      "expectancyRs": -44.13,
+      "maxDrawdownPct": 26.35,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 5.47
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -1.11
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 2,
+          "netRetPct": -19.33
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 43,
+        "profitFactor": 0.65,
+        "totalReturnPct": -15.7
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 56,
+        "profitFactor": 0.53,
+        "totalReturnPct": -10.03
+      }
+    },
+    {
+      "symbol": "CIPLA",
+      "tradingDays": 375,
+      "fromDate": "2025-05-19",
+      "toDate": "2026-11-20",
+      "lastClose": 1415,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 50,
+      "profitFactor": 0.64,
+      "avgReturnPct": -0.66,
+      "totalReturnPct": -5.58,
+      "expectancyRs": -33.82,
+      "maxDrawdownPct": 9.29,
+      "yearly": {
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -5.17
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": -0.12
+        }
+      },
+      "pullback": {
+        "trades": 8,
+        "winRate": 50,
+        "profitFactor": 0.64,
+        "totalReturnPct": -5.58
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 0,
+        "profitFactor": 0,
+        "totalReturnPct": -14.9
+      }
+    },
+    {
+      "symbol": "M&M",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3545,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 17,
+      "winRate": 53,
+      "profitFactor": 0.64,
+      "avgReturnPct": -0.92,
+      "totalReturnPct": -16.1,
+      "expectancyRs": -29.54,
+      "maxDrawdownPct": 18.76,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -9.73
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 7,
+          "netRetPct": 12
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -17.84
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 0.64,
+        "totalReturnPct": -16.1
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 33,
+        "profitFactor": 0.14,
+        "totalReturnPct": -22.42
+      }
+    },
+    {
       "symbol": "HDFCBANK",
       "tradingDays": 624,
       "fromDate": "2024-05-14",
@@ -417,6 +1600,456 @@
         "winRate": 38,
         "profitFactor": 0.63,
         "totalReturnPct": -5.68
+      }
+    },
+    {
+      "symbol": "HINDUNILVR",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 2052.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 12,
+      "winRate": 50,
+      "profitFactor": 0.63,
+      "avgReturnPct": -0.81,
+      "totalReturnPct": -10.29,
+      "expectancyRs": -44.76,
+      "maxDrawdownPct": 17.49,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 6.54
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 2.44
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -18.74
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 50,
+        "profitFactor": 0.63,
+        "totalReturnPct": -10.29
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 50,
+        "profitFactor": 0.6,
+        "totalReturnPct": -3.18
+      }
+    },
+    {
+      "symbol": "SUNPHARMA",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1884.9,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 17,
+      "winRate": 47,
+      "profitFactor": 0.59,
+      "avgReturnPct": -0.81,
+      "totalReturnPct": -13.86,
+      "expectancyRs": -26.55,
+      "maxDrawdownPct": 17.31,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -4.29
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -7.96
+        },
+        "2026": {
+          "trades": 8,
+          "wins": 5,
+          "netRetPct": -1.49
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 47,
+        "profitFactor": 0.59,
+        "totalReturnPct": -13.86
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 63,
+        "profitFactor": 0.57,
+        "totalReturnPct": -4.23
+      }
+    },
+    {
+      "symbol": "JSWSTEEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1337,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 20,
+      "winRate": 45,
+      "profitFactor": 0.51,
+      "avgReturnPct": -1.34,
+      "totalReturnPct": -25.2,
+      "expectancyRs": -57.97,
+      "maxDrawdownPct": 27.11,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -8.24
+        },
+        "2025": {
+          "trades": 10,
+          "wins": 5,
+          "netRetPct": -5.69
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": -12.81
+        }
+      },
+      "pullback": {
+        "trades": 20,
+        "winRate": 45,
+        "profitFactor": 0.51,
+        "totalReturnPct": -25.2
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 33,
+        "profitFactor": 0.23,
+        "totalReturnPct": -16.44
+      }
+    },
+    {
+      "symbol": "WIPRO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 185.7,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 36,
+      "profitFactor": 0.47,
+      "avgReturnPct": -1.52,
+      "totalReturnPct": -20.56,
+      "expectancyRs": -74.72,
+      "maxDrawdownPct": 26.19,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 3.38
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 1,
+          "netRetPct": -8.46
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -16.22
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 36,
+        "profitFactor": 0.47,
+        "totalReturnPct": -20.56
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.32,
+        "totalReturnPct": -16.26
+      }
+    },
+    {
+      "symbol": "NTPC",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 321.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 7,
+      "winRate": 43,
+      "profitFactor": 0.44,
+      "avgReturnPct": -1.29,
+      "totalReturnPct": -9.09,
+      "expectancyRs": -61.81,
+      "maxDrawdownPct": 12.04,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.06
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -2.65
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -6.46
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 33,
+        "profitFactor": 0.29,
+        "totalReturnPct": -20.64
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.44,
+        "totalReturnPct": -9.09
+      }
+    },
+    {
+      "symbol": "TATACONSUM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1155.9,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 12,
+      "winRate": 50,
+      "profitFactor": 0.41,
+      "avgReturnPct": -1.26,
+      "totalReturnPct": -14.65,
+      "expectancyRs": -61.4,
+      "maxDrawdownPct": 14.72,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -7.51
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 4,
+          "netRetPct": 2.32
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -9.91
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 50,
+        "profitFactor": 0.41,
+        "totalReturnPct": -14.65
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 14,
+        "profitFactor": 0.09,
+        "totalReturnPct": -23.2
+      }
+    },
+    {
+      "symbol": "ULTRACEMCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 12939,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 25,
+      "profitFactor": 0.4,
+      "avgReturnPct": -1.53,
+      "totalReturnPct": -12.09,
+      "expectancyRs": -191.65,
+      "maxDrawdownPct": 17.22,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -4.57
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 0,
+          "netRetPct": -4.94
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -2.77
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 33,
+        "profitFactor": 0.08,
+        "totalReturnPct": -31.77
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 25,
+        "profitFactor": 0.4,
+        "totalReturnPct": -12.09
+      }
+    },
+    {
+      "symbol": "GRASIM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3103.7,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 16,
+      "winRate": 38,
+      "profitFactor": 0.33,
+      "avgReturnPct": -1.42,
+      "totalReturnPct": -20.99,
+      "expectancyRs": -40.28,
+      "maxDrawdownPct": 22.25,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -7.67
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -6.86
+        },
+        "2026": {
+          "trades": 8,
+          "wins": 3,
+          "netRetPct": -8.21
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 38,
+        "profitFactor": 0.33,
+        "totalReturnPct": -20.99
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 14,
+        "profitFactor": 0,
+        "totalReturnPct": -19.97
+      }
+    },
+    {
+      "symbol": "ADANIENT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 2709,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 10,
+      "winRate": 40,
+      "profitFactor": 0.33,
+      "avgReturnPct": -2.32,
+      "totalReturnPct": -21.73,
+      "expectancyRs": -72.23,
+      "maxDrawdownPct": 22.8,
+      "yearly": {
+        "2025": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": -18.22
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -4.94
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 40,
+        "profitFactor": 0.33,
+        "totalReturnPct": -21.73
+      },
+      "breakout": {
+        "trades": 3,
+        "winRate": 67,
+        "profitFactor": 6.31,
+        "totalReturnPct": 18.76
+      }
+    },
+    {
+      "symbol": "COALINDIA",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 390,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 6,
+      "winRate": 33,
+      "profitFactor": 0.23,
+      "avgReturnPct": -3.06,
+      "totalReturnPct": -17.61,
+      "expectancyRs": -146.69,
+      "maxDrawdownPct": 17.61,
+      "yearly": {
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -3.13
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -15.26
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 33,
+        "profitFactor": 0.17,
+        "totalReturnPct": -39.93
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 33,
+        "profitFactor": 0.23,
+        "totalReturnPct": -17.61
       }
     },
     {
@@ -512,33 +2145,27 @@
       }
     },
     {
-      "symbol": "LT",
-      "tradingDays": 125,
-      "fromDate": "2026-05-22",
+      "symbol": "ASIANPAINT",
+      "tradingDays": 61,
+      "fromDate": "2026-08-24",
       "toDate": "2026-11-20",
-      "lastClose": 4209.1,
+      "lastClose": 2608.3,
       "slotEligible": true,
       "bestArchetype": "SWING_PULLBACK",
       "provenEdge": false,
-      "trades": 1,
+      "trades": 0,
       "winRate": 0,
       "profitFactor": 0,
-      "avgReturnPct": -2.77,
-      "totalReturnPct": -2.77,
-      "expectancyRs": -113.13,
-      "maxDrawdownPct": 2.77,
-      "yearly": {
-        "2026": {
-          "trades": 1,
-          "wins": 0,
-          "netRetPct": -2.77
-        }
-      },
+      "avgReturnPct": 0,
+      "totalReturnPct": 0,
+      "expectancyRs": 0,
+      "maxDrawdownPct": 0,
+      "yearly": {},
       "pullback": {
-        "trades": 1,
+        "trades": 0,
         "winRate": 0,
         "profitFactor": 0,
-        "totalReturnPct": -2.77
+        "totalReturnPct": 0
       },
       "breakout": {
         "trades": 0,
@@ -546,9 +2173,326 @@
         "profitFactor": 0,
         "totalReturnPct": 0
       }
+    },
+    {
+      "symbol": "POWERGRID",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 269,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 10,
+      "winRate": 20,
+      "profitFactor": 0,
+      "avgReturnPct": -3.94,
+      "totalReturnPct": -33.3,
+      "expectancyRs": -193.55,
+      "maxDrawdownPct": 33.34,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 0,
+          "netRetPct": -15.87
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 0,
+          "netRetPct": -12.44
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -11.12
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 20,
+        "profitFactor": 0,
+        "totalReturnPct": -33.3
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 0,
+        "profitFactor": 0,
+        "totalReturnPct": -17.3
+      }
     }
   ],
   "bySymbol": {
+    "HEROMOTOCO": {
+      "symbol": "HEROMOTOCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 5536,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 8,
+      "winRate": 75,
+      "profitFactor": 3.81,
+      "avgReturnPct": 3.05,
+      "totalReturnPct": 25.69,
+      "expectancyRs": 149.22,
+      "maxDrawdownPct": 4.39,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.05
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 16.26
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 8.05
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 45,
+        "profitFactor": 1.36,
+        "totalReturnPct": 6.57
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 75,
+        "profitFactor": 3.81,
+        "totalReturnPct": 25.69
+      }
+    },
+    "BAJAJ-AUTO": {
+      "symbol": "BAJAJ-AUTO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 10765,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 9,
+      "winRate": 78,
+      "profitFactor": 3.23,
+      "avgReturnPct": 1.87,
+      "totalReturnPct": 17.16,
+      "expectancyRs": 202.73,
+      "maxDrawdownPct": 4.21,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 15.97
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 3,
+          "netRetPct": 2.05
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -1.22
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 1.22,
+        "totalReturnPct": 5.08
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 78,
+        "profitFactor": 3.23,
+        "totalReturnPct": 17.16
+      }
+    },
+    "SHRIRAMFIN": {
+      "symbol": "SHRIRAMFIN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 972,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 9,
+      "winRate": 78,
+      "profitFactor": 3.21,
+      "avgReturnPct": 3.47,
+      "totalReturnPct": 33.14,
+      "expectancyRs": 156.49,
+      "maxDrawdownPct": 7.17,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 12.58
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 5,
+          "netRetPct": 25.51
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -6.88
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 40,
+        "profitFactor": 0.73,
+        "totalReturnPct": -16.47
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 78,
+        "profitFactor": 3.21,
+        "totalReturnPct": 33.14
+      }
+    },
+    "ETERNAL": {
+      "symbol": "ETERNAL",
+      "tradingDays": 399,
+      "fromDate": "2025-04-09",
+      "toDate": "2026-11-20",
+      "lastClose": 364,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 10,
+      "winRate": 70,
+      "profitFactor": 2.35,
+      "avgReturnPct": 2.48,
+      "totalReturnPct": 25.17,
+      "expectancyRs": 122.76,
+      "maxDrawdownPct": 10.97,
+      "yearly": {
+        "2025": {
+          "trades": 4,
+          "wins": 4,
+          "netRetPct": 16.51
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 3,
+          "netRetPct": 8.33
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 70,
+        "profitFactor": 2.35,
+        "totalReturnPct": 25.17
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 67,
+        "profitFactor": 1.57,
+        "totalReturnPct": 4.57
+      }
+    },
+    "HCLTECH": {
+      "symbol": "HCLTECH",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1344.4,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 11,
+      "winRate": 73,
+      "profitFactor": 1.9,
+      "avgReturnPct": 1.2,
+      "totalReturnPct": 12.65,
+      "expectancyRs": 63.43,
+      "maxDrawdownPct": 5.39,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 4,
+          "netRetPct": 15.62
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 2.88
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -5.33
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 73,
+        "profitFactor": 1.9,
+        "totalReturnPct": 12.65
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 22,
+        "profitFactor": 0.41,
+        "totalReturnPct": -16.3
+      }
+    },
+    "BAJFINANCE": {
+      "symbol": "BAJFINANCE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1122,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 17,
+      "winRate": 59,
+      "profitFactor": 1.77,
+      "avgReturnPct": 1.65,
+      "totalReturnPct": 27.41,
+      "expectancyRs": 72.36,
+      "maxDrawdownPct": 10.88,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": 3.46
+        },
+        "2025": {
+          "trades": 11,
+          "wins": 7,
+          "netRetPct": 25.84
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -1.24
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 59,
+        "profitFactor": 1.77,
+        "totalReturnPct": 27.41
+      },
+      "breakout": {
+        "trades": 10,
+        "winRate": 30,
+        "profitFactor": 0.49,
+        "totalReturnPct": -17.91
+      }
+    },
     "MARUTI": {
       "symbol": "MARUTI",
       "tradingDays": 624,
@@ -593,6 +2537,52 @@
         "winRate": 50,
         "profitFactor": 1.74,
         "totalReturnPct": 12.91
+      }
+    },
+    "BAJAJFINSV": {
+      "symbol": "BAJAJFINSV",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1892,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 14,
+      "winRate": 50,
+      "profitFactor": 1.67,
+      "avgReturnPct": 1.27,
+      "totalReturnPct": 16.66,
+      "expectancyRs": 49.02,
+      "maxDrawdownPct": 15.38,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 9.12
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 5,
+          "netRetPct": 11
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 1,
+          "netRetPct": -2.33
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 50,
+        "profitFactor": 1.67,
+        "totalReturnPct": 16.66
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 44,
+        "profitFactor": 0.89,
+        "totalReturnPct": -3.85
       }
     },
     "KOTAKBANK": {
@@ -641,6 +2631,52 @@
         "totalReturnPct": 6.87
       }
     },
+    "SBILIFE": {
+      "symbol": "SBILIFE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1826.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 6,
+      "winRate": 50,
+      "profitFactor": 1.6,
+      "avgReturnPct": 1.41,
+      "totalReturnPct": 7.47,
+      "expectancyRs": 61.05,
+      "maxDrawdownPct": 6.74,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 5.11
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": 7.48
+        },
+        "2026": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -4.14
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 0.71,
+        "totalReturnPct": -10.27
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 50,
+        "profitFactor": 1.6,
+        "totalReturnPct": 7.47
+      }
+    },
     "ICICIBANK": {
       "symbol": "ICICIBANK",
       "tradingDays": 624,
@@ -685,6 +2721,180 @@
         "winRate": 55,
         "profitFactor": 1.02,
         "totalReturnPct": -0.53
+      }
+    },
+    "HINDALCO": {
+      "symbol": "HINDALCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 929.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": true,
+      "trades": 11,
+      "winRate": 55,
+      "profitFactor": 1.37,
+      "avgReturnPct": 0.77,
+      "totalReturnPct": 6.97,
+      "expectancyRs": 39.58,
+      "maxDrawdownPct": 17.7,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 2.14
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 4,
+          "netRetPct": 25.29
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -19.01
+        }
+      },
+      "pullback": {
+        "trades": 18,
+        "winRate": 44,
+        "profitFactor": 0.94,
+        "totalReturnPct": -6.29
+      },
+      "breakout": {
+        "trades": 11,
+        "winRate": 55,
+        "profitFactor": 1.37,
+        "totalReturnPct": 6.97
+      }
+    },
+    "APOLLOHOSP": {
+      "symbol": "APOLLOHOSP",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 9200,
+      "slotEligible": false,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": true,
+      "trades": 20,
+      "winRate": 45,
+      "profitFactor": 1.36,
+      "avgReturnPct": 0.58,
+      "totalReturnPct": 10.05,
+      "expectancyRs": 33.65,
+      "maxDrawdownPct": 11.91,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 3,
+          "netRetPct": 11.81
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 3,
+          "netRetPct": -11.39
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": 11.17
+        }
+      },
+      "pullback": {
+        "trades": 20,
+        "winRate": 45,
+        "profitFactor": 1.36,
+        "totalReturnPct": 10.05
+      },
+      "breakout": {
+        "trades": 10,
+        "winRate": 30,
+        "profitFactor": 0.24,
+        "totalReturnPct": -16.82
+      }
+    },
+    "TRENT": {
+      "symbol": "TRENT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3256.1,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 5,
+      "winRate": 80,
+      "profitFactor": 3.49,
+      "avgReturnPct": 4.17,
+      "totalReturnPct": 20.68,
+      "expectancyRs": 161.99,
+      "maxDrawdownPct": 8.37,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 17.04
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -3.23
+        },
+        "2026": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 7.02
+        }
+      },
+      "pullback": {
+        "trades": 8,
+        "winRate": 63,
+        "profitFactor": 0.75,
+        "totalReturnPct": -17.63
+      },
+      "breakout": {
+        "trades": 5,
+        "winRate": 80,
+        "profitFactor": 3.49,
+        "totalReturnPct": 20.68
+      }
+    },
+    "DRREDDY": {
+      "symbol": "DRREDDY",
+      "tradingDays": 183,
+      "fromDate": "2026-02-23",
+      "toDate": "2026-11-20",
+      "lastClose": 1390.2,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 3,
+      "winRate": 67,
+      "profitFactor": 2.86,
+      "avgReturnPct": 3.41,
+      "totalReturnPct": 9.92,
+      "expectancyRs": 159.39,
+      "maxDrawdownPct": 5.5,
+      "yearly": {
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 10.22
+        }
+      },
+      "pullback": {
+        "trades": 3,
+        "winRate": 67,
+        "profitFactor": 2.86,
+        "totalReturnPct": 9.92
+      },
+      "breakout": {
+        "trades": 3,
+        "winRate": 33,
+        "profitFactor": 0.71,
+        "totalReturnPct": -2.76
       }
     },
     "RELIANCE": {
@@ -774,6 +2984,144 @@
         "totalReturnPct": -3.34
       }
     },
+    "EICHERMOT": {
+      "symbol": "EICHERMOT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 8113,
+      "slotEligible": false,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 22,
+      "winRate": 45,
+      "profitFactor": 1.19,
+      "avgReturnPct": 0.38,
+      "totalReturnPct": 5.43,
+      "expectancyRs": 10.54,
+      "maxDrawdownPct": 16,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": 1.86
+        },
+        "2025": {
+          "trades": 8,
+          "wins": 4,
+          "netRetPct": 9.8
+        },
+        "2026": {
+          "trades": 10,
+          "wins": 4,
+          "netRetPct": -3.31
+        }
+      },
+      "pullback": {
+        "trades": 22,
+        "winRate": 45,
+        "profitFactor": 1.19,
+        "totalReturnPct": 5.43
+      },
+      "breakout": {
+        "trades": 11,
+        "winRate": 45,
+        "profitFactor": 0.28,
+        "totalReturnPct": -16.99
+      }
+    },
+    "TITAN": {
+      "symbol": "TITAN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 4620,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 50,
+      "profitFactor": 1.13,
+      "avgReturnPct": 0.28,
+      "totalReturnPct": 1.3,
+      "expectancyRs": 16.15,
+      "maxDrawdownPct": 12.4,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 4.82
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -6.84
+        },
+        "2026": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": 4.29
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 50,
+        "profitFactor": 0.94,
+        "totalReturnPct": -3.95
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 50,
+        "profitFactor": 1.13,
+        "totalReturnPct": 1.3
+      }
+    },
+    "HDFCLIFE": {
+      "symbol": "HDFCLIFE",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 588.65,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 18,
+      "winRate": 50,
+      "profitFactor": 1.09,
+      "avgReturnPct": 0.2,
+      "totalReturnPct": 0.76,
+      "expectancyRs": 9.81,
+      "maxDrawdownPct": 19.55,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -0.61
+        },
+        "2025": {
+          "trades": 10,
+          "wins": 5,
+          "netRetPct": -0.88
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 5.1
+        }
+      },
+      "pullback": {
+        "trades": 18,
+        "winRate": 50,
+        "profitFactor": 1.09,
+        "totalReturnPct": 0.76
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 33,
+        "profitFactor": 0.24,
+        "totalReturnPct": -12.75
+      }
+    },
     "SBIN": {
       "symbol": "SBIN",
       "tradingDays": 624,
@@ -818,6 +3166,328 @@
         "winRate": 50,
         "profitFactor": 0.71,
         "totalReturnPct": -7.15
+      }
+    },
+    "LT": {
+      "symbol": "LT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 4209.1,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 50,
+      "profitFactor": 1,
+      "avgReturnPct": 0,
+      "totalReturnPct": -1.39,
+      "expectancyRs": -7.01,
+      "maxDrawdownPct": 15.29,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": 2.39
+        },
+        "2025": {
+          "trades": 7,
+          "wins": 5,
+          "netRetPct": 13.81
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 0,
+          "netRetPct": -16.24
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 50,
+        "profitFactor": 1,
+        "totalReturnPct": -1.39
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 44,
+        "profitFactor": 0.26,
+        "totalReturnPct": -12.85
+      }
+    },
+    "INDUSINDBK": {
+      "symbol": "INDUSINDBK",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1003,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 54,
+      "profitFactor": 0.99,
+      "avgReturnPct": -0.01,
+      "totalReturnPct": -1.83,
+      "expectancyRs": 5.35,
+      "maxDrawdownPct": 11.99,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -3.38
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -2.45
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 4,
+          "netRetPct": 5.65
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 54,
+        "profitFactor": 0.99,
+        "totalReturnPct": -1.83
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.74,
+        "totalReturnPct": -6.01
+      }
+    },
+    "ONGC": {
+      "symbol": "ONGC",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 223.46,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 11,
+      "winRate": 55,
+      "profitFactor": 0.97,
+      "avgReturnPct": -0.07,
+      "totalReturnPct": -2.23,
+      "expectancyRs": -2.28,
+      "maxDrawdownPct": 15.7,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -8.75
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -7.64
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 4,
+          "netRetPct": 15.64
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 55,
+        "profitFactor": 0.97,
+        "totalReturnPct": -2.23
+      },
+      "breakout": {
+        "trades": 5,
+        "winRate": 20,
+        "profitFactor": 0,
+        "totalReturnPct": -17.43
+      }
+    },
+    "ADANIPORTS": {
+      "symbol": "ADANIPORTS",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1917,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 46,
+      "profitFactor": 0.96,
+      "avgReturnPct": -0.09,
+      "totalReturnPct": -3.75,
+      "expectancyRs": -2.78,
+      "maxDrawdownPct": 20.47,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -6.23
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 4,
+          "netRetPct": 12.62
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 2,
+          "netRetPct": -7.56
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 46,
+        "profitFactor": 0.96,
+        "totalReturnPct": -3.75
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 25,
+        "profitFactor": 0.41,
+        "totalReturnPct": -16.2
+      }
+    },
+    "JIOFIN": {
+      "symbol": "JIOFIN",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 224.97,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 13,
+      "winRate": 31,
+      "profitFactor": 0.91,
+      "avgReturnPct": -0.26,
+      "totalReturnPct": -5.83,
+      "expectancyRs": -13.26,
+      "maxDrawdownPct": 18.65,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 0,
+          "netRetPct": -10.48
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 2,
+          "netRetPct": 10.56
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -3.5
+        }
+      },
+      "pullback": {
+        "trades": 13,
+        "winRate": 31,
+        "profitFactor": 0.91,
+        "totalReturnPct": -5.83
+      },
+      "breakout": {
+        "trades": 2,
+        "winRate": 50,
+        "profitFactor": 2.13,
+        "totalReturnPct": 5.11
+      }
+    },
+    "BEL": {
+      "symbol": "BEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 402,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 11,
+      "winRate": 64,
+      "profitFactor": 0.87,
+      "avgReturnPct": -0.27,
+      "totalReturnPct": -4.78,
+      "expectancyRs": -12.37,
+      "maxDrawdownPct": 10.77,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.05
+        },
+        "2025": {
+          "trades": 7,
+          "wins": 4,
+          "netRetPct": -2.59
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 2,
+          "netRetPct": -0.42
+        }
+      },
+      "pullback": {
+        "trades": 11,
+        "winRate": 64,
+        "profitFactor": 0.87,
+        "totalReturnPct": -4.78
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 22,
+        "profitFactor": 0.49,
+        "totalReturnPct": -20.18
+      }
+    },
+    "NESTLEIND": {
+      "symbol": "NESTLEIND",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1325,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 16,
+      "winRate": 38,
+      "profitFactor": 0.83,
+      "avgReturnPct": -0.35,
+      "totalReturnPct": -6.77,
+      "expectancyRs": -13.81,
+      "maxDrawdownPct": 19.87,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 5.37
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 5,
+          "netRetPct": 5.38
+        },
+        "2026": {
+          "trades": 6,
+          "wins": 0,
+          "netRetPct": -16.32
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 38,
+        "profitFactor": 0.83,
+        "totalReturnPct": -6.77
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 38,
+        "profitFactor": 0.55,
+        "totalReturnPct": -10.03
       }
     },
     "ITC": {
@@ -866,6 +3536,52 @@
         "totalReturnPct": -4.75
       }
     },
+    "TATASTEEL": {
+      "symbol": "TATASTEEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 178,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 15,
+      "winRate": 40,
+      "profitFactor": 0.67,
+      "avgReturnPct": -0.89,
+      "totalReturnPct": -14.2,
+      "expectancyRs": -43.97,
+      "maxDrawdownPct": 19.4,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -5.91
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 4,
+          "netRetPct": -0.4
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -7.02
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 40,
+        "profitFactor": 0.67,
+        "totalReturnPct": -14.2
+      },
+      "breakout": {
+        "trades": 13,
+        "winRate": 15,
+        "profitFactor": 0.24,
+        "totalReturnPct": -35.05
+      }
+    },
     "BHARTIARTL": {
       "symbol": "BHARTIARTL",
       "tradingDays": 624,
@@ -912,6 +3628,139 @@
         "totalReturnPct": -7.95
       }
     },
+    "TECHM": {
+      "symbol": "TECHM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1746.2,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 43,
+      "profitFactor": 0.65,
+      "avgReturnPct": -1.07,
+      "totalReturnPct": -15.7,
+      "expectancyRs": -44.13,
+      "maxDrawdownPct": 26.35,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 5.47
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 1,
+          "netRetPct": -1.11
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 2,
+          "netRetPct": -19.33
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 43,
+        "profitFactor": 0.65,
+        "totalReturnPct": -15.7
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 56,
+        "profitFactor": 0.53,
+        "totalReturnPct": -10.03
+      }
+    },
+    "CIPLA": {
+      "symbol": "CIPLA",
+      "tradingDays": 375,
+      "fromDate": "2025-05-19",
+      "toDate": "2026-11-20",
+      "lastClose": 1415,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 50,
+      "profitFactor": 0.64,
+      "avgReturnPct": -0.66,
+      "totalReturnPct": -5.58,
+      "expectancyRs": -33.82,
+      "maxDrawdownPct": 9.29,
+      "yearly": {
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -5.17
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": -0.12
+        }
+      },
+      "pullback": {
+        "trades": 8,
+        "winRate": 50,
+        "profitFactor": 0.64,
+        "totalReturnPct": -5.58
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 0,
+        "profitFactor": 0,
+        "totalReturnPct": -14.9
+      }
+    },
+    "M&M": {
+      "symbol": "M&M",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3545,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 17,
+      "winRate": 53,
+      "profitFactor": 0.64,
+      "avgReturnPct": -0.92,
+      "totalReturnPct": -16.1,
+      "expectancyRs": -29.54,
+      "maxDrawdownPct": 18.76,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -9.73
+        },
+        "2025": {
+          "trades": 9,
+          "wins": 7,
+          "netRetPct": 12
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -17.84
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 53,
+        "profitFactor": 0.64,
+        "totalReturnPct": -16.1
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 33,
+        "profitFactor": 0.14,
+        "totalReturnPct": -22.42
+      }
+    },
     "HDFCBANK": {
       "symbol": "HDFCBANK",
       "tradingDays": 624,
@@ -956,6 +3805,456 @@
         "winRate": 38,
         "profitFactor": 0.63,
         "totalReturnPct": -5.68
+      }
+    },
+    "HINDUNILVR": {
+      "symbol": "HINDUNILVR",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 2052.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 12,
+      "winRate": 50,
+      "profitFactor": 0.63,
+      "avgReturnPct": -0.81,
+      "totalReturnPct": -10.29,
+      "expectancyRs": -44.76,
+      "maxDrawdownPct": 17.49,
+      "yearly": {
+        "2024": {
+          "trades": 2,
+          "wins": 2,
+          "netRetPct": 6.54
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 2.44
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -18.74
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 50,
+        "profitFactor": 0.63,
+        "totalReturnPct": -10.29
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 50,
+        "profitFactor": 0.6,
+        "totalReturnPct": -3.18
+      }
+    },
+    "SUNPHARMA": {
+      "symbol": "SUNPHARMA",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1884.9,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 17,
+      "winRate": 47,
+      "profitFactor": 0.59,
+      "avgReturnPct": -0.81,
+      "totalReturnPct": -13.86,
+      "expectancyRs": -26.55,
+      "maxDrawdownPct": 17.31,
+      "yearly": {
+        "2024": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -4.29
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -7.96
+        },
+        "2026": {
+          "trades": 8,
+          "wins": 5,
+          "netRetPct": -1.49
+        }
+      },
+      "pullback": {
+        "trades": 17,
+        "winRate": 47,
+        "profitFactor": 0.59,
+        "totalReturnPct": -13.86
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 63,
+        "profitFactor": 0.57,
+        "totalReturnPct": -4.23
+      }
+    },
+    "JSWSTEEL": {
+      "symbol": "JSWSTEEL",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1337,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 20,
+      "winRate": 45,
+      "profitFactor": 0.51,
+      "avgReturnPct": -1.34,
+      "totalReturnPct": -25.2,
+      "expectancyRs": -57.97,
+      "maxDrawdownPct": 27.11,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -8.24
+        },
+        "2025": {
+          "trades": 10,
+          "wins": 5,
+          "netRetPct": -5.69
+        },
+        "2026": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": -12.81
+        }
+      },
+      "pullback": {
+        "trades": 20,
+        "winRate": 45,
+        "profitFactor": 0.51,
+        "totalReturnPct": -25.2
+      },
+      "breakout": {
+        "trades": 9,
+        "winRate": 33,
+        "profitFactor": 0.23,
+        "totalReturnPct": -16.44
+      }
+    },
+    "WIPRO": {
+      "symbol": "WIPRO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 185.7,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 14,
+      "winRate": 36,
+      "profitFactor": 0.47,
+      "avgReturnPct": -1.52,
+      "totalReturnPct": -20.56,
+      "expectancyRs": -74.72,
+      "maxDrawdownPct": 26.19,
+      "yearly": {
+        "2024": {
+          "trades": 5,
+          "wins": 3,
+          "netRetPct": 3.38
+        },
+        "2025": {
+          "trades": 4,
+          "wins": 1,
+          "netRetPct": -8.46
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 1,
+          "netRetPct": -16.22
+        }
+      },
+      "pullback": {
+        "trades": 14,
+        "winRate": 36,
+        "profitFactor": 0.47,
+        "totalReturnPct": -20.56
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.32,
+        "totalReturnPct": -16.26
+      }
+    },
+    "NTPC": {
+      "symbol": "NTPC",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 321.5,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 7,
+      "winRate": 43,
+      "profitFactor": 0.44,
+      "avgReturnPct": -1.29,
+      "totalReturnPct": -9.09,
+      "expectancyRs": -61.81,
+      "maxDrawdownPct": 12.04,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 1,
+          "netRetPct": 0.06
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -2.65
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -6.46
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 33,
+        "profitFactor": 0.29,
+        "totalReturnPct": -20.64
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 43,
+        "profitFactor": 0.44,
+        "totalReturnPct": -9.09
+      }
+    },
+    "TATACONSUM": {
+      "symbol": "TATACONSUM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 1155.9,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 12,
+      "winRate": 50,
+      "profitFactor": 0.41,
+      "avgReturnPct": -1.26,
+      "totalReturnPct": -14.65,
+      "expectancyRs": -61.4,
+      "maxDrawdownPct": 14.72,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -7.51
+        },
+        "2025": {
+          "trades": 6,
+          "wins": 4,
+          "netRetPct": 2.32
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -9.91
+        }
+      },
+      "pullback": {
+        "trades": 12,
+        "winRate": 50,
+        "profitFactor": 0.41,
+        "totalReturnPct": -14.65
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 14,
+        "profitFactor": 0.09,
+        "totalReturnPct": -23.2
+      }
+    },
+    "ULTRACEMCO": {
+      "symbol": "ULTRACEMCO",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 12939,
+      "slotEligible": false,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 8,
+      "winRate": 25,
+      "profitFactor": 0.4,
+      "avgReturnPct": -1.53,
+      "totalReturnPct": -12.09,
+      "expectancyRs": -191.65,
+      "maxDrawdownPct": 17.22,
+      "yearly": {
+        "2024": {
+          "trades": 1,
+          "wins": 0,
+          "netRetPct": -4.57
+        },
+        "2025": {
+          "trades": 2,
+          "wins": 0,
+          "netRetPct": -4.94
+        },
+        "2026": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -2.77
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 33,
+        "profitFactor": 0.08,
+        "totalReturnPct": -31.77
+      },
+      "breakout": {
+        "trades": 8,
+        "winRate": 25,
+        "profitFactor": 0.4,
+        "totalReturnPct": -12.09
+      }
+    },
+    "GRASIM": {
+      "symbol": "GRASIM",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 3103.7,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 16,
+      "winRate": 38,
+      "profitFactor": 0.33,
+      "avgReturnPct": -1.42,
+      "totalReturnPct": -20.99,
+      "expectancyRs": -40.28,
+      "maxDrawdownPct": 22.25,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -7.67
+        },
+        "2025": {
+          "trades": 5,
+          "wins": 2,
+          "netRetPct": -6.86
+        },
+        "2026": {
+          "trades": 8,
+          "wins": 3,
+          "netRetPct": -8.21
+        }
+      },
+      "pullback": {
+        "trades": 16,
+        "winRate": 38,
+        "profitFactor": 0.33,
+        "totalReturnPct": -20.99
+      },
+      "breakout": {
+        "trades": 7,
+        "winRate": 14,
+        "profitFactor": 0,
+        "totalReturnPct": -19.97
+      }
+    },
+    "ADANIENT": {
+      "symbol": "ADANIENT",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 2709,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 10,
+      "winRate": 40,
+      "profitFactor": 0.33,
+      "avgReturnPct": -2.32,
+      "totalReturnPct": -21.73,
+      "expectancyRs": -72.23,
+      "maxDrawdownPct": 22.8,
+      "yearly": {
+        "2025": {
+          "trades": 7,
+          "wins": 3,
+          "netRetPct": -18.22
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -4.94
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 40,
+        "profitFactor": 0.33,
+        "totalReturnPct": -21.73
+      },
+      "breakout": {
+        "trades": 3,
+        "winRate": 67,
+        "profitFactor": 6.31,
+        "totalReturnPct": 18.76
+      }
+    },
+    "COALINDIA": {
+      "symbol": "COALINDIA",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 390,
+      "slotEligible": true,
+      "bestArchetype": "SWING_BREAKOUT",
+      "provenEdge": false,
+      "trades": 6,
+      "winRate": 33,
+      "profitFactor": 0.23,
+      "avgReturnPct": -3.06,
+      "totalReturnPct": -17.61,
+      "expectancyRs": -146.69,
+      "maxDrawdownPct": 17.61,
+      "yearly": {
+        "2025": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -3.13
+        },
+        "2026": {
+          "trades": 3,
+          "wins": 1,
+          "netRetPct": -15.26
+        }
+      },
+      "pullback": {
+        "trades": 15,
+        "winRate": 33,
+        "profitFactor": 0.17,
+        "totalReturnPct": -39.93
+      },
+      "breakout": {
+        "trades": 6,
+        "winRate": 33,
+        "profitFactor": 0.23,
+        "totalReturnPct": -17.61
       }
     },
     "INFY": {
@@ -1050,40 +4349,80 @@
         "totalReturnPct": -8.06
       }
     },
-    "LT": {
-      "symbol": "LT",
-      "tradingDays": 125,
-      "fromDate": "2026-05-22",
+    "ASIANPAINT": {
+      "symbol": "ASIANPAINT",
+      "tradingDays": 61,
+      "fromDate": "2026-08-24",
       "toDate": "2026-11-20",
-      "lastClose": 4209.1,
+      "lastClose": 2608.3,
       "slotEligible": true,
       "bestArchetype": "SWING_PULLBACK",
       "provenEdge": false,
-      "trades": 1,
+      "trades": 0,
       "winRate": 0,
       "profitFactor": 0,
-      "avgReturnPct": -2.77,
-      "totalReturnPct": -2.77,
-      "expectancyRs": -113.13,
-      "maxDrawdownPct": 2.77,
-      "yearly": {
-        "2026": {
-          "trades": 1,
-          "wins": 0,
-          "netRetPct": -2.77
-        }
-      },
+      "avgReturnPct": 0,
+      "totalReturnPct": 0,
+      "expectancyRs": 0,
+      "maxDrawdownPct": 0,
+      "yearly": {},
       "pullback": {
-        "trades": 1,
+        "trades": 0,
         "winRate": 0,
         "profitFactor": 0,
-        "totalReturnPct": -2.77
+        "totalReturnPct": 0
       },
       "breakout": {
         "trades": 0,
         "winRate": 0,
         "profitFactor": 0,
         "totalReturnPct": 0
+      }
+    },
+    "POWERGRID": {
+      "symbol": "POWERGRID",
+      "tradingDays": 624,
+      "fromDate": "2024-05-14",
+      "toDate": "2026-11-20",
+      "lastClose": 269,
+      "slotEligible": true,
+      "bestArchetype": "SWING_PULLBACK",
+      "provenEdge": false,
+      "trades": 10,
+      "winRate": 20,
+      "profitFactor": 0,
+      "avgReturnPct": -3.94,
+      "totalReturnPct": -33.3,
+      "expectancyRs": -193.55,
+      "maxDrawdownPct": 33.34,
+      "yearly": {
+        "2024": {
+          "trades": 3,
+          "wins": 0,
+          "netRetPct": -15.87
+        },
+        "2025": {
+          "trades": 3,
+          "wins": 0,
+          "netRetPct": -12.44
+        },
+        "2026": {
+          "trades": 4,
+          "wins": 2,
+          "netRetPct": -11.12
+        }
+      },
+      "pullback": {
+        "trades": 10,
+        "winRate": 20,
+        "profitFactor": 0,
+        "totalReturnPct": -33.3
+      },
+      "breakout": {
+        "trades": 4,
+        "winRate": 0,
+        "profitFactor": 0,
+        "totalReturnPct": -17.3
       }
     }
   }

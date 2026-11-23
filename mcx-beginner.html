@@ -3774,9 +3774,29 @@ function renderAutoPilotCard(d) {
     const sbSum = d.swingBacktestSummary;
     const sbRow = sbSum
       ? `<div style="margin-top:3px;display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:8px;border-top:1px dashed var(--br);padding-top:3px">
-          <span>📊 <strong style="color:var(--gold)">2.5Y CNC CHAMPIONS</strong>: <strong style="color:var(--grn)">${(sbSum.provenChampions || []).join(', ') || 'None'}</strong> (${sbSum.avgChampionWinRate || 0}% WR · ${sbSum.avgChampionPF || 0}x PF)</span>
-          <button onclick="runMultiYearSwingRefresh()" style="background:var(--bg4);border:1px solid var(--br);color:var(--cya);border-radius:3px;padding:1px 4px;font-size:7.5px;font-family:var(--fm);cursor:pointer" title="Refresh 2.5-year official NSE Bhavcopy daily backtest">↻ 2.5Y</button>
+          <span>📊 <strong style="color:var(--gold)">2.5Y NIFTY-50 CHAMPIONS (${sbSum.provenChampionsCount || 0}/${sbSum.totalStocksTested || 49})</strong>: <strong style="color:var(--grn)">${(sbSum.provenChampions || []).slice(0, 6).join(', ')}${(sbSum.provenChampions || []).length > 6 ? ' +' + ((sbSum.provenChampions || []).length - 6) : ''}</strong> (${sbSum.avgChampionWinRate || 0}% WR · ${sbSum.avgChampionPF || 0}x PF)</span>
+          <button onclick="runMultiYearSwingRefresh()" style="background:var(--bg4);border:1px solid var(--br);color:var(--cya);border-radius:3px;padding:1px 4px;font-size:7.5px;font-family:var(--fm);cursor:pointer;flex-shrink:0" title="Refresh 2.5-year official NSE Bhavcopy daily backtest across all 50 Nifty-50 stocks">↻ 2.5Y</button>
         </div>`
+      : '';
+    const br = d.brainState;
+    const brRow = br
+      ? (() => {
+          const rg = br.regime?.regime || 'NEUTRAL_WAIT';
+          const rgCol = rg === 'BULL_TREND' ? 'var(--grn)' : (rg === 'HIGH_VOL_PANIC' || rg === 'BEAR_DRIFT' ? 'var(--red)' : 'var(--amb)');
+          const ex = br.execution || {};
+          const scCol = (ex.executionScore || 0) >= 65 ? 'var(--grn)' : (ex.executionScore || 0) >= 45 ? 'var(--amb)' : 'var(--red)';
+          const benchTxt = (ex.autoBenchedSymbols || []).length
+            ? ` · <span style="color:var(--red)">Benched: ${ex.autoBenchedSymbols.map(b => b.symbol).join(', ')}</span>`
+            : '';
+          const diag = (ex.diagnoses && ex.diagnoses[0]) || br.regime?.directive || '';
+          return `<div style="margin-top:3px;border-top:1px dashed var(--br);padding-top:3px;font-size:8px">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
+              <span>🧠 <strong style="color:var(--cya)">BRAIN</strong>: <strong style="color:${rgCol}">${rg}</strong> (${Math.round((br.regime?.sizeMultiplier || 1) * 100)}% size)</span>
+              <span>Exec Score: <strong style="color:${scCol}">${ex.executionScore ?? 75}/100</strong>${ex.closedCount ? ` · MFE ${ex.avgMfeR}R / MAE ${ex.avgMaeR}R` : ''}${benchTxt}</span>
+            </div>
+            <div style="color:var(--txm);margin-top:1px">${diag}</div>
+          </div>`;
+        })()
       : '';
     if (n50 || g1) {
       const n50Col = (n50?.percChange || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
@@ -3792,6 +3812,7 @@ function renderAutoPilotCard(d) {
         </div>
         ${(g1 || l1) ? `<div style="margin-top:2px">Movers: ${g1 ? `<span style="color:var(--grn)">▲ ${g1.symbol} +${g1.perChange}%</span>` : ''} ${l1 ? `· <span style="color:var(--red)">▼ ${l1.symbol} ${l1.perChange}%</span>` : ''} · Breadth: <strong style="color:var(--tx)">${ov?.breadth?.reading || '—'}</strong></div>` : ''}
         ${sbRow}
+        ${brRow}
         ${openRows ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${openRows}</div>` : ''}
       `;
     }
