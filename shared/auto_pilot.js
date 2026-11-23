@@ -28,18 +28,18 @@ const nseHolidays = require('./nse_holidays');
 const nseMcpClient = require('./nse_mcp_client');
 
 const AUTO_PILOT_STOCKS = [
-  { id: 'reliance',   symbol: 'RELIANCE',   ticker: 'RELIANCE.NS',   name: 'Reliance Ind',   sector: 'Energy/Telecom', sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'tcs',        symbol: 'TCS',        ticker: 'TCS.NS',        name: 'TCS',            sector: 'IT Services',    sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'infy',       symbol: 'INFY',       ticker: 'INFY.NS',       name: 'Infosys',        sector: 'IT Services',    sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'hdfcbank',   symbol: 'HDFCBANK',   ticker: 'HDFCBANK.NS',   name: 'HDFC Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'icicibank',  symbol: 'ICICIBANK',  ticker: 'ICICIBANK.NS',  name: 'ICICI Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'bhartiartl', symbol: 'BHARTIARTL', ticker: 'BHARTIARTL.NS', name: 'Bharti Airtel',  sector: 'Telecom',        sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'sbin',       symbol: 'SBIN',       ticker: 'SBIN.NS',       name: 'State Bank',     sector: 'PSU Banking',    sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'itc',        symbol: 'ITC',        ticker: 'ITC.NS',        name: 'ITC Ltd',        sector: 'FMCG',           sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'lt',         symbol: 'LT',         ticker: 'LT.NS',         name: 'Larsen & Toubro',sector: 'Infrastructure', sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'kotakbank',  symbol: 'KOTAKBANK',  ticker: 'KOTAKBANK.NS',  name: 'Kotak Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'axisbank',   symbol: 'AXISBANK',   ticker: 'AXISBANK.NS',   name: 'Axis Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 },
-  { id: 'maruti',     symbol: 'MARUTI',     ticker: 'MARUTI.NS',     name: 'Maruti Suzuki',  sector: 'Auto',           sl_atr: 1.8, t1_atr: 2.6, t2_atr: 4.2 }
+  { id: 'reliance',   symbol: 'RELIANCE',   ticker: 'RELIANCE.NS',   name: 'Reliance Ind',   sector: 'Energy/Telecom', sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'tcs',        symbol: 'TCS',        ticker: 'TCS.NS',        name: 'TCS',            sector: 'IT Services',    sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'infy',       symbol: 'INFY',       ticker: 'INFY.NS',       name: 'Infosys',        sector: 'IT Services',    sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'hdfcbank',   symbol: 'HDFCBANK',   ticker: 'HDFCBANK.NS',   name: 'HDFC Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'icicibank',  symbol: 'ICICIBANK',  ticker: 'ICICIBANK.NS',  name: 'ICICI Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'bhartiartl', symbol: 'BHARTIARTL', ticker: 'BHARTIARTL.NS', name: 'Bharti Airtel',  sector: 'Telecom',        sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'sbin',       symbol: 'SBIN',       ticker: 'SBIN.NS',       name: 'State Bank',     sector: 'PSU Banking',    sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'itc',        symbol: 'ITC',        ticker: 'ITC.NS',        name: 'ITC Ltd',        sector: 'FMCG',           sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'lt',         symbol: 'LT',         ticker: 'LT.NS',         name: 'Larsen & Toubro',sector: 'Infrastructure', sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'kotakbank',  symbol: 'KOTAKBANK',  ticker: 'KOTAKBANK.NS',  name: 'Kotak Bank',     sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'axisbank',   symbol: 'AXISBANK',   ticker: 'AXISBANK.NS',   name: 'Axis Bank',      sector: 'Banking',        sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
+  { id: 'maruti',     symbol: 'MARUTI',     ticker: 'MARUTI.NS',     name: 'Maruti Suzuki',  sector: 'Auto',           sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 }
 ];
 
 const AUTO_PILOT_ASSETS = [
@@ -472,8 +472,8 @@ function evaluateStockForAutoPilot({
     t1: prelimLevels.t1,
     lotMultiplier: estNotionalShares,
     roundTripFee: estRoundTripFee,
-    minGrossTargetMultiple: 3.0,
-    minNetRR: 1.35,
+    minGrossTargetMultiple: 2.8,
+    minNetRR: 1.20,
     threshold: 62,
     htfTrend,
     openingRangeGuard,
@@ -543,7 +543,7 @@ function evaluateStockForAutoPilot({
     lotMultiplier: 1,
     segment: 'equity',
     maxLossTotal: effectiveBudget,
-    minNetRR: 1.35
+    minNetRR: 1.20
   });
 
   const rawQty = sized.ok ? Number(sized.qty ?? sized.lots ?? 1) : 0;
