@@ -159,7 +159,7 @@ async function callNseMcpTool(serverKey, toolName, args = {}, timeoutMs = 4500) 
 }
 
 /**
- * Fetches official live quote for a single NSE symbol via `cm_get_stock_quote`.
+ * Fetches official live quote for a single NSE symbol via `cm_get_stock_quote` (with 1 automatic retry).
  */
 async function getLiveStockQuote(symbol) {
   const sym = String(symbol || '').toUpperCase().replace('.NS', '').replace('NSE:', '').trim();
@@ -168,45 +168,49 @@ async function getLiveStockQuote(symbol) {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  try {
-    const raw = await callNseMcpTool('cm', 'cm_get_stock_quote', { symbol: sym }, 4000);
-    const st = raw?.stock;
-    if (!st || !Number.isFinite(Number(st.lastTradedPrice)) || Number(st.lastTradedPrice) <= 0) {
-      return null;
-    }
-    const normalized = {
-      symbol: sym,
-      ltp: Number(st.lastTradedPrice),
-      open: Number(st.openPrice || st.lastTradedPrice),
-      high: Number(st.highPrice || st.lastTradedPrice),
-      low: Number(st.lowPrice || st.lastTradedPrice),
-      prevClose: Number(st.preClosePrice || st.lastTradedPrice),
-      change: Number(st.change || 0),
-      perChange: Number(st.perChange || 0),
-      volume: Number(st.volume || 0),
-      turnoverCr: Math.round(Number(st.value || 0) * 100) / 100,
-      high52w: Number(st.fiftyTwoWeekHigh || 0),
-      low52w: Number(st.fiftyTwoWeekLow || 0),
-      perChange30d: Number(st.perChange30d || 0),
-      timestamp: st.latestTimestamp || raw.updatedAt || new Date().toISOString(),
-      source: 'NSE_MCP_LIVE'
-    };
-    return setCached(cacheKey, normalized, 15000);
-  } catch (_) {
-    return null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await callNseMcpTool('cm', 'cm_get_stock_quote', { symbol: sym }, 4500);
+      const st = raw?.stock;
+      if (st && Number.isFinite(Number(st.lastTradedPrice)) && Number(st.lastTradedPrice) > 0) {
+        const normalized = {
+          symbol: sym,
+          ltp: Number(st.lastTradedPrice),
+          open: Number(st.openPrice || st.lastTradedPrice),
+          high: Number(st.highPrice || st.lastTradedPrice),
+          low: Number(st.lowPrice || st.lastTradedPrice),
+          prevClose: Number(st.preClosePrice || st.lastTradedPrice),
+          change: Number(st.change || 0),
+          perChange: Number(st.perChange || 0),
+          volume: Number(st.volume || 0),
+          turnoverCr: Math.round(Number(st.value || 0) * 100) / 100,
+          high52w: Number(st.fiftyTwoWeekHigh || 0),
+          low52w: Number(st.fiftyTwoWeekLow || 0),
+          perChange30d: Number(st.perChange30d || 0),
+          timestamp: st.latestTimestamp || raw.updatedAt || new Date().toISOString(),
+          source: 'NSE_MCP_LIVE'
+        };
+        return setCached(cacheKey, normalized, 15000);
+      }
+    } catch (_) {}
   }
+  return null;
 }
 
 /**
- * Fetches official live NSE quotes for an array of symbols in parallel.
+ * Fetches official live NSE quotes for an array of symbols in controlled chunks of 4 to avoid SSE multiplexing drops.
  */
 async function getBatchStockQuotes(symbols = []) {
   const unique = [...new Set(symbols.map(s => String(s || '').toUpperCase().replace('.NS', '').replace('NSE:', '').trim()).filter(Boolean))];
   const out = {};
-  await Promise.all(unique.map(async (sym) => {
-    const q = await getLiveStockQuote(sym);
-    if (q) out[sym] = q;
-  }));
+  const chunkSize = 4;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const slice = unique.slice(i, i + chunkSize);
+    await Promise.all(slice.map(async (sym) => {
+      const q = await getLiveStockQuote(sym);
+      if (q) out[sym] = q;
+    }));
+  }
   return out;
 }
 

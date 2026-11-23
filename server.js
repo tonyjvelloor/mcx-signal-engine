@@ -2767,6 +2767,19 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       });
       const stockLessons = recentLessons.filter(l => String(l.symbol || '').includes(stock.symbol));
       const mcpQuote = nseMcpQuotes[stock.symbol] || null;
+      // Persist live NSE MCP 5m bar into SQLite so local candle history stays current
+      if (mcpQuote && mcpQuote.ltp > 0 && db && sessionInfo.isNseHours) {
+        try {
+          const bucketSec = Math.floor(Date.now() / 300000) * 300;
+          const existing = db.prepare(`SELECT open, high, low FROM candles WHERE symbol = ? AND interval = '5m' AND time = ?`).get(stock.symbol, bucketSec);
+          const op = existing ? existing.open : mcpQuote.ltp;
+          const hi = existing ? Math.max(existing.high, mcpQuote.ltp) : mcpQuote.ltp;
+          const lo = existing ? Math.min(existing.low, mcpQuote.ltp) : mcpQuote.ltp;
+          db.prepare(`INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume) VALUES (?, '5m', ?, ?, ?, ?, ?, ?)`).run(
+            stock.symbol, bucketSec, op, hi, lo, mcpQuote.ltp, mcpQuote.volume || 0
+          );
+        } catch (_) {}
+      }
       const sev = autoPilot.evaluateStockForAutoPilot({
         stock,
         rawCandles,
@@ -2779,11 +2792,15 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       });
       stockEvaluations.push(sev);
       if (sev.executionPlan && sev.executionPlan.entryPrice > 0) {
+        const lastCandleSec = rawCandles.length > 0 ? Number(rawCandles[rawCandles.length - 1].time || 0) : 0;
+        const isCandleToday = (Math.floor(Date.now() / 1000) - lastCandleSec) < 36000;
+        const isLiveQuote = Boolean((mcpQuote && mcpQuote.ltp > 0) || isCandleToday);
         const livePx = mcpQuote?.ltp || sev.executionPlan.entryPrice;
         latestPrices[stock.symbol] = {
           price: livePx,
           high: livePx,
           low: livePx,
+          isLive: isLiveQuote,
           regime: sev.regime,
           sessionWindow: sev.sessionWindow,
           paritySignal: sev.paritySignal

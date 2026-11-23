@@ -229,12 +229,24 @@ function evaluateStockForAutoPilot({
   const vols = rawCandles.map(r => Number(r.volume || 0));
   const timestamps = rawCandles.map(r => Number(r.time || 0));
 
-  // If official live NSE MCP quote is available, sync the latest bar to real-time NSE LTP
+  // If official live NSE MCP quote is available, append/update as a fresh current bar (never mix with an older day's bar high/low)
   if (nseMcpQuote && Number.isFinite(nseMcpQuote.ltp) && nseMcpQuote.ltp > 0) {
-    const lastIdx = closes.length - 1;
-    closes[lastIdx] = nseMcpQuote.ltp;
-    highs[lastIdx] = Math.max(highs[lastIdx], nseMcpQuote.ltp);
-    lows[lastIdx] = Math.min(lows[lastIdx], nseMcpQuote.ltp);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const lastTs = timestamps[timestamps.length - 1] || 0;
+    const lastSec = lastTs > 1e12 ? Math.floor(lastTs / 1000) : lastTs;
+    if (nowSec - lastSec > 600) {
+      opens.push(nseMcpQuote.ltp);
+      highs.push(nseMcpQuote.ltp);
+      lows.push(nseMcpQuote.ltp);
+      closes.push(nseMcpQuote.ltp);
+      vols.push(Number(nseMcpQuote.volume || vols[vols.length - 1] || 1000));
+      timestamps.push(nowSec);
+    } else {
+      const lastIdx = closes.length - 1;
+      closes[lastIdx] = nseMcpQuote.ltp;
+      highs[lastIdx] = Math.max(highs[lastIdx], nseMcpQuote.ltp);
+      lows[lastIdx] = Math.min(lows[lastIdx], nseMcpQuote.ltp);
+    }
   }
 
   const price = +(closes[closes.length - 1]).toFixed(2);
@@ -830,6 +842,8 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
     const baseSym = sym.replace(/\d{2}[A-Z]{3}FUT$/, '');
     const pxObj = latestPrices[sym] || latestPrices[baseSym];
     if (!pxObj || !Number.isFinite(pxObj.price) || pxObj.price <= 0) continue;
+    // Never evaluate an open trade against a stale SQLite fallback candle from an older day
+    if (pxObj.isLive === false) continue;
 
     const curPrice = pxObj.price;
     const candleHigh = Number.isFinite(pxObj.high) ? pxObj.high : curPrice;
