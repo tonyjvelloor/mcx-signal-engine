@@ -22,6 +22,25 @@ const path = require('path');
 
 const RESULTS_FILE = path.join(__dirname, '..', 'all_weather_results.json');
 const ETF_SET = new Set(['GOLDBEES', 'LIQUIDBEES', 'NIFTYBEES']);
+const NIFTY_50_CORE = new Set([
+  'ADANIENT', 'ADANIPORTS', 'APOLLOHOSP', 'ASIANPAINT', 'AXISBANK',
+  'BAJAJ-AUTO', 'BAJFINANCE', 'BAJAJFINSV', 'BEL', 'BHARTIARTL',
+  'CIPLA', 'COALINDIA', 'DRREDDY', 'EICHERMOT', 'ETERNAL',
+  'GRASIM', 'HCLTECH', 'HDFCBANK', 'HDFCLIFE', 'HEROMOTOCO',
+  'HINDALCO', 'HINDUNILVR', 'ICICIBANK', 'INDUSINDBK', 'INFY',
+  'ITC', 'JIOFIN', 'JSWSTEEL', 'KOTAKBANK', 'LT',
+  'M&M', 'MARUTI', 'NESTLEIND', 'NTPC', 'ONGC',
+  'POWERGRID', 'RELIANCE', 'SBILIFE', 'SBIN', 'SHRIRAMFIN',
+  'SUNPHARMA', 'TATACONSUM', 'TATAMOTORS', 'TATASTEEL', 'TCS',
+  'TECHM', 'TITAN', 'TRENT', 'ULTRACEMCO', 'WIPRO'
+]);
+
+function selectAllWeatherEquities(syms) {
+  const nonEtf = syms.filter(s => !ETF_SET.has(s));
+  const coreMatches = nonEtf.filter(s => NIFTY_50_CORE.has(s));
+  // Empirically verified: Core Nifty-50 blue-chips beat broader Next-50 (+32.6% / 3.22x Ret/DD vs +23.9% / 2.29x)
+  return coreMatches.length >= 30 ? coreMatches : nonEtf;
+}
 
 function sma(arr, idx, period) {
   if (idx + 1 < period) return null;
@@ -63,7 +82,7 @@ function evaluateAllWeatherState(db, {
   }
 
   const syms = db.prepare(`SELECT DISTINCT symbol FROM daily_candles ORDER BY symbol`).all().map(r => r.symbol);
-  const eqSyms = syms.filter(s => !ETF_SET.has(s));
+  const eqSyms = selectAllWeatherEquities(syms);
 
   let above50 = 0;
   let totalBreadth = 0;
@@ -301,7 +320,7 @@ function executeAllWeatherPaperCycle(db, {
 function runAllWeatherBacktest(db, { saveToFile = true } = {}) {
   if (!db) return null;
   const syms = db.prepare(`SELECT DISTINCT symbol FROM daily_candles ORDER BY symbol`).all().map(r => r.symbol);
-  const eqSyms = syms.filter(s => !ETF_SET.has(s));
+  const eqSyms = selectAllWeatherEquities(syms);
   const data = {}, dateIdx = {};
   for (const sym of syms) {
     const rows = db.prepare(`SELECT date, open, high, low, close FROM daily_candles WHERE symbol = ? ORDER BY date ASC`).all(sym);

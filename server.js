@@ -1133,7 +1133,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/brain/post-mortem' && req.method === 'POST') {
       try {
         const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
-        await archiveDailyNseHistory({ db, chunks: 1, concurrency: 6 });
+        await archiveDailyNseHistory({ db, chunks: 1, concurrency: 2, delayMs: 300 });
         const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
         const overview = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
         if (overview) autoPilotState.nseMcpOverview = overview;
@@ -2779,7 +2779,7 @@ setInterval(() => {
         (async () => {
           try {
             const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
-            await archiveDailyNseHistory({ db, chunks: 1, concurrency: 5 });
+            await archiveDailyNseHistory({ db, chunks: 1, concurrency: 2, delayMs: 300 });
             const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
             allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
             const ov = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
