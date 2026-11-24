@@ -3798,6 +3798,28 @@ function renderAutoPilotCard(d) {
           </div>`;
         })()
       : '';
+    const aw = d.allWeatherSummary;
+    const awRow = aw
+      ? (() => {
+          const bCol = aw.breadthState === 'RISK_ON' ? 'var(--grn)' : (aw.breadthState === 'BEAR_SHIELD' ? 'var(--red)' : 'var(--amb)');
+          const g = aw.goldSafeHaven || {};
+          const al = aw.allocation || {};
+          const bt = aw.verifiedBacktest;
+          const btTag = bt ? ` · <span style="color:var(--grn)" title="Verified 419d zero-look-ahead backtest (${bt.fromDate} → ${bt.toDate}) vs NIFTYBEES +${bt.niftyBenchmarkReturnPct}%">Backtest +${bt.totalReturnPct}% (DD ${bt.maxDrawdownPct}%)</span>` : '';
+          const watchTxt = (al.slots && al.slots.length)
+            ? `Triggers: <strong style="color:var(--grn)">${al.slots.map(w => w.symbol + ' (RSI2 ' + w.rsi2 + ')').join(', ')}</strong>`
+            : ((aw.nearMissTop && aw.nearMissTop.length)
+                ? `RSI(2) Watch: ${aw.nearMissTop.map(w => `${w.symbol}(${w.rsi2})`).join(', ')}`
+                : '0 extreme washout dips');
+          return `<div style="margin-top:3px;border-top:1px dashed var(--br);padding-top:3px;font-size:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
+              <span>🌍 <strong style="color:var(--grn)">ALL-WEATHER CNC</strong>: Breadth <strong style="color:${bCol}">${aw.breadthPct}% (${aw.breadthState})</strong> · Gold ${g.bullish ? '<strong style="color:var(--gold)">▲ &gt;35DMA</strong>' : '<span style="color:var(--txd)">▼ Cash</span>'}${btTag}</span>
+              <button onclick="runAllWeatherRebalanceNow()" style="background:var(--grnbg);border:1px solid rgba(34,197,94,0.4);color:var(--grn);border-radius:3px;padding:1px 5px;font-size:7.5px;font-family:var(--fm);cursor:pointer;flex-shrink:0" title="Execute All-Weather ₹0-Brokerage CNC Paper Rebalance now">⚡ CNC</button>
+            </div>
+            <div style="color:var(--txd);margin-top:1px">₹15K Split: Eq ₹${al.equityWashoutRs || 0} · Gold ₹${al.goldBeesRs || 0} · Liquid ₹${al.liquidBeesRs || 0} · ${watchTxt}</div>
+          </div>`;
+        })()
+      : '';
     if (n50 || g1) {
       const n50Col = (n50?.percChange || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
       const nBkCol = (nBk?.percChange || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
@@ -3813,6 +3835,7 @@ function renderAutoPilotCard(d) {
         ${(g1 || l1) ? `<div style="margin-top:2px">Movers: ${g1 ? `<span style="color:var(--grn)">▲ ${g1.symbol} +${g1.perChange}%</span>` : ''} ${l1 ? `· <span style="color:var(--red)">▼ ${l1.symbol} ${l1.perChange}%</span>` : ''} · Breadth: <strong style="color:var(--tx)">${ov?.breadth?.reading || '—'}</strong></div>` : ''}
         ${sbRow}
         ${brRow}
+        ${awRow}
         ${openRows ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${openRows}</div>` : ''}
       `;
     }
@@ -3913,6 +3936,24 @@ async function runMultiYearSwingRefresh() {
     }
   } catch (err) {
     showToast(`Backtest error: ${err.message}`, 'error');
+  }
+}
+
+async function runAllWeatherRebalanceNow() {
+  showToast('🌍 Running All-Weather ₹0-Brokerage CNC Paper Rebalance...', 'info');
+  try {
+    const r = await fetch('/api/all-weather/rebalance', { method: 'POST' });
+    const d = await r.json();
+    if (d && d.ok) {
+      const nOp = (d.opened || []).length;
+      const nCl = (d.closed || []).length;
+      showToast(`🌍 All-Weather Synced: Opened ${nOp} · Closed ${nCl} · ${d.state?.directive || ''}`, nOp || nCl ? 'success' : 'info');
+      await syncAutoPilotStatus();
+    } else {
+      showToast(`All-Weather error: ${d?.error || 'Unknown error'}`, 'error');
+    }
+  } catch (err) {
+    showToast(`All-Weather error: ${err.message}`, 'error');
   }
 }
 

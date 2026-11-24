@@ -30,6 +30,7 @@ const autoPilot = require('./shared/auto_pilot');
 const nseMcpClient = require('./shared/nse_mcp_client');
 const swingBacktest = require('./shared/swing_backtest');
 const tradingBrain = require('./shared/trading_brain');
+const allWeatherEngine = require('./shared/all_weather_engine');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1142,6 +1143,45 @@ const server = http.createServer(async (req, res) => {
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: true, report, championsCount: bt.provenChampionsCount }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 1d2f. 3-Engine All-Weather Regime Switcher (₹0 Brokerage CNC: RSI(2) Washout + GOLDBEES 35-DMA + LIQUIDBEES)
+    if (pathname === '/api/all-weather' && req.method === 'GET') {
+      try {
+        const acc = getAccountProfile();
+        if (!allWeatherEngine.loadCachedAllWeatherBacktest() && db) {
+          allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
+        }
+        const awState = allWeatherEngine.evaluateAllWeatherState(db, { capital: acc.capital || 15000 });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(awState));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    if (pathname === '/api/all-weather/rebalance' && req.method === 'POST') {
+      try {
+        const acc = getAccountProfile();
+        const goldQ = await nseMcpClient.getLiveStockQuote('GOLDBEES').catch(() => null);
+        const liveQuotes = goldQ ? { GOLDBEES: goldQ } : {};
+        const result = allWeatherEngine.executeAllWeatherPaperCycle(db, {
+          capital: acc.capital || 15000,
+          liveQuotes
+        });
+        for (const op of (result.opened || [])) {
+          logAutoPilotEvent('ALL_WEATHER_OPEN', `[All-Weather ${op.bucket}] Bought ${op.symbol} ×${op.qty} @ ₹${op.entry} (₹0 Brok CNC)`, op);
+        }
+        for (const cl of (result.closed || [])) {
+          logAutoPilotEvent('ALL_WEATHER_CLOSE', `[All-Weather] Closed ${cl.symbol} @ ₹${cl.exitPrice} via ${cl.exitReason} | Net P&L: ₹${cl.netPnl}`, cl);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: false, error: err.message }));
@@ -2289,6 +2329,23 @@ const server = http.createServer(async (req, res) => {
             nseMcpOverview: autoPilotState.nseMcpOverview,
             swingBacktestData: swingBacktest.loadCachedSwingBacktest()
           }),
+          allWeatherSummary: (() => {
+            try {
+              const aw = allWeatherEngine.evaluateAllWeatherState(db, { capital: accProfile.capital || 15000 });
+              if (!aw || !aw.ok) return null;
+              return {
+                asOfDate: aw.asOfDate,
+                breadthPct: aw.breadthPct,
+                breadthState: aw.breadthState,
+                goldSafeHaven: aw.goldSafeHaven,
+                allocation: aw.allocation,
+                washoutCount: (aw.washoutTriggers || []).length,
+                nearMissTop: (aw.nearMissWatchlist || []).slice(0, 3),
+                directive: aw.directive,
+                verifiedBacktest: aw.verifiedBacktest
+              };
+            } catch (_) { return null; }
+          })(),
           swingBacktestSummary: (() => {
             const sb = swingBacktest.loadCachedSwingBacktest();
             if (!sb) return null;
@@ -2724,6 +2781,7 @@ setInterval(() => {
             const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
             await archiveDailyNseHistory({ db, chunks: 1, concurrency: 5 });
             const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+            allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
             const ov = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
             if (ov) autoPilotState.nseMcpOverview = ov;
             const pm = tradingBrain.generateDailyPostMortem(db, {
@@ -2746,6 +2804,31 @@ setInterval(() => {
         console.log(`⏰ [SCHEDULER 08:30 IST] Running morning gap-fill check for ${kt.dateStr}...`);
         const { catchUpMissingSessions } = require('./scripts/archive_candles');
         catchUpMissingSessions(db).catch(e => console.error('Scheduler morning catch-up error:', e.message));
+      }
+    }
+
+    // 3. Automated All-Weather CNC Morning Rebalance: 09:20 IST on NSE trading days (Next-Day Open Fill)
+    if (kt.hour === 9 && kt.minute >= 20 && kt.minute < 35 && autoPilotState.enabled && !killSwitchState.active) {
+      if (autoPilotState.lastAllWeatherRebalanceDate !== kt.dateStr) {
+        autoPilotState.lastAllWeatherRebalanceDate = kt.dateStr;
+        console.log(`🌍 [ALL-WEATHER 09:20 IST] Running daily ₹0-brokerage CNC rebalance for ${kt.dateStr}...`);
+        (async () => {
+          try {
+            const acc = getAccountProfile();
+            const goldQ = await nseMcpClient.getLiveStockQuote('GOLDBEES').catch(() => null);
+            const liveQuotes = goldQ ? { GOLDBEES: goldQ } : {};
+            const awRes = allWeatherEngine.executeAllWeatherPaperCycle(db, { capital: acc.capital || 15000, liveQuotes });
+            for (const op of (awRes.opened || [])) {
+              logAutoPilotEvent('ALL_WEATHER_OPEN', `[All-Weather ${op.bucket}] Bought ${op.symbol} ×${op.qty} @ ₹${op.entry} (₹0 Brok CNC)`, op);
+            }
+            for (const cl of (awRes.closed || [])) {
+              logAutoPilotEvent('ALL_WEATHER_CLOSE', `[All-Weather] Closed ${cl.symbol} @ ₹${cl.exitPrice} via ${cl.exitReason} | Net P&L: ₹${cl.netPnl}`, cl);
+            }
+            console.log(`🌍 [ALL-WEATHER ${kt.dateStr}] Breadth: ${awRes.state?.breadthPct}% (${awRes.state?.breadthState}) | Opened: ${(awRes.opened||[]).length} | Closed: ${(awRes.closed||[]).length}`);
+          } catch (e) {
+            console.error('All-Weather 09:20 IST rebalance error:', e.message);
+          }
+        })();
       }
     }
   } catch (_) {}

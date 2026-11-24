@@ -645,5 +645,47 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.ok(Array.isArray(scorecard.equityCurve) && scorecard.equityCurve.length >= 2);
   assert.strictEqual(scorecard.graduation.checks.length, 4);
   assert.ok(scorecard.postMortems.length >= 1, 'Scorecard must return saved nightly Brain Post-Mortems');
-  console.log('✓ Test 19 Passed: MCX Proxy Fee-Scaling Fix, Nightly Brain Post-Mortem & Quant Scorecard verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 19 Passed: MCX Proxy Fee-Scaling Fix, Nightly Brain Post-Mortem & Quant Scorecard verified.');
+
+  // ── Test 20: 3-Engine All-Weather Regime Switcher (Breadth Gate + RSI(2) Washout + GOLDBEES 35-DMA + ₹0 Brok CNC) ──
+  const allWeather = require('../shared/all_weather_engine');
+  memDb.exec(`
+    CREATE TABLE IF NOT EXISTS daily_candles (
+      symbol TEXT NOT NULL, date TEXT NOT NULL,
+      open REAL, high REAL, low REAL, close REAL, volume INTEGER DEFAULT 0, turnover REAL DEFAULT 0, source TEXT,
+      PRIMARY KEY (symbol, date)
+    );
+  `);
+  const insD = memDb.prepare(`INSERT OR REPLACE INTO daily_candles (symbol, date, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?, 100000)`);
+  // Seed 215 days of uptrending GOLDBEES + 2 uptrending blue-chips where DIPSTOCK has a sharp 3d -5% RSI(2)=0 washout
+  for (let d = 0; d < 215; d++) {
+    const dt = new Date(Date.UTC(2025, 0, 1 + d)).toISOString().slice(0, 10);
+    const gPx = 60 + d * 0.15;
+    insD.run('GOLDBEES', dt, gPx, gPx + 0.5, gPx - 0.5, gPx);
+    const leadPx = 1000 + d * 1.5;
+    insD.run('LEADER1', dt, leadPx, leadPx + 5, leadPx - 5, leadPx);
+    insD.run('LEADER2', dt, leadPx, leadPx + 5, leadPx - 5, leadPx);
+    let dipPx = 1000 + d * 2.0;
+    if (d === 212) dipPx -= 20;
+    if (d === 213) dipPx -= 45;
+    if (d === 214) dipPx -= 75; // sharp 3-day > -4% washout while still well above 200-DMA!
+    insD.run('DIPSTOCK', dt, dipPx + 5, dipPx + 8, dipPx - 2, dipPx);
+  }
+  const awState = allWeather.evaluateAllWeatherState(memDb, { capital: 15000 });
+  assert.strictEqual(awState.ok, true);
+  assert.strictEqual(awState.breadthState, 'RISK_ON', '100% stocks > 50-DMA must classify as RISK_ON');
+  assert.strictEqual(awState.goldSafeHaven.bullish, true, 'Rising GOLDBEES must be bullish (>35-DMA)');
+  assert.ok(awState.washoutTriggers.some(w => w.symbol === 'DIPSTOCK'), 'Sharp 3-day washout above 200-DMA must trigger DIPSTOCK');
+
+  const awExec = allWeather.executeAllWeatherPaperCycle(memDb, { capital: 15000 });
+  assert.ok(awExec.opened.some(o => o.symbol === 'DIPSTOCK' && o.bucket === 'CNC_WASHOUT'), 'Must auto-open DIPSTOCK CNC Washout trade');
+  assert.ok(awExec.opened.some(o => o.symbol === 'GOLDBEES' && o.bucket === 'CNC_GOLD_SAFE_HAVEN'), 'Must auto-open GOLDBEES Safe-Haven CNC trade');
+
+  // Verify rebound above 5-DMA exits DIPSTOCK cleanly as WIN with ₹0 brokerage
+  const reboundExec = allWeather.executeAllWeatherPaperCycle(memDb, {
+    capital: 15000,
+    liveQuotes: { DIPSTOCK: { ltp: 1450 }, GOLDBEES: { ltp: 95 } }
+  });
+  assert.ok(reboundExec.closed.some(c => c.symbol === 'DIPSTOCK' && c.exitReason === 'AUTO_AW_SMA5_TARGET' && c.status === 'WIN'), 'Bounce above 5-DMA must auto-close washout in WIN');
+  console.log('✓ Test 20 Passed: 3-Engine All-Weather Regime Switcher (RSI(2) Washout, GOLDBEES 35-DMA & ₹0 Brok CNC lifecycle) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

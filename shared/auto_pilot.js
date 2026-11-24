@@ -1079,6 +1079,8 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
     const totalFees = Number(t.brokerage || 40) + Number(t.stt_gst || 5);
     const feePerUnit = totalFees / Math.max(1, lotMult * qty);
     const curReason = String(t.exit_reason || '');
+    // All-Weather multi-day CNC Delivery positions (Washout & GOLDBEES) are managed strictly on daily close/open rules
+    if (curReason.includes('CNC_WASHOUT') || curReason.includes('CNC_GOLD')) continue;
     const isAlreadyBe = curReason.includes('BE_ARMED');
     const isRatchet1 = curReason.includes('RATCHET_1');
     const isRatchet2 = curReason.includes('RATCHET_2');

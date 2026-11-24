@@ -1,0 +1,19 @@
+{
+  "updatedAt": "2026-11-24T18:07:21.780Z",
+  "fromDate": "2025-03-11",
+  "toDate": "2026-11-23",
+  "tradingDays": 419,
+  "startingCapital": 15000,
+  "finalEquity": 19888,
+  "totalReturnPct": 32.6,
+  "maxDrawdownPct": 10.1,
+  "returnToDd": 3.22,
+  "equityTrades": 54,
+  "equityWinRate": 61,
+  "niftyBenchmarkReturnPct": 14.9,
+  "niftyBenchmarkMaxDdPct": 14.8,
+  "yearly": {
+    "2025": 22.2,
+    "2026": 8.5
+  }
+}
