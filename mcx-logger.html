@@ -85,14 +85,43 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:
 <div class="log-container">
   <div class="log-header" style="flex-wrap:wrap;gap:12px">
     <div>
-      <div class="log-title">Unified Track Record (Zerodha ₹10K + Olymp Trade USD)</div>
-      <div id="acc-summary-sub" style="font-family:var(--fm);font-size:11px;color:var(--txd);margin-top:4px">Capital: ₹10,000 · Max Risk: ₹125/trade · Daily Circuit Breaker: ₹300</div>
+      <div class="log-title">Quant Track Record &amp; Trading Brain (₹15K Paper → Live)</div>
+      <div id="acc-summary-sub" style="font-family:var(--fm);font-size:11px;color:var(--txd);margin-top:4px">Capital: ₹15,000 (₹10K CNC Swing + ₹5K MIS) · Max Risk: ₹150/trade · Daily Circuit Breaker: ₹375</div>
     </div>
     <div style="display:flex;gap:6px;background:var(--bg2);border:1px solid var(--br);padding:4px;border-radius:8px;flex-wrap:wrap">
       <button id="ltab-paper" onclick="switchLogTab('paper')" class="rfbtn" style="background:var(--bg4);color:var(--gold)">📝 Zerodha Paper (SQLite)</button>
       <button id="ltab-olymp" onclick="switchLogTab('olymp')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🌐 Olymp Trade (USD)</button>
       <button id="ltab-edge" onclick="switchLogTab('edge')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🏆 Edge Finder</button>
       <button id="ltab-signals" onclick="switchLogTab('signals')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🔬 Auto Signals</button>
+      <button id="btn-run-pm" onclick="triggerEodPostMortem()" class="rfbtn" style="border-color:rgba(6,182,212,0.4);color:var(--cya)" title="Sync today's official NSE Bhavcopy + re-score 2.5Y Champions + save EOD Brain Post-Mortem">🧠 Run EOD Brain</button>
+    </div>
+  </div>
+
+  <!-- ══ QUANT SCORECARD: EQUITY CURVE + PAPER-TO-LIVE GRADUATION + BUCKET ATTRIBUTION ══ -->
+  <div id="quant-scorecard-panel" style="display:grid;grid-template-columns:1.35fr 1fr;gap:1rem;margin-bottom:1.5rem">
+    <div class="scard" style="padding:1.1rem 1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="scard-title" style="margin-bottom:2px">📈 Paper Equity Curve (Real Trades · Excl. Tests)</div>
+          <div id="qs-eq-sub" style="font-family:var(--fm);font-size:10px;color:var(--txd)">Starting Base: ₹15,000 · Loading equity curve...</div>
+        </div>
+        <div id="qs-eq-badge" style="font-family:var(--fm);font-size:13px;font-weight:700;color:var(--gold)">₹15,000</div>
+      </div>
+      <canvas id="eq-curve-canvas" height="145" style="width:100%;height:145px;display:block;background:var(--bg3);border:1px solid var(--br);border-radius:8px"></canvas>
+      <div id="qs-attribution" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;font-family:var(--fm);font-size:10px"></div>
+    </div>
+
+    <div class="scard" style="padding:1.1rem 1.25rem;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="scard-title" style="margin-bottom:0">🎓 Paper-to-Live Graduation Gauge</div>
+          <span id="qs-grad-status" class="badge b-open">PAPER MODE</span>
+        </div>
+        <div id="qs-grad-checks" style="display:flex;flex-direction:column;gap:6px;font-family:var(--fm);font-size:10px"></div>
+      </div>
+      <div id="qs-brain-box" style="background:var(--bg3);border:1px solid var(--br);border-radius:8px;padding:9px 11px;font-family:var(--fm);font-size:10px;line-height:1.45">
+        🧠 Syncing Trading Brain...
+      </div>
     </div>
   </div>
 
@@ -148,6 +177,30 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:
         </tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- ══ MFE/MAE EXECUTION AUDIT + NIGHTLY BRAIN POST-MORTEM LOG ══ -->
+  <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:1rem;margin-top:1.5rem">
+    <div class="scard" style="padding:1.1rem 1.25rem">
+      <div class="scard-title">🎯 MFE / MAE Execution Quality Audit (R-Multiples)</div>
+      <div style="overflow-x:auto">
+        <table class="log-tbl" style="font-size:10px">
+          <thead>
+            <tr><th>Trade</th><th>Bucket</th><th>MFE</th><th>MAE</th><th>Net P&amp;L</th><th>Verdict</th></tr>
+          </thead>
+          <tbody id="qs-mfemae-body">
+            <tr><td colspan="6" style="color:var(--txd);text-align:center;padding:16px">Loading execution telemetry...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="scard" style="padding:1.1rem 1.25rem">
+      <div class="scard-title">🧠 Nightly 16:30 IST Brain Post-Mortem Reports</div>
+      <div id="qs-postmortems" style="display:flex;flex-direction:column;gap:8px;font-family:var(--fm);font-size:10px;max-height:280px;overflow-y:auto">
+        <div style="color:var(--txd)">Click "🧠 Run EOD Brain" above or wait for 16:30 IST automated run.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -459,8 +512,202 @@ async function loadLogs() {
   document.getElementById('st-open').textContent = openTrades;
 }
 
-setInterval(loadLogs, 5000);
+function drawEquityCurveCanvas(points, baseCap) {
+  const canvas = document.getElementById('eq-curve-canvas');
+  if (!canvas || !Array.isArray(points) || points.length === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(300, Math.floor(rect.width || 600));
+  const h = 145;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const vals = points.map(p => Number(p.equity || baseCap));
+  const minV = Math.min(baseCap, ...vals) - 25;
+  const maxV = Math.max(baseCap, ...vals) + 25;
+  const span = Math.max(10, maxV - minV);
+  const padL = 52, padR = 14, padT = 14, padB = 22;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const xOf = (i) => padL + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  const yOf = (v) => padT + plotH - ((v - minV) / span) * plotH;
+
+  // Baseline dashed ₹15,000 line
+  const baseY = yOf(baseCap);
+  ctx.strokeStyle = 'rgba(245,197,66,0.35)';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padL, baseY);
+  ctx.lineTo(w - padR, baseY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Y labels
+  ctx.fillStyle = '#6A6880';
+  ctx.font = '9px IBM Plex Mono, monospace';
+  ctx.fillText('₹' + Math.round(maxV).toLocaleString('en-IN'), 4, padT + 6);
+  ctx.fillText('₹' + Math.round(baseCap).toLocaleString('en-IN'), 4, baseY + 3);
+  ctx.fillText('₹' + Math.round(minV).toLocaleString('en-IN'), 4, h - padB + 2);
+
+  // Curve stroke + fill
+  const lastVal = vals[vals.length - 1];
+  const isUp = lastVal >= baseCap;
+  ctx.strokeStyle = isUp ? '#22C55E' : '#EF4444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    const x = xOf(i), y = yOf(p.equity);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill gradient under curve
+  ctx.lineTo(xOf(points.length - 1), h - padB);
+  ctx.lineTo(xOf(0), h - padB);
+  ctx.closePath();
+  ctx.fillStyle = isUp ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+  ctx.fill();
+
+  // Dots
+  points.forEach((p, i) => {
+    const x = xOf(i), y = yOf(p.equity);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = (p.pnl || 0) > 0 ? '#22C55E' : (p.pnl || 0) < 0 ? '#EF4444' : '#F5C542';
+    ctx.fill();
+  });
+}
+
+async function loadQuantScorecard() {
+  try {
+    const r = await fetch('/api/quant-scorecard');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.ok) return;
+
+    const s = d.summary || {};
+    const baseCap = d.baseCapital || 15000;
+    const eqBadge = document.getElementById('qs-eq-badge');
+    const eqSub = document.getElementById('qs-eq-sub');
+    if (eqBadge) {
+      eqBadge.textContent = `₹${Number(s.currentEquity || baseCap).toLocaleString('en-IN')} (${s.totalNetPnl >= 0 ? '+' : ''}₹${s.totalNetPnl || 0})`;
+      eqBadge.style.color = (s.totalNetPnl || 0) >= 0 ? 'var(--grn)' : 'var(--red)';
+    }
+    if (eqSub) {
+      eqSub.textContent = `Base ₹${baseCap.toLocaleString('en-IN')} · ${s.closedTrades || 0} Real Trades (${s.wins || 0}W/${s.losses || 0}L) · PF ${s.profitFactor || 0}x · MaxDD ${s.maxDrawdownPct || 0}% · Fees ₹${s.totalFees || 0}`;
+    }
+    drawEquityCurveCanvas(d.equityCurve || [], baseCap);
+
+    const attrEl = document.getElementById('qs-attribution');
+    if (attrEl && d.attribution) {
+      const buckets = [
+        { k: 'CNC_SWING', title: 'CNC Swing (₹0 Brok)', col: 'var(--grn)' },
+        { k: 'MIS_INTRADAY', title: 'MIS Intraday', col: 'var(--cya)' },
+        { k: 'MCX_COMMODITY', title: 'MCX Commodities', col: 'var(--gold)' }
+      ];
+      attrEl.innerHTML = buckets.map(b => {
+        const x = d.attribution[b.k] || { trades: 0, wins: 0, netPnl: 0, fees: 0 };
+        const wr = x.trades ? Math.round((x.wins / x.trades) * 100) : 0;
+        const pCol = x.netPnl > 0 ? 'var(--grn)' : x.netPnl < 0 ? 'var(--red)' : 'var(--txd)';
+        return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 9px">
+          <div style="color:${b.col};font-weight:700;font-size:9px;margin-bottom:2px">${b.title}</div>
+          <div style="font-size:13px;font-weight:700;color:${pCol}">${x.netPnl >= 0 ? '+' : ''}₹${x.netPnl}</div>
+          <div style="font-size:9px;color:var(--txd)">${x.trades} tr · ${wr}% WR · Fees ₹${x.fees}</div>
+        </div>`;
+      }).join('');
+    }
+
+    const grad = d.graduation || {};
+    const gBadge = document.getElementById('qs-grad-status');
+    if (gBadge) {
+      gBadge.textContent = grad.readyForLive ? '✅ READY FOR LIVE' : `PAPER (${grad.scorePct || 0}%)`;
+      gBadge.className = grad.readyForLive ? 'badge b-t1' : 'badge b-open';
+    }
+    const gChecks = document.getElementById('qs-grad-checks');
+    if (gChecks && Array.isArray(grad.checks)) {
+      gChecks.innerHTML = grad.checks.map(c => `
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+            <span style="color:${c.passed ? 'var(--grn)' : 'var(--tx)'}">${c.passed ? '✔' : '○'} ${c.label}</span>
+            <strong style="color:${c.passed ? 'var(--grn)' : 'var(--gold)'}">${c.current}</strong>
+          </div>
+          <div style="height:4px;background:var(--bg4);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${c.pct || 0}%;background:${c.passed ? 'var(--grn)' : 'var(--gold)'}"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    const brBox = document.getElementById('qs-brain-box');
+    if (brBox && d.brain) {
+      const rg = d.brain.regime || {};
+      const ex = d.brain.execution || {};
+      const rgCol = rg.regime === 'BULL_TREND' ? 'var(--grn)' : (rg.regime === 'HIGH_VOL_PANIC' || rg.regime === 'BEAR_DRIFT' ? 'var(--red)' : 'var(--amb)');
+      brBox.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span>🧠 Regime: <strong style="color:${rgCol}">${rg.regime || 'NEUTRAL'}</strong> (${Math.round((rg.sizeMultiplier || 1) * 100)}% size)</span>
+          <span>Exec Score: <strong style="color:var(--gold)">${ex.executionScore ?? 75}/100</strong></span>
+        </div>
+        <div style="color:var(--txd);font-size:9.5px">${(ex.diagnoses && ex.diagnoses[0]) || rg.directive || ''}</div>
+        <div style="color:var(--grn);font-size:9px;margin-top:3px">🏆 Active 2.5Y Champions (${(d.brain.activeChampions || []).length}): ${(d.brain.activeChampions || []).join(', ') || 'None'}</div>
+      `;
+    }
+
+    const mfeBody = document.getElementById('qs-mfemae-body');
+    if (mfeBody && Array.isArray(d.mfeMaeAudit)) {
+      if (d.mfeMaeAudit.length === 0) {
+        mfeBody.innerHTML = `<tr><td colspan="6" style="color:var(--txd);text-align:center;padding:16px">No real trades audited yet.</td></tr>`;
+      } else {
+        mfeBody.innerHTML = d.mfeMaeAudit.map(a => {
+          const pCol = (a.netPnl || 0) > 0 ? 'var(--grn)' : (a.netPnl || 0) < 0 ? 'var(--red)' : 'var(--amb)';
+          const vCol = a.verdict === 'SNIPER_WIN' || a.verdict === 'PROFIT_LOCKED' ? 'var(--grn)' : a.verdict === 'REVERSED_WINNER' ? 'var(--red)' : 'var(--cya)';
+          return `<tr>
+            <td><strong>#${a.id} ${a.symbol}</strong> <span style="color:var(--txd)">${a.side}</span></td>
+            <td style="color:var(--txd)">${a.bucket.replace('_', ' ')}</td>
+            <td style="color:var(--grn)">${a.mfeR != null ? '+' + a.mfeR + 'R' : '—'}</td>
+            <td style="color:var(--red)">${a.maeR != null ? '-' + a.maeR + 'R' : '—'}</td>
+            <td style="color:${pCol};font-weight:700">${a.netPnl != null ? ((a.netPnl >= 0 ? '+' : '') + '₹' + a.netPnl) : 'OPEN'}</td>
+            <td><span style="color:${vCol};font-weight:700">${a.verdict}</span></td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    const pmEl = document.getElementById('qs-postmortems');
+    if (pmEl && Array.isArray(d.postMortems) && d.postMortems.length > 0) {
+      pmEl.innerHTML = d.postMortems.map(pm => `
+        <div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <strong style="color:var(--gold)">📅 ${pm.dateIst} · ${pm.regime}</strong>
+            <span style="color:${(pm.netPnlDay || 0) >= 0 ? 'var(--grn)' : 'var(--red)'};font-weight:700">${(pm.netPnlDay || 0) >= 0 ? '+' : ''}₹${pm.netPnlDay || 0} (Exec ${pm.executionScore}/100)</span>
+          </div>
+          ${(pm.insights || []).map(line => `<div style="color:var(--txd);line-height:1.4">• ${line}</div>`).join('')}
+        </div>
+      `).join('');
+    }
+  } catch (_) {}
+}
+
+async function triggerEodPostMortem() {
+  const btn = document.getElementById('btn-run-pm');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Running...'; }
+  try {
+    const r = await fetch('/api/brain/post-mortem', { method: 'POST' });
+    const d = await r.json();
+    if (d && d.ok) {
+      await loadQuantScorecard();
+    }
+  } catch (_) {}
+  if (btn) { btn.disabled = false; btn.textContent = '🧠 Run EOD Brain'; }
+}
+
+setInterval(() => { loadLogs(); loadQuantScorecard(); }, 8000);
 loadLogs();
+loadQuantScorecard();
 </script>
 </body>
 </html>

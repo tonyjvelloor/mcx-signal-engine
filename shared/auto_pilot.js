@@ -869,16 +869,7 @@ function evaluateCommodityForAutoPilot({
     smc
   });
 
-  const roundTripFee = riskEngine.calculateZerodhaFees({
-    side: preliminarySide,
-    entry: structLevels.entry,
-    exit: structLevels.t1,
-    quantity: 1,
-    lotMultiplier: primaryRoute.multiplier || 1,
-    segment: primaryRoute.segment || 'commodity'
-  }).total;
-
-  // Note: For routed micro/proxy contracts (GOLDPETAL 1g, SILVERBEES, ONGC, HINDCOPPER), scale levels proportionally
+  // Note: For routed micro/proxy contracts (GOLDPETAL 1g, SILVERBEES, ONGC, HINDCOPPER), scale levels FIRST
   let scaleFactor = 1.0;
   if (primaryRoute.symbol === 'GOLDPETAL' && price > 50000) {
     scaleFactor = 0.1; // 1g vs 10g
@@ -893,6 +884,30 @@ function evaluateCommodityForAutoPilot({
   const scaledT1 = +(structLevels.t1 * scaleFactor).toFixed(2);
   const scaledT2 = +(structLevels.t2 * scaleFactor).toFixed(2);
 
+  // Compute realistic ₹15K-sized unit multiplier BEFORE evaluating Zerodha fees & fee-hurdle gate
+  const isEqProxy = (primaryRoute.segment === 'equity');
+  const routeMult = primaryRoute.multiplier || 1;
+  const riskDistPerUnit = Math.max(0.5, Math.abs(scaledEntry - scaledSl));
+  const estProxyQty = isEqProxy
+    ? Math.max(
+        1,
+        Math.min(
+          Math.floor(((accountProfile.capital || 15000) * 0.45 * 5) / Math.max(1, scaledEntry)),
+          Math.floor((accountProfile.maxRiskPerTrade || 150) / riskDistPerUnit)
+        )
+      )
+    : 1;
+  const gateLotMult = isEqProxy ? estProxyQty : routeMult;
+
+  const roundTripFee = riskEngine.calculateZerodhaFees({
+    side: preliminarySide,
+    entry: scaledEntry,
+    exit: scaledT1,
+    qty: isEqProxy ? estProxyQty : 1,
+    lotMultiplier: isEqProxy ? 1 : routeMult,
+    segment: primaryRoute.segment || 'commodity'
+  }).totalFees;
+
   const gate = signalEngine.evaluateRegimeAndFeeGate({
     sigs,
     adxObj: adx,
@@ -902,11 +917,11 @@ function evaluateCommodityForAutoPilot({
     entry: scaledEntry,
     sl: scaledSl,
     t1: scaledT1,
-    lotMultiplier: primaryRoute.multiplier || 1,
+    lotMultiplier: gateLotMult,
     roundTripFee,
-    minGrossTargetMultiple: 3.5,
-    minNetRR: 1.35,
-    threshold: 65,
+    minGrossTargetMultiple: 2.0,
+    minNetRR: 1.20,
+    threshold: 62,
     htfTrend,
     openingRangeGuard,
     isOverextended,

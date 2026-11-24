@@ -616,5 +616,34 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   // Verify dynamic Nifty-50 Champion universe expansion
   const dynUniverse = autoPilot.buildDynamicStockUniverse(['SHRIRAMFIN', 'ETERNAL', 'KOTAKBANK']);
   assert.ok(dynUniverse.some(s => s.symbol === 'SHRIRAMFIN') && dynUniverse.some(s => s.symbol === 'ETERNAL'), 'Dynamic universe must merge Nifty-50 Champions');
-  console.log('✓ Test 18 Passed: Self-Auditing Trading Brain (Regime, MFE/MAE, Auto-Bench & Nifty-50 Champions) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 18 Passed: Self-Auditing Trading Brain (Regime, MFE/MAE, Auto-Bench & Nifty-50 Champions) verified.');
+
+  // ── Test 19: MCX Proxy Fee-Scaling Fix + Nightly Brain Post-Mortem + Quant Scorecard ──
+  const silverAsset = autoPilot.AUTO_PILOT_ASSETS.find(a => a.id === 'silver');
+  const silverEv = autoPilot.evaluateCommodityForAutoPilot({
+    asset: silverAsset,
+    rawCandles: trendBars.map((b, i) => ({ time: b.time, open: 30 + i * 0.08, high: 30.3 + i * 0.08, low: 29.9 + i * 0.08, close: 30.2 + i * 0.08, volume: 5000 })),
+    usdInr: 93.95,
+    accountProfile: { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 }
+  });
+  assert.ok(!String(silverEv.vetoReason || '').includes('below fee hurdle (₹328'), 'Scaled SILVERBEES equity proxy must NOT be evaluated against unscaled ₹95K MCX fees');
+
+  const pmReport = brain.generateDailyPostMortem(memDb, {
+    nseMcpOverview: { nifty50: { percChange: -1.75 }, breadth: { advPct: 27.2 }, topGainers: [{ symbol: 'SHRIRAMFIN', perChange: 2.46 }] },
+    swingBacktestData: { provenChampions: ['SHRIRAMFIN', 'KOTAKBANK'], provenChampionsCount: 2 },
+    dateIst: '2026-11-24'
+  });
+  assert.strictEqual(pmReport.regime, 'HIGH_VOL_PANIC');
+  assert.ok(pmReport.championMovers.some(m => m.includes('SHRIRAMFIN')), 'Post-mortem must highlight proven Champions leading tape');
+
+  const scorecard = brain.buildQuantScorecard(memDb, {
+    accountProfile: { capital: 15000 },
+    nseMcpOverview: { nifty50: { percChange: -1.75 }, breadth: { advPct: 27.2 } },
+    swingBacktestData: { provenChampions: ['SHRIRAMFIN', 'KOTAKBANK'], provenChampionsCount: 2 }
+  });
+  assert.strictEqual(scorecard.ok, true);
+  assert.ok(Array.isArray(scorecard.equityCurve) && scorecard.equityCurve.length >= 2);
+  assert.strictEqual(scorecard.graduation.checks.length, 4);
+  assert.ok(scorecard.postMortems.length >= 1, 'Scorecard must return saved nightly Brain Post-Mortems');
+  console.log('✓ Test 19 Passed: MCX Proxy Fee-Scaling Fix, Nightly Brain Post-Mortem & Quant Scorecard verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

@@ -11,3 +11,4 @@ backups/
 h2/data/
 vercel-proxy/
 archive_status.json
+logs/

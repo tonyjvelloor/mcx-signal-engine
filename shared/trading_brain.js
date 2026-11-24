@@ -330,10 +330,269 @@ function evaluateBrainState({ db = null, nseMcpOverview = null, swingBacktestDat
   };
 }
 
+function getIstDateStr(d = new Date()) {
+  const ist = new Date(d.getTime() + 5.5 * 3600000);
+  return ist.toISOString().slice(0, 10);
+}
+
+function classifyTradeBucket(t) {
+  const sym = String(t.symbol || '').toUpperCase();
+  const reason = String(t.exit_reason || '').toUpperCase();
+  if (reason.includes('CNC_SWING') || (Number(t.brokerage || 0) === 0 && !/GOLD|SILVER|CRUDE|NATGAS|COPPER/.test(sym))) {
+    return 'CNC_SWING';
+  }
+  if (/GOLD|SILVER|CRUDE|NATGAS|COPPER|ZINC|ALUM|COTTON/.test(sym)) {
+    return 'MCX_COMMODITY';
+  }
+  return 'MIS_INTRADAY';
+}
+
+/**
+ * Layer 4: Automated Nightly EOD Brain Post-Mortem (16:30 IST or on-demand)
+ * Summarizes the trading day's execution, MFE/MAE leaks, regime alignment, and
+ * missed Nifty-50 Champion movers, persisting a structured snapshot in SQLite.
+ */
+function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData = null, dateIst = null } = {}) {
+  const todayIst = dateIst || getIstDateStr();
+  const brain = evaluateBrainState({ db, nseMcpOverview, swingBacktestData });
+  let dayTrades = [];
+  if (db) {
+    ensureBrainTables(db);
+    dayTrades = db.prepare(`
+      SELECT p.*, a.mfe_r, a.mae_r
+      FROM paper_trades p
+      LEFT JOIN trade_execution_audit a ON a.trade_id = p.id
+      WHERE p.status != 'OPEN'
+        AND p.symbol NOT LIKE '%TEST%'
+        AND date(COALESCE(p.exit_time, p.created_at), '+5 hours', '+30 minutes') = ?
+      ORDER BY p.id ASC
+    `).all(todayIst);
+  }
+
+  const wins = dayTrades.filter(t => Number(t.net_pnl || 0) > 0);
+  const losses = dayTrades.filter(t => Number(t.net_pnl || 0) < 0);
+  const netPnlDay = +dayTrades.reduce((s, t) => s + Number(t.net_pnl || 0), 0).toFixed(2);
+  const feesDay = +dayTrades.reduce((s, t) => s + Number(t.brokerage || 0) + Number(t.stt_gst || 0), 0).toFixed(2);
+  const dayWinRate = dayTrades.length ? Math.round((wins.length / dayTrades.length) * 100) : 0;
+
+  const champSet = new Set(swingBacktestData?.provenChampions || []);
+  const topGainers = Array.isArray(nseMcpOverview?.topGainers) ? nseMcpOverview.topGainers : [];
+  const championMovers = topGainers
+    .filter(g => champSet.has(String(g.symbol || '').toUpperCase()))
+    .map(g => `${g.symbol} (+${g.perChange}%)`);
+
+  const insights = [];
+  if (dayTrades.length === 0) {
+    insights.push(`0 closed trades on ${todayIst} (Regime: ${brain.regime.regime} — ${brain.regime.directive})`);
+  } else {
+    insights.push(`${dayTrades.length} trades closed (${wins.length}W/${losses.length}L · ${dayWinRate}% WR) for Net ${netPnlDay >= 0 ? '+' : ''}₹${netPnlDay} (Fees ₹${feesDay}).`);
+  }
+  if (championMovers.length > 0) {
+    insights.push(`Proven 2.5Y CNC Champions bucking/leading tape: ${championMovers.join(', ')}.`);
+  }
+  if (brain.execution.diagnoses && brain.execution.diagnoses[0]) {
+    insights.push(brain.execution.diagnoses[0]);
+  }
+
+  const report = {
+    dateIst: todayIst,
+    generatedAt: new Date().toISOString(),
+    regime: brain.regime.regime,
+    niftyPct: brain.regime.niftyPct,
+    advPct: brain.regime.advPct,
+    executionScore: brain.execution.executionScore,
+    tradesCount: dayTrades.length,
+    wins: wins.length,
+    losses: losses.length,
+    winRate: dayWinRate,
+    netPnlDay,
+    feesDay,
+    championMovers,
+    autoBenched: brain.execution.autoBenchedSymbols.map(b => b.symbol),
+    insights
+  };
+
+  if (db) {
+    try {
+      db.prepare(`
+        INSERT INTO brain_snapshots (date_ist, regime, execution_score, payload_json)
+        VALUES (?, ?, ?, ?)
+      `).run(todayIst, report.regime, report.executionScore, JSON.stringify(report));
+    } catch (_) {}
+  }
+
+  return report;
+}
+
+/**
+ * Complete Institutional Quant Scorecard payload for mcx-logger.html:
+ * Equity curve, Bucket attribution (CNC Swing vs MIS vs MCX), MFE/MAE Audit,
+ * 30-Day Paper-to-Live Graduation Gauge, and Daily Brain Post-Mortems.
+ */
+function buildQuantScorecard(db, {
+  accountProfile = { capital: 15000 },
+  nseMcpOverview = null,
+  swingBacktestData = null
+} = {}) {
+  const baseCap = Number(accountProfile?.capital || 15000);
+  const brain = evaluateBrainState({ db, nseMcpOverview, swingBacktestData });
+  if (!db) {
+    return {
+      ok: true,
+      baseCapital: baseCap,
+      summary: { currentEquity: baseCap, totalNetPnl: 0, returnPct: 0, closedTrades: 0, wins: 0, losses: 0, winRate: 0, profitFactor: 0, maxDrawdownPct: 0, totalFees: 0, feeDragPct: 0 },
+      equityCurve: [{ label: 'Start', equity: baseCap, pnl: 0 }],
+      attribution: { CNC_SWING: { trades: 0, wins: 0, netPnl: 0, fees: 0 }, MIS_INTRADAY: { trades: 0, wins: 0, netPnl: 0, fees: 0 }, MCX_COMMODITY: { trades: 0, wins: 0, netPnl: 0, fees: 0 } },
+      mfeMaeAudit: [],
+      graduation: { readyForLive: false, scorePct: 0, checks: [] },
+      postMortems: [],
+      brain
+    };
+  }
+
+  ensureBrainTables(db);
+  const allRealTrades = db.prepare(`
+    SELECT p.*, a.mfe_r, a.mae_r, a.mfe_price, a.mae_price
+    FROM paper_trades p
+    LEFT JOIN trade_execution_audit a ON a.trade_id = p.id
+    WHERE p.symbol NOT LIKE '%TEST%'
+    ORDER BY p.id ASC
+  `).all();
+
+  const closed = allRealTrades.filter(t => t.status !== 'OPEN');
+  let equity = baseCap;
+  let peak = baseCap;
+  let maxDdPct = 0;
+  let wins = 0, grossWin = 0, grossLoss = 0, totalFees = 0;
+
+  const equityCurve = [{ label: 'Start', equity: baseCap, pnl: 0, symbol: 'BASE' }];
+  const attribution = {
+    CNC_SWING: { trades: 0, wins: 0, netPnl: 0, fees: 0 },
+    MIS_INTRADAY: { trades: 0, wins: 0, netPnl: 0, fees: 0 },
+    MCX_COMMODITY: { trades: 0, wins: 0, netPnl: 0, fees: 0 }
+  };
+
+  for (const t of closed) {
+    const pnl = Number(t.net_pnl || 0);
+    const fees = Number(t.brokerage || 0) + Number(t.stt_gst || 0);
+    equity = +(equity + pnl).toFixed(2);
+    if (equity > peak) peak = equity;
+    const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+    if (dd > maxDdPct) maxDdPct = dd;
+
+    totalFees += fees;
+    if (pnl > 0) { wins++; grossWin += pnl; }
+    else if (pnl < 0) { grossLoss += Math.abs(pnl); }
+
+    const bucket = classifyTradeBucket(t);
+    attribution[bucket].trades++;
+    if (pnl > 0) attribution[bucket].wins++;
+    attribution[bucket].netPnl = +(attribution[bucket].netPnl + pnl).toFixed(2);
+    attribution[bucket].fees = +(attribution[bucket].fees + fees).toFixed(2);
+
+    const ts = String(t.exit_time || t.created_at || '').slice(5, 16).replace('T', ' ');
+    equityCurve.push({
+      tradeId: t.id,
+      label: `#${t.id} ${t.symbol}`,
+      time: ts,
+      symbol: t.symbol,
+      pnl,
+      equity
+    });
+  }
+
+  const totalNetPnl = +(equity - baseCap).toFixed(2);
+  const returnPct = +((totalNetPnl / baseCap) * 100).toFixed(2);
+  const winRate = closed.length ? Math.round((wins / closed.length) * 100) : 0;
+  const profitFactor = grossLoss > 0 ? +(grossWin / grossLoss).toFixed(2) : (grossWin > 0 ? 5.0 : 0);
+  const feeDragPct = grossWin > 0 ? +((totalFees / grossWin) * 100).toFixed(1) : (totalFees > 0 ? 100 : 0);
+
+  // Build MFE/MAE Audit table (most recent 15 real trades)
+  const mfeMaeAudit = [...allRealTrades].reverse().slice(0, 15).map(t => {
+    const pnl = t.net_pnl != null ? Number(t.net_pnl) : null;
+    const mfeR = t.mfe_r != null ? Number(t.mfe_r) : null;
+    const maeR = t.mae_r != null ? Number(t.mae_r) : null;
+    let verdict = t.status === 'OPEN' ? 'LIVE_OPEN' : 'RECORDED';
+    if (t.status !== 'OPEN' && mfeR != null) {
+      if (pnl > 0 && maeR <= 0.25) verdict = 'SNIPER_WIN';
+      else if (pnl > 0) verdict = 'PROFIT_LOCKED';
+      else if (pnl < 0 && mfeR >= 1.0) verdict = 'REVERSED_WINNER';
+      else verdict = 'STOP_PROTECTED';
+    }
+    return {
+      id: t.id,
+      symbol: t.symbol,
+      side: t.side,
+      bucket: classifyTradeBucket(t),
+      entry: Number(t.entry_price),
+      exit: t.exit_price != null ? Number(t.exit_price) : null,
+      netPnl: pnl,
+      status: t.status,
+      exitReason: t.exit_reason,
+      mfeR,
+      maeR,
+      verdict
+    };
+  });
+
+  // 30-Day Paper-to-Live Graduation Checklist
+  const checks = [
+    { id: 'trades', label: 'Sample Size (≥ 20 Closed Trades)', current: `${closed.length} / 20`, passed: closed.length >= 20, pct: Math.min(100, Math.round((closed.length / 20) * 100)) },
+    { id: 'pf', label: 'Profit Factor (≥ 1.40x)', current: `${profitFactor}x`, passed: closed.length >= 4 && profitFactor >= 1.40, pct: Math.min(100, Math.round((profitFactor / 1.40) * 100)) },
+    { id: 'wr', label: 'Win Rate (≥ 50%)', current: `${winRate}%`, passed: closed.length >= 4 && winRate >= 50, pct: Math.min(100, Math.round((winRate / 50) * 100)) },
+    { id: 'dd', label: 'Max Drawdown (< 5.0%)', current: `${maxDdPct.toFixed(2)}%`, passed: maxDdPct < 5.0, pct: maxDdPct < 5.0 ? 100 : Math.max(0, Math.round((1 - (maxDdPct - 5) / 10) * 100)) }
+  ];
+  const passedCount = checks.filter(c => c.passed).length;
+  const graduation = {
+    readyForLive: passedCount === checks.length,
+    passedCount,
+    totalChecks: checks.length,
+    scorePct: Math.round(checks.reduce((s, c) => s + c.pct, 0) / checks.length),
+    checks
+  };
+
+  // Load recent nightly Brain Post-Mortems
+  let postMortems = [];
+  try {
+    const snapRows = db.prepare(`SELECT id, date_ist, regime, execution_score, payload_json, created_at FROM brain_snapshots ORDER BY id DESC LIMIT 8`).all();
+    postMortems = snapRows.map(r => {
+      try { return { id: r.id, ...JSON.parse(r.payload_json) }; }
+      catch (_) { return { id: r.id, dateIst: r.date_ist, regime: r.regime, executionScore: r.execution_score, insights: [] }; }
+    });
+  } catch (_) {}
+
+  return {
+    ok: true,
+    updatedAt: new Date().toISOString(),
+    baseCapital: baseCap,
+    summary: {
+      currentEquity: equity,
+      totalNetPnl,
+      returnPct,
+      closedTrades: closed.length,
+      wins,
+      losses: closed.length - wins,
+      winRate,
+      profitFactor,
+      maxDrawdownPct: +maxDdPct.toFixed(2),
+      totalFees: +totalFees.toFixed(2),
+      feeDragPct
+    },
+    equityCurve,
+    attribution,
+    mfeMaeAudit,
+    graduation,
+    postMortems,
+    brain
+  };
+}
+
 module.exports = {
   ensureBrainTables,
   updateTradeExcursions,
   classifyMarketRegime,
   auditExecutionQuality,
-  evaluateBrainState
+  evaluateBrainState,
+  generateDailyPostMortem,
+  buildQuantScorecard
 };

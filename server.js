@@ -1111,6 +1111,43 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 1d2d. Institutional Quant Scorecard (Equity Curve, CNC vs MIS Attribution, MFE/MAE, Paper-to-Live Graduation)
+    if (pathname === '/api/quant-scorecard' && req.method === 'GET') {
+      try {
+        const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+        const scorecard = tradingBrain.buildQuantScorecard(db, {
+          accountProfile: getAccountProfile(),
+          nseMcpOverview: autoPilotState.nseMcpOverview,
+          swingBacktestData: cachedSwingBt
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(scorecard));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 1d2e. Run Nightly EOD Bhavcopy Sync + 2.5Y Champion Re-Score + Brain Post-Mortem On-Demand
+    if (pathname === '/api/brain/post-mortem' && req.method === 'POST') {
+      try {
+        const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
+        await archiveDailyNseHistory({ db, chunks: 1, concurrency: 6 });
+        const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+        const overview = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
+        if (overview) autoPilotState.nseMcpOverview = overview;
+        const report = tradingBrain.generateDailyPostMortem(db, {
+          nseMcpOverview: overview,
+          swingBacktestData: bt
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, report, championsCount: bt.provenChampionsCount }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
     // 1d3. Trigger Daily Historical Archiver On-Demand
     if (pathname === '/api/archive/run' && req.method === 'POST') {
       const { runArchiver } = require('./scripts/archive_candles');
@@ -2673,13 +2710,32 @@ setInterval(() => {
     const kt = getKolkataTime();
     if (!isNseTradingDay(kt.dateStr)) return; // Quietly skip weekends and holidays
 
-    // 1. Primary Run: Once past 16:30 IST
+    // 1. Primary Run: Once past 16:30 IST — 5m Archiver + Official NSE Daily Bhavcopy + 2.5Y Champion Re-Score + Brain Post-Mortem
     if (kt.hour > 16 || (kt.hour === 16 && kt.minute >= 30)) {
       if (lastArchivedPrimaryDate !== kt.dateStr) {
         lastArchivedPrimaryDate = kt.dateStr;
-        console.log(`⏰ [SCHEDULER 16:30 IST] Running primary EOD candle archiver for ${kt.dateStr}...`);
+        console.log(`⏰ [SCHEDULER 16:30 IST] Running primary EOD pipeline (5m + NSE Bhavcopy + Brain Post-Mortem) for ${kt.dateStr}...`);
         const { runArchiver } = require('./scripts/archive_candles');
         runArchiver().catch(e => console.error('Scheduler EOD archiver error:', e.message));
+
+        // Incremental Official NSE Bhavcopy sync (latest 3m chunk across all 50 Nifty stocks) + Brain Post-Mortem
+        (async () => {
+          try {
+            const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
+            await archiveDailyNseHistory({ db, chunks: 1, concurrency: 5 });
+            const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+            const ov = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
+            if (ov) autoPilotState.nseMcpOverview = ov;
+            const pm = tradingBrain.generateDailyPostMortem(db, {
+              nseMcpOverview: ov,
+              swingBacktestData: bt,
+              dateIst: kt.dateStr
+            });
+            console.log(`🧠 [EOD BRAIN ${kt.dateStr}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount}`);
+          } catch (e) {
+            console.error('Scheduler EOD Brain pipeline error:', e.message);
+          }
+        })();
       }
     }
 
