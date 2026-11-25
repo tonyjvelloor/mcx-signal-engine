@@ -629,6 +629,19 @@ async function handleClaudeSentiment(commodity, force = false) {
     };
   }
 
+  // Enforce hard daily/monthly Claude API budget cap before sending any HTTP request
+  const aiBudget = claudeDesk.getAiBudgetStatus(db);
+  if (!aiBudget.allowed) {
+    return {
+      commodity: sym,
+      newsScore: 50,
+      verdict: 'NEUTRAL',
+      summary: `AI budget cap active (${aiBudget.blockedReason}) — using ₹0 neutral fallback.`,
+      cached: false,
+      budgetBlocked: true
+    };
+  }
+
   try {
     // Ultra-efficient single-turn prompt (~120 tokens total). Uses claude-haiku-4-5.
     const aiPayload = await fetchJson('https://api.anthropic.com/v1/messages', {
@@ -641,10 +654,19 @@ async function handleClaudeSentiment(commodity, force = false) {
       timeout: 15000
     }, {
       model: 'claude-haiku-4-5',
-      max_tokens: 250,
+      max_tokens: 180,
       system: 'You are a disciplined MCX commodity analyst. Respond ONLY with valid JSON: {"newsScore": <0-100>, "verdict": "BULLISH"|"BEARISH"|"NEUTRAL", "summary": "<1 factual sentence on price trend and macro driver.>"}',
       messages: [{ role: 'user', content: `Commodity: ${sym}. Summarize current macro sentiment and driver impact.` }]
     });
+
+    if (aiPayload.status === 200 && aiPayload.data?.usage) {
+      claudeDesk.recordAiUsage(db, {
+        endpoint: 'commodity_sentiment',
+        model: 'claude-haiku-4-5',
+        inputTokens: aiPayload.data.usage.input_tokens || 120,
+        outputTokens: aiPayload.data.usage.output_tokens || 60
+      });
+    }
 
     let parsed = { newsScore: 50, verdict: 'NEUTRAL', summary: 'Macro consensus neutral.' };
     try {
@@ -773,6 +795,19 @@ async function handleClaudeMacro(force = false) {
   ]
 }`;
 
+  const aiBudget = claudeDesk.getAiBudgetStatus(db);
+  if (!aiBudget.allowed) {
+    if (db) {
+      try {
+        const latest = db.prepare('SELECT * FROM macro_snapshots ORDER BY id DESC LIMIT 1').get();
+        if (latest && latest.payload_json) {
+          return { ...JSON.parse(latest.payload_json), cached: true, warning: `AI budget cap active (${aiBudget.blockedReason}); serving cached macro snapshot.` };
+        }
+      } catch (_) {}
+    }
+    return getFallbackMacro(`AI budget cap active (${aiBudget.blockedReason})`);
+  }
+
   try {
     const aiResp = await fetchJson('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -791,6 +826,14 @@ async function handleClaudeMacro(force = false) {
     if (aiResp.status !== 200) {
       console.warn('Anthropic API returned status:', aiResp.status);
       throw new Error(aiResp.data?.error?.message || `Anthropic HTTP ${aiResp.status}`);
+    }
+    if (aiResp.data?.usage) {
+      claudeDesk.recordAiUsage(db, {
+        endpoint: 'macro_12pillar',
+        model: 'claude-haiku-4-5',
+        inputTokens: aiResp.data.usage.input_tokens || 600,
+        outputTokens: aiResp.data.usage.output_tokens || 900
+      });
     }
 
     const stopReason = aiResp.data.stop_reason;
@@ -842,7 +885,7 @@ async function handleClaudeMacro(force = false) {
       }
     }
 
-    setCache(cacheKey, parsed, 3600000);
+    setCache(cacheKey, parsed, 6 * 3600000); // 6-hour cache to protect API credits
     return parsed;
   } catch (err) {
     console.warn('handleClaudeMacro fallback triggered:', err.message);
@@ -1171,6 +1214,7 @@ const server = http.createServer(async (req, res) => {
           feesDay: +preTrades.reduce((s, t) => s + Number(t.brokerage || 0) + Number(t.stt_gst || 0), 0).toFixed(2)
         };
         const claudeEnrichment = await claudeDesk.generateClaudePostMortemSummary({
+          db,
           apiKey: getAnthropicKey(),
           report: preDraft,
           dayTrades: preTrades,
@@ -1254,6 +1298,12 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: false, error: err.message }));
       }
+    }
+
+    // 1d2h. Live Claude API Token & Cost Governor Status (Hard Daily ₹8 / Monthly ₹120 Cap)
+    if (pathname === '/api/ai-budget' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(claudeDesk.getAiBudgetStatus(db)));
     }
 
     // 1d3. Trigger Daily Historical Archiver On-Demand
@@ -2469,6 +2519,7 @@ const server = http.createServer(async (req, res) => {
           claudeDeskStatus: {
             enabled: Boolean(getAnthropicKey()),
             model: 'claude-haiku-4-5',
+            budget: claudeDesk.getAiBudgetStatus(db),
             recentReviews: (autoPilotState.claudeReviews || []).slice(0, 6)
           },
           activityLog: autoPilotState.activityLog.slice(0, 20)
@@ -2510,6 +2561,7 @@ const server = http.createServer(async (req, res) => {
               claudeDeskStatus: {
             enabled: Boolean(getAnthropicKey()),
             model: 'claude-haiku-4-5',
+            budget: claudeDesk.getAiBudgetStatus(db),
             recentReviews: (autoPilotState.claudeReviews || []).slice(0, 6)
           },
           activityLog: autoPilotState.activityLog.slice(0, 20),
@@ -2674,7 +2726,8 @@ const server = http.createServer(async (req, res) => {
           }
 
           const apiKey = useAi ? getAnthropicKey() : null;
-          if (apiKey && (action === 'BUY' || action === 'SELL')) {
+          const debateBudget = apiKey ? claudeDesk.getAiBudgetStatus(db) : { allowed: false };
+          if (apiKey && debateBudget.allowed && (action === 'BUY' || action === 'SELL')) {
             try {
               const promptCtx = JSON.stringify({
                 symbol,
@@ -2699,10 +2752,18 @@ const server = http.createServer(async (req, res) => {
                 timeout: 15000
               }, {
                 model: 'claude-haiku-4-5',
-                max_tokens: 420,
-                system: 'You are a TauricResearch-style Bull vs Bear Devil\'s Advocate Risk Desk for an Indian ₹10,000 Zerodha & Olymp Trade desk. Respond ONLY with valid JSON: {"bullCase":["...","..."],"bearCase":["...","..."],"verdict":"CONFIRM"|"HALVE_SIZE"|"VETO","rationale":"<1 concise sentence>"}. Prioritize capital preservation and never encourage chasing.',
+                max_tokens: 300,
+                system: 'You are a TauricResearch-style Bull vs Bear Devil\'s Advocate Risk Desk for an Indian ₹15,000 Zerodha & Olymp Trade desk. Respond ONLY with valid JSON: {"bullCase":["...","..."],"bearCase":["...","..."],"verdict":"CONFIRM"|"HALVE_SIZE"|"VETO","rationale":"<1 concise sentence>"}. Prioritize capital preservation and never encourage chasing.',
                 messages: [{ role: 'user', content: `Debate this live setup critically:\n${promptCtx}` }]
               });
+              if (aiResp.status === 200 && aiResp.data?.usage) {
+                claudeDesk.recordAiUsage(db, {
+                  endpoint: 'ui_debate',
+                  model: 'claude-haiku-4-5',
+                  inputTokens: aiResp.data.usage.input_tokens || 350,
+                  outputTokens: aiResp.data.usage.output_tokens || 120
+                });
+              }
 
               if (aiResp.data?.content?.[0]?.text) {
                 const clean = aiResp.data.content[0].text.replace(/```json|```/g, '').trim();
@@ -2950,6 +3011,7 @@ setInterval(() => {
               feesDay: +eodTrades.reduce((s, t) => s + Number(t.brokerage || 0) + Number(t.stt_gst || 0), 0).toFixed(2)
             };
             const claudeEnrichment = await claudeDesk.generateClaudePostMortemSummary({
+              db,
               apiKey: getAnthropicKey(),
               report: eodDraft,
               dayTrades: eodTrades,
@@ -3239,11 +3301,17 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         fetchLive: sessionInfo.isMcxHours
       });
       const assetLessons = recentLessons.filter(l => String(l.symbol || '').includes(asset.dbSym) || String(l.symbol || '').includes(asset.name));
-      // Use live cached Claude Commodity Sentiment (refreshing asynchronously if stale during MCX hours)
-      const sentCacheKey = `sentiment_${String(asset.name || 'Gold').toLowerCase()}`;
-      const cachedSent = getCached(sentCacheKey);
-      if (!cachedSent && sessionInfo.isMcxHours && getAnthropicKey()) {
-        handleClaudeSentiment(asset.name, false).catch(() => {});
+      // Read ONLY cached Claude Commodity Sentiment (zero unscheduled API calls inside 60s scan loop!)
+      const sentSym = String(asset.name || 'Gold').toUpperCase().trim();
+      let cachedSent = getCached(`ai_sentiment_${sentSym}`);
+      if (!cachedSent && db) {
+        try {
+          const row = db.prepare('SELECT payload_json, expires_at FROM ai_sentiment_cache WHERE symbol = ?').get(sentSym);
+          if (row && new Date(row.expires_at).getTime() > Date.now()) {
+            cachedSent = JSON.parse(row.payload_json);
+            setCache(`ai_sentiment_${sentSym}`, cachedSent, 1800000);
+          }
+        } catch (_) {}
       }
       const liveNewsScore = Number(cachedSent?.newsScore ?? 50);
 
@@ -3393,6 +3461,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           if (anthropicKey) {
             const symLessons = recentLessons.filter(l => String(l.symbol || '').includes(p.tradingsymbol));
             const cro = await claudeDesk.reviewCandidateWithClaude({
+              db,
               apiKey: anthropicKey,
               candidate: cand,
               brainState,

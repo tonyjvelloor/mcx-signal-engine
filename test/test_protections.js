@@ -865,5 +865,36 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     nowDate: morningMon
   });
   assert.ok(grownEqEv.effectiveBudget > baseEqEv.effectiveBudget, 'Auto-Compounding Live Equity (₹30K vs ₹15K) must scale effectiveBudget up proportionally');
-  console.log('✓ Test 24 Passed: Full Component Unification (Claude AI Desk, 12-Pillar Macro Brain, Auto-Compounding Live Equity) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 24 Passed: Full Component Unification (Claude AI Desk, 12-Pillar Macro Brain, Auto-Compounding Live Equity) verified.');
+
+  // ── Test 25: Claude API Cost & Token Budget Governor (Hard ₹8/day · 15 calls/day · ₹120/mo Cap) ──
+  const aiDb = new DatabaseSync(':memory:');
+  claudeDesk.ensureAiUsageTable(aiDb);
+  const b0 = claudeDesk.getAiBudgetStatus(aiDb);
+  assert.strictEqual(b0.allowed, true);
+  assert.strictEqual(b0.dailyCapInr, 8);
+  assert.strictEqual(b0.monthlyCapInr, 120);
+
+  // Record 1 normal Haiku CRO call (~250 in / 70 out -> ~₹0.05)
+  const billed = claudeDesk.recordAiUsage(aiDb, { endpoint: 'pre_trade_cro', inputTokens: 250, outputTokens: 70 });
+  assert.ok(billed.costInr > 0 && billed.costInr < 0.15, 'Single Haiku CRO call must cost < ₹0.15');
+  const b1 = claudeDesk.getAiBudgetStatus(aiDb);
+  assert.strictEqual(b1.allowed, true);
+  assert.strictEqual(b1.todayCalls, 1);
+
+  // Push spend over ₹8/day cap -> must hard-block and return ₹0 deterministic fallback!
+  claudeDesk.recordAiUsage(aiDb, { endpoint: 'macro_test', inputTokens: 20000, outputTokens: 25000 });
+  const bCapped = claudeDesk.getAiBudgetStatus(aiDb);
+  assert.strictEqual(bCapped.allowed, false, 'Exceeding ₹8/day AI budget must hard-block further Claude calls');
+  assert.ok(String(bCapped.blockedReason || '').includes('DAILY_AI_BUDGET_CAP'));
+
+  const guardedRes = await claudeDesk.reviewCandidateWithClaude({
+    db: aiDb,
+    apiKey: 'sk-ant-fake-key-for-budget-cap-test-12345',
+    candidate: { symbol: 'ITC', action: 'BUY' },
+    forceFresh: true
+  });
+  assert.strictEqual(guardedRes.source, 'DETERMINISTIC_FALLBACK', 'Budget-capped CRO call must fail cleanly to ₹0 deterministic fallback');
+  assert.ok(String(guardedRes.budgetBlocked || '').includes('DAILY_AI_BUDGET_CAP'));
+  console.log('✓ Test 25 Passed: Claude API Cost & Token Budget Governor (₹8/day, 15 calls/day, ₹120/mo hard cap & ₹0 fallback) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();
