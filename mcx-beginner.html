@@ -3798,9 +3798,13 @@ function renderAutoPilotCard(d) {
                 <a href="mcx-logger.html" style="color:var(--gold);text-decoration:none;border:1px solid rgba(245,197,66,0.35);padding:0 4px;border-radius:3px;font-size:7.5px">Scorecard →</a>
               </div>`
             : '';
+          const mac = br.macroAlignment;
+          const macTag = (mac && mac.available) ? ` · Macro <strong style="color:${mac.greenCount >= 6 ? 'var(--grn)' : 'var(--amb)'}">${mac.greenCount}/12</strong>` : '';
+          const cld = d.claudeDeskStatus;
+          const cldTag = (cld && cld.enabled) ? ` · <strong style="color:var(--cya)" title="Claude Haiku 4.5 Pre-Trade CRO & 16:30 IST EOD CIO Analyst Active">✨ AI-CRO</strong>` : '';
           return `<div style="margin-top:3px;border-top:1px dashed var(--br);padding-top:3px;font-size:8px">
             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
-              <span>🧠 <strong style="color:var(--cya)">BRAIN v2</strong>: <strong style="color:${rgCol}">${rg}</strong> (${br.regime?.advPct ?? 50}% live · <strong style="color:${govCol}">${gov.state || 'NORMAL'} ${Math.round((br.combinedSizeMultiplier || br.regime?.sizeMultiplier || 1) * 100)}%</strong>)</span>
+              <span>🧠 <strong style="color:var(--cya)">BRAIN v2.5</strong>: <strong style="color:${rgCol}">${rg}</strong> (${br.regime?.advPct ?? 50}% live · <strong style="color:${govCol}">${gov.state || 'NORMAL'} ${Math.round((br.combinedSizeMultiplier || br.regime?.sizeMultiplier || 1) * 100)}%</strong>${macTag}${cldTag})</span>
               <span>Exec: <strong style="color:${scCol}">${ex.executionScore ?? 75}/100</strong>${benchTxt}</span>
             </div>
             <div style="color:var(--txm);margin-top:1px">${diag}</div>

@@ -825,5 +825,45 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   });
   assert.strictEqual(floorLocked.profitLocked, true, 'Pullback to <= 60% of peak daily profit must lock green day');
   assert.strictEqual(floorLocked.misSlotsRemaining, 0);
-  console.log('✓ Test 23 Passed: Session-Aware House-Money Governor (4→6 Bonus, 60% Profit-Floor Lock, Cushion Risk Cap & CNC Separation) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 23 Passed: Session-Aware House-Money Governor (4→6 Bonus, 60% Profit-Floor Lock, Cushion Risk Cap & CNC Separation) verified.');
+
+  // ── Test 24: Full Component Unification (Claude AI Risk Desk, 12-Pillar Macro Snapshot, Auto-Compounding Live Equity) ──
+  const claudeDesk = require('../shared/claude_desk');
+  const fallbackCro = await claudeDesk.reviewCandidateWithClaude({ apiKey: null, candidate: { symbol: 'RELIANCE', action: 'BUY' } });
+  assert.strictEqual(fallbackCro.verdict, 'CONFIRM');
+  assert.strictEqual(fallbackCro.source, 'DETERMINISTIC_FALLBACK');
+
+  memDb.exec(`
+    CREATE TABLE IF NOT EXISTS macro_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      generated_at TEXT, verdict TEXT, green_count INTEGER, payload_json TEXT, stop_reason TEXT
+    );
+    INSERT INTO macro_snapshots (generated_at, verdict, green_count, payload_json, stop_reason)
+    VALUES ('2026-11-25T05:00:00Z', 'Wait', 3, '{}', 'end_turn');
+  `);
+  const macAlign = brain.readLatestMacroSnapshot(memDb);
+  assert.strictEqual(macAlign.available, true);
+  assert.strictEqual(macAlign.greenCount, 3);
+  assert.strictEqual(macAlign.macroMultiplier, 0.75, 'Bearish/Wait 12-pillar macro snapshot (3/12 green) must throttle macroMultiplier to 0.75');
+
+  const aiPm = brain.generateDailyPostMortem(memDb, {
+    claudeEnrichment: { source: 'CLAUDE_HAIKU_CIO', insights: ['AI Insight 1', 'AI Insight 2'], tomorrowFocus: 'Focus on Open Drive leaders.' },
+    dateIst: '2026-11-25'
+  });
+  assert.strictEqual(aiPm.source, 'CLAUDE_HAIKU_CIO');
+  assert.strictEqual(aiPm.tomorrowFocus, 'Focus on Open Drive leaders.');
+
+  // Verify Auto-Compounding Live Equity scales effectiveBudget when liveCompoundedEquity grows to ₹30,000
+  const baseEqEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock, rawCandles: sbinBars,
+    brainState: { liveCompoundedEquity: 15000, combinedSizeMultiplier: 1.0, regime: { regime: 'BULL_TREND', allowNewLongs: true } },
+    nowDate: morningMon
+  });
+  const grownEqEv = autoPilot.evaluateStockForAutoPilot({
+    stock: sbinStock, rawCandles: sbinBars,
+    brainState: { liveCompoundedEquity: 30000, combinedSizeMultiplier: 1.0, regime: { regime: 'BULL_TREND', allowNewLongs: true } },
+    nowDate: morningMon
+  });
+  assert.ok(grownEqEv.effectiveBudget > baseEqEv.effectiveBudget, 'Auto-Compounding Live Equity (₹30K vs ₹15K) must scale effectiveBudget up proportionally');
+  console.log('✓ Test 24 Passed: Full Component Unification (Claude AI Desk, 12-Pillar Macro Brain, Auto-Compounding Live Equity) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

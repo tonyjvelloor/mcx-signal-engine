@@ -31,6 +31,7 @@ const nseMcpClient = require('./shared/nse_mcp_client');
 const swingBacktest = require('./shared/swing_backtest');
 const tradingBrain = require('./shared/trading_brain');
 const allWeatherEngine = require('./shared/all_weather_engine');
+const claudeDesk = require('./shared/claude_desk');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1136,17 +1137,51 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 1d2e. Run Nightly EOD Bhavcopy Sync + 2.5Y Champion Re-Score + Brain Post-Mortem On-Demand
+    // 1d2e. Run Nightly EOD Bhavcopy Sync + 2.5Y Champion Re-Score + Claude AI CIO Brain Post-Mortem On-Demand
     if (pathname === '/api/brain/post-mortem' && req.method === 'POST') {
       try {
         const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
         await archiveDailyNseHistory({ db, chunks: 1, concurrency: 2, delayMs: 300 });
         const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
+        const awBt = allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
         const overview = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
         if (overview) autoPilotState.nseMcpOverview = overview;
+        const brainNow = tradingBrain.evaluateBrainState({
+          db, nseMcpOverview: overview, nseMcpQuotes: autoPilotState.nseMcpQuotes,
+          swingBacktestData: bt, allWeatherBacktest: awBt, baseCapital: getAccountProfile().capital || 15000
+        });
+        // Enrich with Claude Haiku AI CIO analysis (falls back cleanly to deterministic insights)
+        const preTrades = db ? db.prepare(`
+          SELECT p.*, a.mfe_r, a.mae_r FROM paper_trades p
+          LEFT JOIN trade_execution_audit a ON a.trade_id = p.id
+          WHERE p.status != 'OPEN' AND p.symbol NOT LIKE '%TEST%'
+            AND date(COALESCE(p.exit_time, p.created_at), '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')
+          ORDER BY p.id ASC
+        `).all() : [];
+        const preDraft = {
+          dateIst: new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10),
+          regime: brainNow.regime?.regime,
+          niftyPct: brainNow.regime?.niftyPct,
+          advPct: brainNow.regime?.advPct,
+          executionScore: brainNow.execution?.executionScore,
+          tradesCount: preTrades.length,
+          wins: preTrades.filter(t => Number(t.net_pnl || 0) > 0).length,
+          losses: preTrades.filter(t => Number(t.net_pnl || 0) < 0).length,
+          netPnlDay: +preTrades.reduce((s, t) => s + Number(t.net_pnl || 0), 0).toFixed(2),
+          feesDay: +preTrades.reduce((s, t) => s + Number(t.brokerage || 0) + Number(t.stt_gst || 0), 0).toFixed(2)
+        };
+        const claudeEnrichment = await claudeDesk.generateClaudePostMortemSummary({
+          apiKey: getAnthropicKey(),
+          report: preDraft,
+          dayTrades: preTrades,
+          brainState: brainNow
+        }).catch(() => null);
         const report = tradingBrain.generateDailyPostMortem(db, {
           nseMcpOverview: overview,
-          swingBacktestData: bt
+          nseMcpQuotes: autoPilotState.nseMcpQuotes,
+          swingBacktestData: bt,
+          allWeatherBacktest: awBt,
+          claudeEnrichment
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ ok: true, report, championsCount: bt.provenChampionsCount }));
@@ -2431,6 +2466,11 @@ const server = http.createServer(async (req, res) => {
           topStocks: autoPilotState.topStocks,
           stockEvaluations: autoPilotState.stockEvaluations,
           evaluations: autoPilotState.lastEvaluations,
+          claudeDeskStatus: {
+            enabled: Boolean(getAnthropicKey()),
+            model: 'claude-haiku-4-5',
+            recentReviews: (autoPilotState.claudeReviews || []).slice(0, 6)
+          },
           activityLog: autoPilotState.activityLog.slice(0, 20)
         }));
       }
@@ -2467,7 +2507,12 @@ const server = http.createServer(async (req, res) => {
               topStocks: autoPilotState.topStocks,
               stockEvaluations: autoPilotState.stockEvaluations,
               evaluations: autoPilotState.lastEvaluations,
-              activityLog: autoPilotState.activityLog.slice(0, 20),
+              claudeDeskStatus: {
+            enabled: Boolean(getAnthropicKey()),
+            model: 'claude-haiku-4-5',
+            recentReviews: (autoPilotState.claudeReviews || []).slice(0, 6)
+          },
+          activityLog: autoPilotState.activityLog.slice(0, 20),
               scanReport
             }));
           } catch (e) {
@@ -2878,16 +2923,48 @@ setInterval(() => {
             const { archiveDailyNseHistory } = require('./scripts/archive_daily_nse');
             await archiveDailyNseHistory({ db, chunks: 1, concurrency: 2, delayMs: 300 });
             const bt = swingBacktest.runMultiYearSwingBacktest(db, { saveToFile: true });
-            allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
+            const awBt = allWeatherEngine.runAllWeatherBacktest(db, { saveToFile: true });
             const ov = await nseMcpClient.getLiveMarketOverview(true).catch(() => autoPilotState.nseMcpOverview);
             if (ov) autoPilotState.nseMcpOverview = ov;
+            const brainEod = tradingBrain.evaluateBrainState({
+              db, nseMcpOverview: ov, nseMcpQuotes: autoPilotState.nseMcpQuotes,
+              swingBacktestData: bt, allWeatherBacktest: awBt, baseCapital: getAccountProfile().capital || 15000
+            });
+            const eodTrades = db ? db.prepare(`
+              SELECT p.*, a.mfe_r, a.mae_r FROM paper_trades p
+              LEFT JOIN trade_execution_audit a ON a.trade_id = p.id
+              WHERE p.status != 'OPEN' AND p.symbol NOT LIKE '%TEST%'
+                AND date(COALESCE(p.exit_time, p.created_at), '+5 hours', '+30 minutes') = ?
+              ORDER BY p.id ASC
+            `).all(kt.dateStr) : [];
+            const eodDraft = {
+              dateIst: kt.dateStr,
+              regime: brainEod.regime?.regime,
+              niftyPct: brainEod.regime?.niftyPct,
+              advPct: brainEod.regime?.advPct,
+              executionScore: brainEod.execution?.executionScore,
+              tradesCount: eodTrades.length,
+              wins: eodTrades.filter(t => Number(t.net_pnl || 0) > 0).length,
+              losses: eodTrades.filter(t => Number(t.net_pnl || 0) < 0).length,
+              netPnlDay: +eodTrades.reduce((s, t) => s + Number(t.net_pnl || 0), 0).toFixed(2),
+              feesDay: +eodTrades.reduce((s, t) => s + Number(t.brokerage || 0) + Number(t.stt_gst || 0), 0).toFixed(2)
+            };
+            const claudeEnrichment = await claudeDesk.generateClaudePostMortemSummary({
+              apiKey: getAnthropicKey(),
+              report: eodDraft,
+              dayTrades: eodTrades,
+              brainState: brainEod
+            }).catch(() => null);
             const pm = tradingBrain.generateDailyPostMortem(db, {
               nseMcpOverview: ov,
+              nseMcpQuotes: autoPilotState.nseMcpQuotes,
               swingBacktestData: bt,
+              allWeatherBacktest: awBt,
+              claudeEnrichment,
               dateIst: kt.dateStr
             });
             const bk = createSafeSqliteBackup(db, kt.dateStr);
-            console.log(`🧠 [EOD BRAIN ${kt.dateStr}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount} | Backup: ${bk.ok ? bk.file : 'skipped'}`);
+            console.log(`🧠 [EOD BRAIN ${kt.dateStr} · ${pm.source}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount} | Backup: ${bk.ok ? bk.file : 'skipped'}`);
           } catch (e) {
             console.error('Scheduler EOD Brain pipeline error:', e.message);
           }
@@ -3162,11 +3239,19 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         fetchLive: sessionInfo.isMcxHours
       });
       const assetLessons = recentLessons.filter(l => String(l.symbol || '').includes(asset.dbSym) || String(l.symbol || '').includes(asset.name));
+      // Use live cached Claude Commodity Sentiment (refreshing asynchronously if stale during MCX hours)
+      const sentCacheKey = `sentiment_${String(asset.name || 'Gold').toLowerCase()}`;
+      const cachedSent = getCached(sentCacheKey);
+      if (!cachedSent && sessionInfo.isMcxHours && getAnthropicKey()) {
+        handleClaudeSentiment(asset.name, false).catch(() => {});
+      }
+      const liveNewsScore = Number(cachedSent?.newsScore ?? 50);
+
       const ev = autoPilot.evaluateCommodityForAutoPilot({
         asset,
         rawCandles,
         usdInr: 93.95,
-        newsScore: 50,
+        newsScore: liveNewsScore,
         recentLessons: assetLessons,
         geoIntel,
         accountProfile: accProfile,
@@ -3302,6 +3387,39 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             execQty = Math.min(execQty, maxBonusQty);
           }
 
+          // Final Pre-Trade Claude Haiku CRO Risk-Desk Gatekeeper (15m cached per symbol+side, fails open on timeout)
+          let claudeVerdictNote = '';
+          const anthropicKey = getAnthropicKey();
+          if (anthropicKey) {
+            const symLessons = recentLessons.filter(l => String(l.symbol || '').includes(p.tradingsymbol));
+            const cro = await claudeDesk.reviewCandidateWithClaude({
+              apiKey: anthropicKey,
+              candidate: cand,
+              brainState,
+              recentLessons: symLessons,
+              macroSummary: brainState?.macroAlignment
+            });
+            if (!autoPilotState.claudeReviews) autoPilotState.claudeReviews = [];
+            autoPilotState.claudeReviews.unshift({
+              time: new Date().toISOString(),
+              symbol: p.tradingsymbol,
+              side: p.side,
+              verdict: cro.verdict,
+              source: cro.source,
+              rationale: cro.rationale
+            });
+            if (autoPilotState.claudeReviews.length > 20) autoPilotState.claudeReviews.length = 20;
+
+            if (!allowForceEntry && cro.verdict === 'VETO') {
+              logAutoPilotEvent('CLAUDE_CRO_VETO', `🤖 Claude CRO VETOED ${p.tradingsymbol} ${p.side}: ${cro.rationale}`, cro);
+              continue;
+            }
+            if (cro.verdict === 'HALVE_SIZE') {
+              execQty = Math.max(1, Math.floor(execQty * 0.5));
+            }
+            claudeVerdictNote = ` · AI-CRO:${cro.verdict}`;
+          }
+
           let brokerage = 0;
           let sttGst = 0;
           if (isCncSwing) {
@@ -3377,7 +3495,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           openedTrades.push(opened);
           logAutoPilotEvent(
             'AUTO_OPENED',
-            `Opened #${tradeId} [${opened.bucket}/${opened.archetype}] ${p.exchange}:${p.tradingsymbol} ${p.side} ×${p.qty} @ ₹${p.entryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR})`,
+            `Opened #${tradeId} [${opened.bucket}/${opened.archetype}] ${p.exchange}:${p.tradingsymbol} ${p.side} ×${execQty} @ ₹${fillEntryPrice} (SL ₹${p.stopLoss} · T1 ₹${p.target1} · Net R:R 1:${p.netRR}${claudeVerdictNote})`,
             opened
           );
         }

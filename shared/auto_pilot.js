@@ -532,9 +532,18 @@ function evaluateStockForAutoPilot({
     requestedStance: 'AUTO'
   });
 
-  const capital = Number(accountProfile.capital) || 15000;
+  const baseCap = Number(accountProfile.capital) || 15000;
+  // Auto-Compounding Live Equity: as real paper/live profits grow equity above base capital, risk scales proportionally!
+  const capital = Math.max(baseCap, Number(brainState?.liveCompoundedEquity || baseCap));
+  const compoundScale = capital / baseCap;
   const brainSizeMult = Number(brainState?.combinedSizeMultiplier || brainState?.regime?.sizeMultiplier || 1.0);
-  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1) * brainSizeMult));
+  // A+ Conviction Boost (1.30x, capped safely <= 2.0% of live equity) when proven 2.5Y Champion + high conviction aligns with Brain Regime
+  const isRegimeAligned =
+    (action === 'BUY' && brainState?.regime?.regime === 'BULL_TREND') ||
+    (action === 'SELL' && (brainState?.regime?.regime === 'BEAR_DRIFT' || brainState?.regime?.regime === 'HIGH_VOL_PANIC'));
+  const convictionBoost = (confidence >= 76 && isRegimeAligned && multiYearSwingEdge?.provenEdge) ? 1.30 : 1.0;
+  const rawEffectiveBudget = Math.round(stance.effectiveRisk * compoundScale * (debate.sizeMultiplier || 1) * brainSizeMult * convictionBoost);
+  const effectiveBudget = Math.max(50, Math.min(Math.round(capital * 0.02), rawEffectiveBudget));
 
   const finalSide = action === 'SELL' ? 'SELL' : 'BUY';
   const finalLevels = signalEngine.computeStructuralLevels({
@@ -637,10 +646,13 @@ function evaluateStockForAutoPilot({
   const eqGov = brainState?.equityGovernor || null;
   const stratKey = isCncSwingEligible ? 'CNC_SWING_CHAMPIONS' : 'MIS_INTRADAY';
   const stratInfo = brainState?.strategyAllocator?.byId?.[stratKey] || null;
+  const macroBlackout = macroEvents.checkMacroBlackout(stock.symbol, nowDate);
 
   let vetoReason = gate.vetoReason || null;
   let qualifiesForAutoExec = false;
-  if (benchedEntry) {
+  if (macroBlackout && macroBlackout.blocked) {
+    vetoReason = `Macro Blackout Shield: ${macroBlackout.event || 'High-impact macro event window'}`;
+  } else if (benchedEntry) {
     vetoReason = `Brain Auto-Bench Veto: ${benchedEntry.reason} (${benchedEntry.trades} trades, Net ₹${benchedEntry.netPnl})`;
   } else if (stratInfo && stratInfo.status === 'SHADOW_PAUSED') {
     vetoReason = `Brain CIO Shadow-Pause (${stratKey}): ${stratInfo.shadowReason || 'Strategy decaying — paused until recovery'}`;

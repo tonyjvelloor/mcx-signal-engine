@@ -761,8 +761,33 @@ function evaluateDailySlotBudget({
 }
 
 /**
+ * Reads latest 12-Pillar Claude Macro Snapshot from SQLite `macro_snapshots`
+ * so Trading Brain v2 incorporates macro climate (RBI, US Yields, Brent, FII/DII, SIP flows).
+ */
+function readLatestMacroSnapshot(db) {
+  if (!db) return { available: false, verdict: 'UNKNOWN', greenCount: 6, macroMultiplier: 1.0 };
+  try {
+    const row = db.prepare(`SELECT generated_at, verdict, green_count FROM macro_snapshots ORDER BY id DESC LIMIT 1`).get();
+    if (!row) return { available: false, verdict: 'UNKNOWN', greenCount: 6, macroMultiplier: 1.0 };
+    const greenCount = Number(row.green_count || 0);
+    const verdict = String(row.verdict || 'Watch closely');
+    const isWait = verdict.toLowerCase() === 'wait' || greenCount <= 3;
+    const macroMultiplier = isWait ? 0.75 : (greenCount >= 7 ? 1.0 : 0.90);
+    return {
+      available: true,
+      generatedAt: row.generated_at,
+      verdict,
+      greenCount,
+      macroMultiplier
+    };
+  } catch (_) {
+    return { available: false, verdict: 'UNKNOWN', greenCount: 6, macroMultiplier: 1.0 };
+  }
+}
+
+/**
  * Full Brain v2 Evaluation combining:
- * Live Intraday Regime + MFE/MAE Execution Audit + Strategy Bandit + Equity Governor + Temporal Edge + Champions
+ * Live Intraday Regime + 12-Pillar Macro + MFE/MAE Execution Audit + Strategy Bandit + Equity Governor + Temporal Edge + Champions
  */
 function evaluateBrainState({
   db = null,
@@ -773,24 +798,33 @@ function evaluateBrainState({
   baseCapital = 15000
 } = {}) {
   const regime = classifyMarketRegime({ nseMcpOverview, nseMcpQuotes });
+  const macroAlignment = readLatestMacroSnapshot(db);
   const execution = auditExecutionQuality(db);
   const equityGovernor = evaluateEquityGovernor(db, baseCapital);
   const strategyAllocator = evaluateStrategyBandit(db, { regime, swingBacktestData, allWeatherBacktest });
   const temporalEdge = auditTemporalEdge(db);
+  const toxicWindows = temporalEdge.filter(w => w.verdict === 'TOXIC_HOUR' && w.trades >= 3).map(w => w.id);
   const benchedSet = new Set(execution.autoBenchedSymbols.map(b => b.symbol));
   const champions = (swingBacktestData?.provenChampions || []).filter(sym => !benchedSet.has(sym));
 
-  // Combined conservative size multiplier (Regime × Equity Curve Governor)
-  const combinedSizeMultiplier = +(Math.min(regime.sizeMultiplier || 1, equityGovernor.riskMultiplier || 1)).toFixed(2);
+  // Combined conservative size multiplier (Regime × Equity Curve Governor × 12-Pillar Macro)
+  const combinedSizeMultiplier = +(Math.min(
+    regime.sizeMultiplier || 1,
+    equityGovernor.riskMultiplier || 1,
+    macroAlignment.macroMultiplier || 1
+  )).toFixed(2);
 
   return {
-    version: '2.0-CIO',
+    version: '2.5-UNIFIED-AI-CIO',
     updatedAt: new Date().toISOString(),
     regime,
+    macroAlignment,
     execution,
     equityGovernor,
+    liveCompoundedEquity: Math.max(Number(baseCapital || 15000), Number(equityGovernor.currentEquity || baseCapital || 15000)),
     strategyAllocator,
     temporalEdge,
+    toxicWindows,
     combinedSizeMultiplier,
     activeChampions: champions,
     totalChampionsAvailable: swingBacktestData?.provenChampionsCount || 0,
@@ -820,9 +854,16 @@ function classifyTradeBucket(t) {
  * Summarizes the trading day's execution, MFE/MAE leaks, regime alignment, and
  * missed Nifty-50 Champion movers, persisting a structured snapshot in SQLite.
  */
-function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData = null, dateIst = null } = {}) {
+function generateDailyPostMortem(db, {
+  nseMcpOverview = null,
+  nseMcpQuotes = null,
+  swingBacktestData = null,
+  allWeatherBacktest = null,
+  claudeEnrichment = null,
+  dateIst = null
+} = {}) {
   const todayIst = dateIst || getIstDateStr();
-  const brain = evaluateBrainState({ db, nseMcpOverview, swingBacktestData });
+  const brain = evaluateBrainState({ db, nseMcpOverview, nseMcpQuotes, swingBacktestData, allWeatherBacktest });
   let dayTrades = [];
   if (db) {
     ensureBrainTables(db);
@@ -862,12 +903,18 @@ function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData 
     insights.push(brain.execution.diagnoses[0]);
   }
 
+  const finalInsights = (claudeEnrichment && Array.isArray(claudeEnrichment.insights) && claudeEnrichment.insights.length > 0)
+    ? claudeEnrichment.insights
+    : insights;
+
   const report = {
     dateIst: todayIst,
     generatedAt: new Date().toISOString(),
+    source: claudeEnrichment?.source || 'DETERMINISTIC_BRAIN',
     regime: brain.regime.regime,
     niftyPct: brain.regime.niftyPct,
     advPct: brain.regime.advPct,
+    macroVerdict: brain.macroAlignment?.verdict || 'UNKNOWN',
     executionScore: brain.execution.executionScore,
     tradesCount: dayTrades.length,
     wins: wins.length,
@@ -877,7 +924,8 @@ function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData 
     feesDay,
     championMovers,
     autoBenched: brain.execution.autoBenchedSymbols.map(b => b.symbol),
-    insights
+    tomorrowFocus: claudeEnrichment?.tomorrowFocus || null,
+    insights: finalInsights
   };
 
   if (db) {
@@ -889,7 +937,7 @@ function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData 
     } catch (_) {}
   }
 
-  return report;
+  return { ...report, dayTrades };
 }
 
 /**
@@ -1059,6 +1107,7 @@ function buildQuantScorecard(db, {
 
 module.exports = {
   ensureBrainTables,
+  readLatestMacroSnapshot,
   updateTradeExcursions,
   classifyMarketRegime,
   auditExecutionQuality,
