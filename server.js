@@ -1195,6 +1195,32 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 1d2g. Automated Daily SQLite Safe Backup (VACUUM INTO · 14-day retention)
+    if (pathname === '/api/backup/status' && req.method === 'GET') {
+      try {
+        const bDir = path.join(__dirname, 'backups');
+        const files = fs.existsSync(bDir)
+          ? fs.readdirSync(bDir).filter(f => f.endsWith('.db')).sort().reverse()
+          : [];
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, count: files.length, latest: files[0] || null, files: files.slice(0, 14) }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    if (pathname === '/api/backup/run' && req.method === 'POST') {
+      try {
+        const resBackup = createSafeSqliteBackup(db);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(resBackup));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
     // 1d3. Trigger Daily Historical Archiver On-Demand
     if (pathname === '/api/archive/run' && req.method === 'POST') {
       const { runArchiver } = require('./scripts/archive_candles');
@@ -2353,6 +2379,29 @@ const server = http.createServer(async (req, res) => {
               };
             } catch (_) { return null; }
           })(),
+          graduationSummary: (() => {
+            try {
+              const sc = tradingBrain.buildQuantScorecard(db, {
+                accountProfile: accProfile,
+                nseMcpOverview: autoPilotState.nseMcpOverview,
+                nseMcpQuotes: autoPilotState.nseMcpQuotes,
+                swingBacktestData: swingBacktest.loadCachedSwingBacktest(),
+                allWeatherBacktest: allWeatherEngine.loadCachedAllWeatherBacktest()
+              });
+              return {
+                currentEquity: sc.summary?.currentEquity || 15000,
+                totalNetPnl: sc.summary?.totalNetPnl || 0,
+                closedTrades: sc.summary?.closedTrades || 0,
+                winRate: sc.summary?.winRate || 0,
+                profitFactor: sc.summary?.profitFactor || 0,
+                maxDrawdownPct: sc.summary?.maxDrawdownPct || 0,
+                scorePct: sc.graduation?.scorePct || 0,
+                passedCount: sc.graduation?.passedCount || 0,
+                totalChecks: sc.graduation?.totalChecks || 4,
+                readyForLive: Boolean(sc.graduation?.readyForLive)
+              };
+            } catch (_) { return null; }
+          })(),
           swingBacktestSummary: (() => {
             const sb = swingBacktest.loadCachedSwingBacktest();
             if (!sb) return null;
@@ -2738,6 +2787,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/**
+ * Safe Online SQLite Backup via `VACUUM INTO` (works cleanly alongside WAL mode).
+ * Retains the latest 14 daily backups in `backups/market_data_YYYY-MM-DD.db`.
+ */
+function createSafeSqliteBackup(database, dateLabel = null, maxRetention = 14) {
+  if (!database) return { ok: false, error: 'Database unavailable' };
+  const bDir = path.join(__dirname, 'backups');
+  fs.mkdirSync(bDir, { recursive: true });
+  const stamp = dateLabel || new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+  const fileName = `market_data_${stamp}.db`;
+  const destPath = path.join(bDir, fileName);
+  try {
+    if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+    const escapedPath = destPath.replace(/'/g, "''");
+    database.exec(`VACUUM INTO '${escapedPath}'`);
+    const allBackups = fs.readdirSync(bDir).filter(f => f.startsWith('market_data_') && f.endsWith('.db')).sort();
+    while (allBackups.length > maxRetention) {
+      const oldest = allBackups.shift();
+      try { fs.unlinkSync(path.join(bDir, oldest)); } catch (_) {}
+    }
+    const sizeKb = Math.round(fs.statSync(destPath).size / 1024);
+    return { ok: true, file: fileName, sizeKb, retained: allBackups.length };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 // Explicitly bind to loopback 127.0.0.1
 server.listen(PORT, HOST, () => {
   console.log(`🔒 Hardened Server running securely on http://${HOST}:${PORT}`);
@@ -2796,7 +2872,8 @@ setInterval(() => {
               swingBacktestData: bt,
               dateIst: kt.dateStr
             });
-            console.log(`🧠 [EOD BRAIN ${kt.dateStr}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount}`);
+            const bk = createSafeSqliteBackup(db, kt.dateStr);
+            console.log(`🧠 [EOD BRAIN ${kt.dateStr}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount} | Backup: ${bk.ok ? bk.file : 'skipped'}`);
           } catch (e) {
             console.error('Scheduler EOD Brain pipeline error:', e.message);
           }
@@ -3110,14 +3187,19 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       } catch (_) {}
     }
 
-    // Step A: Manage existing open paper positions (+1R Breakeven + SL/Target/EOD Auto-Close + Reflection Lessons)
+    // Step A: Manage existing open paper positions (+0.70R Ratchet + Trend-Runner T2 Extension + Realistic 0.04% Slippage + EOD Exit)
     const lifecycle = autoPilot.manageOpenPaperPositions({
       db,
       latestPrices,
-      sessionInfo
+      sessionInfo,
+      brainState,
+      applySlippage: true
     });
     for (const be of lifecycle.breakevenArmed) {
-      logAutoPilotEvent('BREAKEVEN_ARMED', `Trailed ${be.symbol} (#${be.tradeId}) SL to fee-covered breakeven ₹${be.newSl}`, be);
+      const msg = be.stage === 'RATCHET_3_RUNNER'
+        ? `🚀 Trend-Runner Mode on ${be.symbol} (#${be.tradeId}): Locked SL ₹${be.newSl} (90% of T1) & extended Target → T2 ₹${be.newTarget}`
+        : `Trailed ${be.symbol} (#${be.tradeId}) SL to ₹${be.newSl} (${be.stage || 'BE_ARMED'})`;
+      logAutoPilotEvent('BREAKEVEN_ARMED', msg, be);
     }
     for (const cl of lifecycle.closed) {
       logAutoPilotEvent('AUTO_CLOSED', `Closed ${cl.symbol} ${cl.side} (#${cl.tradeId}) via ${cl.exitReason} @ ₹${cl.exitPrice} | Net P&L: ₹${cl.netPnl}`, cl);
@@ -3198,12 +3280,14 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             sttGst = Math.round((feesAtEntry.totalFees - brokerage) * 100) / 100;
           }
 
+          // Apply realistic 0.04% (4 bps) market-order entry slippage so paper scorecard matches live Zerodha fills
+          const fillEntryPrice = autoPilot.applyPaperSlippage(p.entryPrice, p.side, true, 4);
           const entryTag = isCncSwing ? 'AUTO_PILOT_CNC_SWING' : 'AUTO_PILOT';
           const ins = db.prepare(`
             INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
           `);
-          const info = ins.run(p.tradingsymbol, p.side, p.qty, p.entryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst, entryTag);
+          const info = ins.run(p.tradingsymbol, p.side, p.qty, fillEntryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst, entryTag);
           const tradeId = Number(info.lastInsertRowid);
 
           try {

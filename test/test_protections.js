@@ -735,5 +735,51 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
 
   const temporal = brain.auditTemporalEdge(banditDb);
   assert.strictEqual(temporal.length, 5, 'Temporal Edge Matrix must audit all 5 IST trading windows');
-  console.log('✓ Test 21 Passed: Trading Brain v2 CIO Meta-Strategy Layer (Live Breadth, Sector Guard, Strategy Bandit, Equity Governor & Temporal Edge) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 21 Passed: Trading Brain v2 CIO Meta-Strategy Layer (Live Breadth, Sector Guard, Strategy Bandit, Equity Governor & Temporal Edge) verified.');
+
+  // ── Test 22: Trend-Runner Trailing Mode (RATCHET_3_RUNNER) & Realistic 0.04% Paper Slippage ──
+  assert.strictEqual(autoPilot.applyPaperSlippage(1000, 'BUY', true, 4), 1000.4, 'BUY entry slippage must add +4 bps');
+  assert.strictEqual(autoPilot.applyPaperSlippage(1000, 'BUY', false, 4), 999.6, 'BUY market exit slippage must subtract -4 bps');
+  assert.strictEqual(autoPilot.applyPaperSlippage(1000, 'SELL', true, 4), 999.6, 'SELL entry slippage must subtract -4 bps');
+  assert.strictEqual(autoPilot.applyPaperSlippage(1000, 'SELL', false, 4), 1000.4, 'SELL market exit slippage must add +4 bps');
+
+  const runnerDb = new DatabaseSync(':memory:');
+  runnerDb.exec(`
+    CREATE TABLE paper_trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT, side TEXT, qty INTEGER, entry_price REAL, entry_time TEXT,
+      exit_price REAL, exit_time TEXT, stop_loss REAL, target REAL,
+      net_pnl REAL, brokerage REAL, stt_gst REAL, status TEXT, exit_reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE trade_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT, side TEXT, regime TEXT, session_window TEXT, parity_signal TEXT,
+      exit_reason TEXT, net_pnl REAL, lesson TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO paper_trades (symbol, side, qty, entry_price, stop_loss, target, brokerage, stt_gst, status, exit_reason)
+    VALUES ('AXISBANK', 'BUY', 5, 1000, 985, 1030, 10, 5, 'OPEN', 'RATCHET_2_BE_ARMED');
+  `);
+  // Price hits T1 (1030) during BULL_TREND -> must convert into RATCHET_3_RUNNER (SL=1027, T2=1055.5) instead of capping at T1!
+  const runStep1 = autoPilot.manageOpenPaperPositions({
+    db: runnerDb,
+    latestPrices: { AXISBANK: { price: 1030.5, high: 1031, low: 1028, isLive: true } },
+    brainState: { regime: { regime: 'BULL_TREND' } },
+    applySlippage: true
+  });
+  assert.strictEqual(runStep1.closed.length, 0, 'BULL_TREND BUY reaching T1 must NOT hard-close; must activate Trend-Runner Mode');
+  assert.ok(runStep1.breakevenArmed.some(b => b.stage === 'RATCHET_3_RUNNER' && b.newSl === 1027 && b.newTarget === 1055.5), 'Trend-Runner must lock 90% of T1 (1027) and extend target to T2 (1055.5)');
+
+  // Price keeps surging to 1050 -> continuous runner trail must lift SL higher (1050 - 0.25*55.5 = 1036.13)!
+  const runStep2 = autoPilot.manageOpenPaperPositions({
+    db: runnerDb,
+    latestPrices: { AXISBANK: { price: 1049, high: 1050, low: 1045, isLive: true } },
+    brainState: { regime: { regime: 'BULL_TREND' } },
+    applySlippage: true
+  });
+  assert.strictEqual(runStep2.closed.length, 0);
+  const runnerRow = runnerDb.prepare('SELECT stop_loss, target, exit_reason FROM paper_trades WHERE id = 1').get();
+  assert.ok(runnerRow.stop_loss > 1035, 'Runner continuous trail must lift SL above 1035 on surge to 1050');
+  assert.strictEqual(runnerRow.exit_reason, 'RATCHET_3_RUNNER');
+  console.log('✓ Test 22 Passed: Trend-Runner Mode (RATCHET_3_RUNNER T2 Extension + Continuous Trail) & Realistic 0.04% Slippage verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

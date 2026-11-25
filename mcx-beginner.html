@@ -3784,17 +3784,27 @@ function renderAutoPilotCard(d) {
           const rg = br.regime?.regime || 'NEUTRAL_WAIT';
           const rgCol = rg === 'BULL_TREND' ? 'var(--grn)' : (rg === 'HIGH_VOL_PANIC' || rg === 'BEAR_DRIFT' ? 'var(--red)' : 'var(--amb)');
           const ex = br.execution || {};
+          const gov = br.equityGovernor || {};
+          const govCol = gov.state === 'NORMAL' ? 'var(--grn)' : (gov.state === 'CAPITAL_SHIELD' ? 'var(--red)' : 'var(--amb)');
           const scCol = (ex.executionScore || 0) >= 65 ? 'var(--grn)' : (ex.executionScore || 0) >= 45 ? 'var(--amb)' : 'var(--red)';
           const benchTxt = (ex.autoBenchedSymbols || []).length
             ? ` · <span style="color:var(--red)">Benched: ${ex.autoBenchedSymbols.map(b => b.symbol).join(', ')}</span>`
             : '';
-          const diag = (ex.diagnoses && ex.diagnoses[0]) || br.regime?.directive || '';
+          const diag = br.regime?.directive || (ex.diagnoses && ex.diagnoses[0]) || '';
+          const gr = d.graduationSummary;
+          const gradRow = gr
+            ? `<div style="margin-top:2px;display:flex;justify-content:space-between;align-items:center;gap:4px">
+                <span>🎓 <strong style="color:var(--gold)">GRADUATION</strong>: <strong style="color:${gr.readyForLive ? 'var(--grn)' : 'var(--cya)'}">${gr.scorePct}% (${gr.closedTrades}/20 tr)</strong> · Eq <strong style="color:${gr.totalNetPnl >= 0 ? 'var(--grn)' : 'var(--red)'}">₹${Number(gr.currentEquity).toLocaleString('en-IN')}</strong> · PF <strong style="color:var(--grn)">${gr.profitFactor}x</strong></span>
+                <a href="mcx-logger.html" style="color:var(--gold);text-decoration:none;border:1px solid rgba(245,197,66,0.35);padding:0 4px;border-radius:3px;font-size:7.5px">Scorecard →</a>
+              </div>`
+            : '';
           return `<div style="margin-top:3px;border-top:1px dashed var(--br);padding-top:3px;font-size:8px">
             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
-              <span>🧠 <strong style="color:var(--cya)">BRAIN</strong>: <strong style="color:${rgCol}">${rg}</strong> (${Math.round((br.regime?.sizeMultiplier || 1) * 100)}% size)</span>
-              <span>Exec Score: <strong style="color:${scCol}">${ex.executionScore ?? 75}/100</strong>${ex.closedCount ? ` · MFE ${ex.avgMfeR}R / MAE ${ex.avgMaeR}R` : ''}${benchTxt}</span>
+              <span>🧠 <strong style="color:var(--cya)">BRAIN v2</strong>: <strong style="color:${rgCol}">${rg}</strong> (${br.regime?.advPct ?? 50}% live · <strong style="color:${govCol}">${gov.state || 'NORMAL'} ${Math.round((br.combinedSizeMultiplier || br.regime?.sizeMultiplier || 1) * 100)}%</strong>)</span>
+              <span>Exec: <strong style="color:${scCol}">${ex.executionScore ?? 75}/100</strong>${benchTxt}</span>
             </div>
             <div style="color:var(--txm);margin-top:1px">${diag}</div>
+            ${gradRow}
           </div>`;
         })()
       : '';

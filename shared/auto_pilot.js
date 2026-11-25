@@ -1047,12 +1047,27 @@ function evaluateCommodityForAutoPilot({
 }
 
 /**
- * Manages all currently OPEN paper trades in SQLite:
- * 1. Arms +1R Fee-Covered Breakeven Stop when price moves +1R in favor.
- * 2. Auto-closes when price hits SL or Target (or EOD Square-Off window).
- * 3. Writes Post-Trade Reflection Lesson into `trade_lessons` on close.
+ * Realistic Paper Execution Slippage Model (default 4 bps = 0.04% per side on market orders).
+ * Ensures Paper Mode scorecard P&L mirrors real Zerodha market fills before live graduation.
  */
-function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null }) {
+function applyPaperSlippage(price, side = 'BUY', isEntry = true, bps = 4) {
+  const px = Number(price || 0);
+  if (!(px > 0) || !(bps > 0)) return px;
+  const slip = px * (bps / 10000);
+  const isBuy = String(side).toUpperCase() === 'BUY';
+  // Adverse fill: BUY entry fills higher (+slip), BUY exit fills lower (-slip); opposite for SELL
+  const delta = isEntry ? (isBuy ? slip : -slip) : (isBuy ? -slip : slip);
+  return +(px + delta).toFixed(2);
+}
+
+/**
+ * Manages all currently OPEN paper trades in SQLite:
+ * 1. 3-Stage Progressive Profit Ratchet (+0.70R BE, +1.15R +0.55R, +1.50R +1.00R).
+ * 2. Trend-Runner Mode (`RATCHET_3_RUNNER`): On Brain-aligned strong trend regimes, reaching T1
+ *    locks SL at 90% of T1 profit and extends target to T2 (1.85× T1) with trailing SL instead of capping winners.
+ * 3. Auto-closes on SL / Target / EOD Square-Off (with optional realistic 0.04% slippage) & writes `trade_lessons`.
+ */
+function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null, brainState = null, applySlippage = false }) {
   if (!db) return { checked: 0, breakevenArmed: [], closed: [] };
   let openTrades = [];
   try {
@@ -1081,27 +1096,29 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
     const segment = spec.segment || 'commodity';
     const entry = Number(t.entry_price);
     let sl = Number(t.stop_loss);
-    const tgt = Number(t.target || 0);
+    let tgt = Number(t.target || 0);
     const qty = Number(t.qty || 1);
     const totalFees = Number(t.brokerage || 40) + Number(t.stt_gst || 5);
     const feePerUnit = totalFees / Math.max(1, lotMult * qty);
     const curReason = String(t.exit_reason || '');
     // All-Weather multi-day CNC Delivery positions (Washout & GOLDBEES) are managed strictly on daily close/open rules
     if (curReason.includes('CNC_WASHOUT') || curReason.includes('CNC_GOLD')) continue;
-    const isAlreadyBe = curReason.includes('BE_ARMED');
+    const isAlreadyBe = curReason.includes('BE_ARMED') || curReason.includes('RUNNER');
     const isRatchet1 = curReason.includes('RATCHET_1');
     const isRatchet2 = curReason.includes('RATCHET_2');
+    const isRunner = curReason.includes('RATCHET_3_RUNNER');
+
+    const brainRegime = String(brainState?.regime?.regime || '');
+    const isTrendAligned =
+      (t.side === 'BUY' && brainRegime === 'BULL_TREND') ||
+      (t.side === 'SELL' && (brainRegime === 'BEAR_DRIFT' || brainRegime === 'HIGH_VOL_PANIC'));
 
     // Derive initial 1R distance (if already ratcheted, derive from target distance / 1.44)
     const initRisk = (!isAlreadyBe && Math.abs(entry - sl) > 0)
       ? Math.abs(entry - sl)
       : (tgt > 0 ? (Math.abs(tgt - entry) / 1.44) : Math.abs(entry * 0.005));
 
-    // 1. 3-Stage Progressive Profit Ratchet:
-    //    - Stage 1 (+0.70R): Move SL to Fee-Covered Breakeven (BE_ARMED) — trade can no longer lose money
-    //    - Stage 2 (+1.00R): Move SL to Fee-Covered Breakeven if standard +1R reached
-    //    - Stage 3 (+1.15R): Ratchet SL to +0.55R locked net profit (RATCHET_1_BE_ARMED)
-    //    - Stage 4 (+1.50R): Ratchet SL to +1.00R locked net profit (RATCHET_2_BE_ARMED)
+    // 1. Progressive Profit Ratchet (+0.70R BE -> +1.15R +0.55R -> +1.50R +1.00R -> Continuous Runner Trail)
     if (initRisk > 0) {
       const favMove = t.side === 'BUY' ? (candleHigh - entry) : (entry - candleLow);
       const favR = favMove / initRisk;
@@ -1109,7 +1126,15 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
       let nextSl = null;
       let nextTag = null;
 
-      if (favR >= 1.50 && !isRatchet2) {
+      if (isRunner && tgt > 0) {
+        // Continuous trailing stop behind price while riding from T1 -> T2
+        const trailSpan = Math.abs(tgt - entry) * 0.25;
+        const candidateSl = t.side === 'BUY' ? +(candleHigh - trailSpan).toFixed(2) : +(candleLow + trailSpan).toFixed(2);
+        if ((t.side === 'BUY' && candidateSl > sl) || (t.side === 'SELL' && candidateSl < sl)) {
+          nextSl = candidateSl;
+          nextTag = 'RATCHET_3_RUNNER';
+        }
+      } else if (favR >= 1.50 && !isRatchet2) {
         nextSl = t.side === 'BUY' ? +(entry + initRisk * 1.00).toFixed(2) : +(entry - initRisk * 1.00).toFixed(2);
         nextTag = 'RATCHET_2_BE_ARMED';
       } else if (favR >= 1.15 && !isRatchet1 && !isRatchet2) {
@@ -1129,9 +1154,9 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
       }
     }
 
-    // 2. Check Stop Loss (or Ratcheted Profit Lock), Target 1, or EOD Square-Off
+    // 2. Check Stop Loss (or Ratcheted Profit Lock), Target 1 (with Trend-Runner Extension), or EOD Square-Off
     const isNowProtected = isAlreadyBe || breakevenArmed.some(b => b.tradeId === t.id);
-    const isNowProfitLocked = isRatchet1 || isRatchet2 || breakevenArmed.some(b => b.tradeId === t.id && String(b.stage || '').includes('RATCHET'));
+    const isNowProfitLocked = isRatchet1 || isRatchet2 || isRunner || breakevenArmed.some(b => b.tradeId === t.id && String(b.stage || '').includes('RATCHET'));
     let exitReason = null;
     let fillPrice = curPrice;
     if (t.side === 'BUY') {
@@ -1139,16 +1164,41 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
         exitReason = isNowProfitLocked ? 'AUTO_PROFIT_LOCK' : (isNowProtected ? 'AUTO_BREAKEVEN_SL' : 'AUTO_SL');
         fillPrice = sl;
       } else if (tgt > 0 && candleHigh >= tgt) {
-        exitReason = 'AUTO_TARGET';
-        fillPrice = tgt;
+        if (isTrendAligned && !isRunner) {
+          // Trend-Runner Mode: Lock 90% of T1 profit & extend target to T2 (1.85× T1) instead of capping winner!
+          const t1Dist = Math.abs(tgt - entry);
+          const runnerSl = +(entry + t1Dist * 0.90).toFixed(2);
+          const runnerT2 = +(entry + t1Dist * 1.85).toFixed(2);
+          try {
+            db.prepare(`UPDATE paper_trades SET stop_loss = ?, target = ?, exit_reason = 'RATCHET_3_RUNNER' WHERE id = ?`).run(runnerSl, runnerT2, t.id);
+            sl = runnerSl;
+            tgt = runnerT2;
+            breakevenArmed.push({ tradeId: t.id, symbol: sym, newSl: runnerSl, newTarget: runnerT2, stage: 'RATCHET_3_RUNNER' });
+          } catch (_) {}
+        } else {
+          exitReason = 'AUTO_TARGET';
+          fillPrice = tgt;
+        }
       }
     } else if (t.side === 'SELL') {
       if (sl > 0 && candleHigh >= sl) {
         exitReason = isNowProfitLocked ? 'AUTO_PROFIT_LOCK' : (isNowProtected ? 'AUTO_BREAKEVEN_SL' : 'AUTO_SL');
         fillPrice = sl;
       } else if (tgt > 0 && candleLow <= tgt) {
-        exitReason = 'AUTO_TARGET';
-        fillPrice = tgt;
+        if (isTrendAligned && !isRunner) {
+          const t1Dist = Math.abs(entry - tgt);
+          const runnerSl = +(entry - t1Dist * 0.90).toFixed(2);
+          const runnerT2 = +(entry - t1Dist * 1.85).toFixed(2);
+          try {
+            db.prepare(`UPDATE paper_trades SET stop_loss = ?, target = ?, exit_reason = 'RATCHET_3_RUNNER' WHERE id = ?`).run(runnerSl, runnerT2, t.id);
+            sl = runnerSl;
+            tgt = runnerT2;
+            breakevenArmed.push({ tradeId: t.id, symbol: sym, newSl: runnerSl, newTarget: runnerT2, stage: 'RATCHET_3_RUNNER' });
+          } catch (_) {}
+        } else {
+          exitReason = 'AUTO_TARGET';
+          fillPrice = tgt;
+        }
       }
     }
 
@@ -1163,6 +1213,10 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null })
     }
 
     if (exitReason) {
+      // Apply realistic 0.04% market slippage on stop & market exits (resting limit AUTO_TARGET fills cleanly)
+      if (applySlippage && exitReason !== 'AUTO_TARGET') {
+        fillPrice = applyPaperSlippage(fillPrice, t.side, false, 4);
+      }
       const actualFees = riskEngine.calculateZerodhaFees({
         segment,
         buyPrice: t.side === 'BUY' ? entry : fillPrice,
@@ -1262,6 +1316,7 @@ module.exports = {
   AUTO_PILOT_STOCKS,
   AUTO_PILOT_ASSETS,
   buildDynamicStockUniverse,
+  applyPaperSlippage,
   getMarketSessionWindow,
   computeHistoricalSetupEdge,
   evaluateStockForAutoPilot,
