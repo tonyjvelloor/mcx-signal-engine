@@ -781,5 +781,49 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   const runnerRow = runnerDb.prepare('SELECT stop_loss, target, exit_reason FROM paper_trades WHERE id = 1').get();
   assert.ok(runnerRow.stop_loss > 1035, 'Runner continuous trail must lift SL above 1035 on surge to 1050');
   assert.strictEqual(runnerRow.exit_reason, 'RATCHET_3_RUNNER');
-  console.log('✓ Test 22 Passed: Trend-Runner Mode (RATCHET_3_RUNNER T2 Extension + Continuous Trail) & Realistic 0.04% Slippage verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 22 Passed: Trend-Runner Mode (RATCHET_3_RUNNER T2 Extension + Continuous Trail) & Realistic 0.04% Slippage verified.');
+
+  // ── Test 23: Session-Aware House-Money Governor (4→6 Bonus, 60% Daily Profit-Floor Lock, Cushion Risk Cap & CNC Separation) ──
+  // 1. Normal morning with 3 trades (< +₹150 realized) must reserve 4th slot for Afternoon Drive
+  const normalMorning = brain.evaluateDailySlotBudget({
+    todayTrades: [
+      { id: 1, symbol: 'RELIANCE', entry_time: '2026-11-25T04:00:00Z', status: 'WIN', net_pnl: 60, exit_reason: 'AUTO_TARGET' },
+      { id: 2, symbol: 'ITC', entry_time: '2026-11-25T04:10:00Z', status: 'LOSS', net_pnl: -30, exit_reason: 'AUTO_SL' },
+      { id: 3, symbol: 'AXISBANK', entry_time: '2026-11-25T04:20:00Z', status: 'OPEN', net_pnl: null, exit_reason: 'AUTO_PILOT' },
+      { id: 4, symbol: 'GOLDBEES', entry_time: '2026-11-25T04:25:00Z', status: 'OPEN', net_pnl: null, exit_reason: 'AUTO_PILOT_CNC_GOLD' }
+    ],
+    sessionPhase: 'MORNING_DRIVE'
+  });
+  assert.strictEqual(normalMorning.intradayCount, 3, '₹0-brok CNC trade must NOT count against intraday MIS slots');
+  assert.strictEqual(normalMorning.cncCount, 1);
+  assert.strictEqual(normalMorning.morningCapReached, true, '3 morning base trades must pause morning to save 4th slot for Afternoon Drive');
+  assert.strictEqual(normalMorning.misSlotsRemaining, 0);
+
+  // 2. Strong winning day (+₹266 realized, 0 consecutive losses) must unlock +2 House-Money slots (up to 6) with capped bonus risk!
+  const winningMorning = brain.evaluateDailySlotBudget({
+    todayTrades: [
+      { id: 1, symbol: 'RELIANCE', entry_time: '2026-11-25T03:55:00Z', status: 'WIN', net_pnl: 62, exit_reason: 'AUTO_TARGET' },
+      { id: 2, symbol: 'ITC', entry_time: '2026-11-25T04:00:00Z', status: 'WIN', net_pnl: 146, exit_reason: 'AUTO_TARGET' },
+      { id: 3, symbol: 'AXISBANK', entry_time: '2026-11-25T04:05:00Z', status: 'WIN', net_pnl: 58, exit_reason: 'AUTO_TARGET' },
+      { id: 4, symbol: 'ADANIPOWER', entry_time: '2026-11-25T04:10:00Z', status: 'OPEN', net_pnl: null, exit_reason: 'BE_ARMED' }
+    ],
+    sessionPhase: 'MORNING_DRIVE'
+  });
+  assert.strictEqual(winningMorning.houseMoneyUnlocked, true, '+₹266 realized with 0 losses must unlock House-Money bonus slots');
+  assert.strictEqual(winningMorning.effectiveMaxMisTrades, 6);
+  assert.strictEqual(winningMorning.misSlotsRemaining, 2);
+  assert.strictEqual(winningMorning.profitFloorRs, 159.6);
+  assert.ok(winningMorning.effectiveTradeRiskRs <= 100 && winningMorning.effectiveTradeRiskRs >= 50, 'Bonus trade risk must be strictly capped inside 40% profit cushion');
+
+  // 3. If realized P&L gives back to <= 60% floor (+₹155 vs +₹159.6 floor), must trigger DAILY_PROFIT_LOCKED
+  const floorLocked = brain.evaluateDailySlotBudget({
+    todayTrades: [
+      { id: 1, symbol: 'RELIANCE', entry_time: '2026-11-25T03:55:00Z', status: 'WIN', net_pnl: 266, exit_reason: 'AUTO_TARGET' },
+      { id: 2, symbol: 'TCS', entry_time: '2026-11-25T08:15:00Z', status: 'LOSS', net_pnl: -111, exit_reason: 'AUTO_SL' }
+    ],
+    sessionPhase: 'AFTERNOON_DRIVE'
+  });
+  assert.strictEqual(floorLocked.profitLocked, true, 'Pullback to <= 60% of peak daily profit must lock green day');
+  assert.strictEqual(floorLocked.misSlotsRemaining, 0);
+  console.log('✓ Test 23 Passed: Session-Aware House-Money Governor (4→6 Bonus, 60% Profit-Floor Lock, Cushion Risk Cap & CNC Separation) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

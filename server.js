@@ -2402,6 +2402,20 @@ const server = http.createServer(async (req, res) => {
               };
             } catch (_) { return null; }
           })(),
+          dailySlotBudget: (() => {
+            try {
+              const tTrades = db
+                ? db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all()
+                : [];
+              return tradingBrain.evaluateDailySlotBudget({
+                todayTrades: tTrades,
+                baseMaxMisTrades: autoPilotState.maxDailyTrades || 4,
+                baseRiskRs: accProfile.maxRiskPerTrade || 150,
+                sessionPhase: sessionInfo.nseSessionPhase,
+                isMcxHours: sessionInfo.isMcxHours
+              });
+            } catch (_) { return null; }
+          })(),
           swingBacktestSummary: (() => {
             const sb = swingBacktest.loadCachedSwingBacktest();
             if (!sb) return null;
@@ -3211,18 +3225,33 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
 
     if (canEnterNow && db) {
       const freshTodayTrades = db.prepare(`SELECT * FROM paper_trades WHERE date(created_at, '+5 hours', '+30 minutes') = date('now', '+5 hours', '+30 minutes')`).all();
+      const slotBudget = tradingBrain.evaluateDailySlotBudget({
+        todayTrades: freshTodayTrades,
+        baseMaxMisTrades: autoPilotState.maxDailyTrades || 4,
+        baseRiskRs: accProfile.maxRiskPerTrade || 150,
+        sessionPhase: sessionInfo.nseSessionPhase,
+        isMcxHours: sessionInfo.isMcxHours
+      });
+      // Separate ₹0-brokerage CNC delivery trades so they NEVER consume MIS/MCX intraday slots
+      const intradayTodayTrades = freshTodayTrades.filter(t => {
+        const r = String(t.exit_reason || '').toUpperCase();
+        return !r.includes('CNC_SWING') && !r.includes('CNC_WASHOUT') && !r.includes('CNC_GOLD') && !r.includes('AUTO_AW_');
+      });
       const cb = circuitBreaker.evaluateCircuitBreaker({
-        trades: freshTodayTrades,
+        trades: intradayTodayTrades,
         dailyLossLimit: accProfile.dailyLossLimit,
         maxConsecutiveLosses: 2,
-        maxDailyTrades: autoPilotState.maxDailyTrades || 4
+        maxDailyTrades: slotBudget.effectiveMaxMisTrades
       });
 
-      if (!cb.tripped) {
+      if (!cb.tripped && (!slotBudget.profitLocked || allowForceEntry)) {
         const openNow = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
         const openSyms = new Set(openNow.map(t => String(t.symbol).toUpperCase()));
         let slotsLeft = Math.max(0, autoPilotState.maxConcurrentOpen - openNow.length);
-        let dailyTradesLeft = Math.max(0, (cb.maxDailyTrades || 4) - (cb.todayTradeCount || 0));
+        let dailyTradesLeft = allowForceEntry
+          ? Math.max(1, slotBudget.misSlotsRemaining)
+          : slotBudget.misSlotsRemaining;
+        let cncDailyLeft = Math.max(0, 3 - slotBudget.cncCount);
 
         // Combine qualifying Top Stocks first, followed by qualifying Commodities
         let candidates = [
@@ -3237,9 +3266,12 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         }
 
         for (const cand of candidates) {
-          if (slotsLeft <= 0 || dailyTradesLeft <= 0) break;
+          if (slotsLeft <= 0) break;
           const p = cand.executionPlan;
           if (!p || openSyms.has(p.tradingsymbol)) continue;
+          const isCncSwing = p.product === 'CNC' || p.bucket === 'CNC_SWING';
+          if (isCncSwing && cncDailyLeft <= 0) continue;
+          if (!isCncSwing && dailyTradesLeft <= 0) continue;
 
           // Brain v2 CIO Guard 1: Prevent correlated sector over-concentration (max 1 open trade per sector)
           if (!allowForceEntry) {
@@ -3261,19 +3293,27 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             continue;
           }
 
-          const isCncSwing = p.product === 'CNC' || p.bucket === 'CNC_SWING';
+          // For House-Money Bonus MIS trades (#5/#6), cap quantity strictly inside the 40% profit cushion!
+          let execQty = p.qty;
+          const isHouseMoneyBonus = !isCncSwing && slotBudget.isBonusSlotNext;
+          if (isHouseMoneyBonus && slotBudget.effectiveTradeRiskRs < (accProfile.maxRiskPerTrade || 150)) {
+            const unitRisk = Math.max(0.5, Math.abs(p.entryPrice - p.stopLoss) * (p.lotMultiplier || 1));
+            const maxBonusQty = Math.max(1, Math.floor(Math.max(1, slotBudget.effectiveTradeRiskRs - 35) / unitRisk));
+            execQty = Math.min(execQty, maxBonusQty);
+          }
+
           let brokerage = 0;
           let sttGst = 0;
           if (isCncSwing) {
             // Zerodha CNC Equity Delivery: ₹0 brokerage, ~0.22% round-trip STT + stamp + exchange charges
             brokerage = 0;
-            sttGst = Math.round(p.entryPrice * p.qty * 0.0022 * 100) / 100;
+            sttGst = Math.round(p.entryPrice * execQty * 0.0022 * 100) / 100;
           } else {
             const feesAtEntry = riskEngine.calculateZerodhaFees({
               segment: p.segment,
               buyPrice: p.side === 'BUY' ? p.entryPrice : p.stopLoss,
               sellPrice: p.side === 'BUY' ? p.stopLoss : p.entryPrice,
-              qty: p.qty,
+              qty: execQty,
               lotMultiplier: p.lotMultiplier
             });
             brokerage = feesAtEntry.brokerage;
@@ -3287,7 +3327,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
           `);
-          const info = ins.run(p.tradingsymbol, p.side, p.qty, fillEntryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst, entryTag);
+          const info = ins.run(p.tradingsymbol, p.side, execQty, fillEntryPrice, new Date().toISOString(), p.stopLoss, p.target1, brokerage, sttGst, entryTag);
           const tradeId = Number(info.lastInsertRowid);
 
           try {
@@ -3311,7 +3351,8 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           openSyms.add(p.tradingsymbol);
           openNow.push({ symbol: p.tradingsymbol, status: 'OPEN' });
           slotsLeft--;
-          dailyTradesLeft--;
+          if (isCncSwing) cncDailyLeft--;
+          else dailyTradesLeft--;
 
           const opened = {
             tradeId,

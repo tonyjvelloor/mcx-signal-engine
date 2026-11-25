@@ -52,8 +52,11 @@
     let dailyNetPnl = 0;
     let consecutiveLosses = 0;
 
-    // Evaluate in chronological order
-    const chrono = todayClosedTrades.slice().reverse();
+    // Evaluate in true chronological order (supports both SQLite ASC and UI DESC arrays)
+    const hasIds = todayClosedTrades.length >= 2 && todayClosedTrades.every(t => t.id != null);
+    const chrono = hasIds
+      ? todayClosedTrades.slice().sort((a, b) => Number(a.id) - Number(b.id))
+      : todayClosedTrades.slice().reverse();
     for (const t of chrono) {
       const pnl = Number(t.pnl ?? t.netPnl ?? t.net_pnl ?? 0);
       dailyNetPnl += pnl;

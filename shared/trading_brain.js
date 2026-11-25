@@ -648,6 +648,119 @@ function auditTemporalEdge(db) {
 }
 
 /**
+ * Session-Aware House-Money Daily Slot Budget & 60% Daily Profit-Floor Lock:
+ *   • Separates ₹0-brokerage CNC Delivery trades from MIS/MCX intraday slots
+ *   • Base cap = 4 MIS/MCX trades/day (max 3 in Morning Drive so Afternoon Drive always keeps fresh ammo!)
+ *   • Unlocks +2 House-Money Bonus slots (up to 6/day) ONLY when today's realized net P&L >= +₹150,
+ *     0 consecutive losses, and inside a prime drive window (never MIDDAY_CHOP)
+ *   • Enforces a hard 60% Daily Profit-Floor Lock once peak daily profit >= ₹150, and caps
+ *     bonus-trade risk strictly inside the 40% profit cushion so a winning day can NEVER turn red!
+ */
+function evaluateDailySlotBudget({
+  todayTrades = [],
+  baseMaxMisTrades = 4,
+  bonusSlots = 2,
+  maxMorningBaseTrades = 3,
+  houseMoneyThresholdRs = 150,
+  profitFloorRatio = 0.60,
+  baseRiskRs = 150,
+  sessionPhase = 'MORNING_DRIVE',
+  isMcxHours = false
+} = {}) {
+  const realToday = (todayTrades || []).filter(t => !String(t.symbol || '').toUpperCase().includes('TEST'));
+  const isCncTrade = (t) => {
+    const r = String(t.exit_reason || '').toUpperCase();
+    return r.includes('CNC_SWING') || r.includes('CNC_WASHOUT') || r.includes('CNC_GOLD') || r.includes('AUTO_AW_');
+  };
+
+  const cncToday = realToday.filter(isCncTrade);
+  const intradayToday = realToday.filter(t => !isCncTrade(t));
+
+  // Sort intraday closed trades in true chronological order by id / entry_time
+  const closedIntraday = intradayToday
+    .filter(t => t.status !== 'OPEN' && (t.net_pnl != null || t.pnl != null))
+    .sort((a, b) => (Number(a.id || 0) - Number(b.id || 0)));
+
+  let realizedPnl = 0;
+  let peakRealizedPnl = 0;
+  let consecutiveLosses = 0;
+  for (const t of closedIntraday) {
+    const pnl = Number(t.net_pnl ?? t.pnl ?? 0);
+    realizedPnl = +(realizedPnl + pnl).toFixed(2);
+    if (realizedPnl > peakRealizedPnl) peakRealizedPnl = realizedPnl;
+    if (pnl < 0) consecutiveLosses++;
+    else if (pnl > 0) consecutiveLosses = 0;
+  }
+
+  // Count how many intraday trades were opened during Morning Drive (09:15–11:15 IST)
+  let morningIntradayCount = 0;
+  for (const t of intradayToday) {
+    const ts = new Date(t.entry_time || t.created_at || Date.now());
+    if (isNaN(ts.getTime())) continue;
+    const ist = new Date(ts.getTime() + 5.5 * 3600000);
+    const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    if (mins >= 555 && mins < 675) morningIntradayCount++;
+  }
+
+  // 60% Daily Profit-Floor Lock once peak realized daily profit >= ₹150
+  const profitFloorArmed = peakRealizedPnl >= houseMoneyThresholdRs;
+  const profitFloorRs = profitFloorArmed ? +(peakRealizedPnl * profitFloorRatio).toFixed(2) : null;
+  const profitLocked = profitFloorArmed && realizedPnl <= profitFloorRs;
+
+  // Prime drive window check (never unlock House-Money bonus slots during MIDDAY_CHOP or CLOSING_CUTOFF)
+  const isPrimeWindow = sessionPhase === 'MORNING_DRIVE' || sessionPhase === 'AFTERNOON_DRIVE' || (sessionPhase === 'CLOSED' && isMcxHours);
+  const houseMoneyUnlocked = !profitLocked && realizedPnl >= houseMoneyThresholdRs && consecutiveLosses === 0 && isPrimeWindow;
+  const effectiveMaxMisTrades = houseMoneyUnlocked ? (baseMaxMisTrades + bonusSlots) : baseMaxMisTrades;
+
+  // Preserve at least 1 slot for Afternoon Drive on normal (non-house-money) mornings
+  const morningLimit = houseMoneyUnlocked ? (maxMorningBaseTrades + bonusSlots) : maxMorningBaseTrades;
+  const morningCapReached = sessionPhase === 'MORNING_DRIVE' && morningIntradayCount >= morningLimit;
+
+  const isBonusSlotNext = houseMoneyUnlocked && intradayToday.length >= baseMaxMisTrades;
+  // Cap bonus trade risk strictly within the 40% profit cushion so even a full SL stays above the 60% floor!
+  const profitCushionRs = profitFloorArmed ? Math.max(0, realizedPnl - profitFloorRs) : 0;
+  const effectiveTradeRiskRs = isBonusSlotNext
+    ? Math.min(baseRiskRs, Math.max(50, Math.round(profitCushionRs * 0.85)))
+    : baseRiskRs;
+
+  const misSlotsRemaining = profitLocked || morningCapReached
+    ? 0
+    : Math.max(0, effectiveMaxMisTrades - intradayToday.length);
+
+  let statusLabel = `${intradayToday.length}/${effectiveMaxMisTrades} MIS`;
+  let reason = null;
+  if (profitLocked) {
+    statusLabel = `🔒 PROFIT FLOOR LOCKED (+₹${realizedPnl})`;
+    reason = `Daily Profit Floor Hit: Realized +₹${realizedPnl} reached 60% floor (+₹${profitFloorRs} of +₹${peakRealizedPnl} peak) — halting MIS to lock green day`;
+  } else if (morningCapReached) {
+    statusLabel = `⏳ MORNING CAP (${morningIntradayCount}/${morningLimit} · Saving Afternoon Ammo)`;
+    reason = `Session Partition Guard: ${morningIntradayCount}/${morningLimit} morning trades used — reserving fresh slots for 13:30 IST Afternoon Drive`;
+  } else if (houseMoneyUnlocked) {
+    statusLabel = `🔥 HOUSE-MONEY ${intradayToday.length}/${effectiveMaxMisTrades} (Floor +₹${profitFloorRs})`;
+  }
+
+  return {
+    intradayCount: intradayToday.length,
+    cncCount: cncToday.length,
+    morningIntradayCount,
+    baseMaxMisTrades,
+    effectiveMaxMisTrades,
+    misSlotsRemaining,
+    houseMoneyUnlocked,
+    isBonusSlotNext,
+    effectiveTradeRiskRs,
+    todayRealizedPnl: realizedPnl,
+    peakRealizedPnl,
+    profitFloorArmed,
+    profitFloorRs,
+    profitLocked,
+    morningCapReached,
+    statusLabel,
+    reason
+  };
+}
+
+/**
  * Full Brain v2 Evaluation combining:
  * Live Intraday Regime + MFE/MAE Execution Audit + Strategy Bandit + Equity Governor + Temporal Edge + Champions
  */
@@ -954,6 +1067,7 @@ module.exports = {
   evaluateEquityGovernor,
   evaluateStrategyBandit,
   auditTemporalEdge,
+  evaluateDailySlotBudget,
   evaluateBrainState,
   generateDailyPostMortem,
   buildQuantScorecard

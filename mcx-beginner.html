@@ -3840,7 +3840,7 @@ function renderAutoPilotCard(d) {
         </div>
         <div style="margin-top:3px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:8.5px">
           <span style="color:${phaseMeta.col};font-weight:700">${phaseMeta.label}</span>
-          <span style="color:var(--txd)">2-Bucket: <strong style="color:var(--grn)">₹10K CNC</strong> (₹0 Brok) + <strong style="color:var(--cya)">₹5K MIS</strong></span>
+          <span style="color:var(--txd)">${d.dailySlotBudget ? `<strong style="color:${d.dailySlotBudget.profitLocked ? 'var(--amb)' : (d.dailySlotBudget.houseMoneyUnlocked ? 'var(--grn)' : 'var(--cya)')}">${d.dailySlotBudget.statusLabel}</strong> · ` : ''}2-Bucket: <strong style="color:var(--grn)">₹10K CNC</strong> + <strong style="color:var(--cya)">₹5K MIS</strong></span>
         </div>
         ${(g1 || l1) ? `<div style="margin-top:2px">Movers: ${g1 ? `<span style="color:var(--grn)">▲ ${g1.symbol} +${g1.perChange}%</span>` : ''} ${l1 ? `· <span style="color:var(--red)">▼ ${l1.symbol} ${l1.perChange}%</span>` : ''} · Breadth: <strong style="color:var(--tx)">${ov?.breadth?.reading || '—'}</strong></div>` : ''}
         ${sbRow}
