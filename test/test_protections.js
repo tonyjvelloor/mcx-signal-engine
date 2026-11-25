@@ -687,5 +687,53 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
     liveQuotes: { DIPSTOCK: { ltp: 1450 }, GOLDBEES: { ltp: 95 } }
   });
   assert.ok(reboundExec.closed.some(c => c.symbol === 'DIPSTOCK' && c.exitReason === 'AUTO_AW_SMA5_TARGET' && c.status === 'WIN'), 'Bounce above 5-DMA must auto-close washout in WIN');
-  console.log('✓ Test 20 Passed: 3-Engine All-Weather Regime Switcher (RSI(2) Washout, GOLDBEES 35-DMA & ₹0 Brok CNC lifecycle) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 20 Passed: 3-Engine All-Weather Regime Switcher (RSI(2) Washout, GOLDBEES 35-DMA & ₹0 Brok CNC lifecycle) verified.');
+
+  // ── Test 21: Trading Brain v2 CIO Meta-Strategy Layer (Live Breadth, Sector Guard, Strategy Bandit, Equity Governor, Temporal Edge) ──
+  // 1. Live Intraday Breadth must override stale yesterday EOD breadth (27.2%) on a +1.56% Nifty rally!
+  const bullSurgeRegime = brain.classifyMarketRegime({
+    nseMcpOverview: {
+      nifty50: { percChange: 1.56 },
+      breadth: { advPct: 27.2 },
+      sectorMap: { 'NIFTY BANK': { percChange: 1.4 }, 'NIFTY IT': { percChange: 1.2 }, 'NIFTY AUTO': { percChange: 1.8 }, 'NIFTY METAL': { percChange: 0.9 } }
+    }
+  });
+  assert.strictEqual(bullSurgeRegime.regime, 'BULL_TREND', 'Live +1.56% Nifty surge must classify as BULL_TREND even if EOD Bhavcopy breadth is stale 27.2%');
+  assert.strictEqual(bullSurgeRegime.allowNewShorts, false, 'BULL_TREND must block counter-trend shorts');
+  assert.strictEqual(bullSurgeRegime.breadthSource, 'LIVE_INTRADAY');
+
+  // 2. Sector Concentration Guard (max 1 open trade per NSE sector)
+  const bankBlocked = brain.checkSectorConcentration([{ symbol: 'AXISBANK', status: 'OPEN' }], 'ICICIBANK', 1);
+  assert.strictEqual(bankBlocked.blocked, true, 'Must block second simultaneous BANKING trade');
+  const energyAllowed = brain.checkSectorConcentration([{ symbol: 'AXISBANK', status: 'OPEN' }], 'RELIANCE', 1);
+  assert.strictEqual(energyAllowed.blocked, false, 'Must allow diversified ENERGY trade alongside BANKING');
+
+  // 3. Strategy Decay Shadow-Pause & Equity Curve Governor
+  const banditDb = new DatabaseSync(':memory:');
+  banditDb.exec(`
+    CREATE TABLE paper_trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT, side TEXT, qty INTEGER, entry_price REAL, entry_time TEXT,
+      exit_price REAL, exit_time TEXT, stop_loss REAL, target REAL,
+      net_pnl REAL, brokerage REAL, stt_gst REAL, status TEXT, exit_reason TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, exit_price, net_pnl, brokerage, stt_gst, status, exit_reason) VALUES
+      ('SBIN', 'BUY', 5, 800, '2026-11-25T04:00:00Z', 780, -180, 20, 5, 'LOSS', 'AUTO_SL'),
+      ('INFY', 'BUY', 2, 1500, '2026-11-25T04:10:00Z', 1410, -200, 20, 5, 'LOSS', 'AUTO_SL'),
+      ('TCS', 'BUY', 1, 2500, '2026-11-25T04:20:00Z', 2320, -200, 20, 5, 'LOSS', 'AUTO_SL'),
+      ('ITC', 'BUY', 20, 300, '2026-11-25T04:30:00Z', 292, -180, 20, 5, 'LOSS', 'AUTO_SL');
+  `);
+  const bandit = brain.evaluateStrategyBandit(banditDb, { regime: bullSurgeRegime });
+  assert.strictEqual(bandit.byId.MIS_INTRADAY.status, 'SHADOW_PAUSED', '4 straight MIS losses (>₹180) must auto-pause MIS_INTRADAY in SHADOW_PAUSED');
+  assert.strictEqual(bandit.byId.MIS_INTRADAY.weightPct, 0);
+  assert.strictEqual(bandit.byId.ALL_WEATHER_CNC.status, 'PRIMARY', 'Winning All-Weather CNC must stay PRIMARY');
+
+  const eqGov = brain.evaluateEquityGovernor(banditDb, 15000);
+  assert.strictEqual(eqGov.state, 'CAPITAL_SHIELD', '₹760 loss (5.07% DD >= 4.5%) must activate CAPITAL_SHIELD');
+  assert.strictEqual(eqGov.allowIntradayMis, false);
+
+  const temporal = brain.auditTemporalEdge(banditDb);
+  assert.strictEqual(temporal.length, 5, 'Temporal Edge Matrix must audit all 5 IST trading windows');
+  console.log('✓ Test 21 Passed: Trading Brain v2 CIO Meta-Strategy Layer (Live Breadth, Sector Guard, Strategy Bandit, Equity Governor & Temporal Edge) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

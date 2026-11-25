@@ -533,8 +533,8 @@ function evaluateStockForAutoPilot({
   });
 
   const capital = Number(accountProfile.capital) || 15000;
-  const regimeSizeMult = Number(brainState?.regime?.sizeMultiplier || 1.0);
-  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1) * regimeSizeMult));
+  const brainSizeMult = Number(brainState?.combinedSizeMultiplier || brainState?.regime?.sizeMultiplier || 1.0);
+  const effectiveBudget = Math.max(50, Math.round(stance.effectiveRisk * (debate.sizeMultiplier || 1) * brainSizeMult));
 
   const finalSide = action === 'SELL' ? 'SELL' : 'BUY';
   const finalLevels = signalEngine.computeStructuralLevels({
@@ -634,11 +634,18 @@ function evaluateStockForAutoPilot({
 
   const benchedEntry = (brainState?.execution?.autoBenchedSymbols || []).find(b => b.symbol === stock.symbol);
   const regimeObj = brainState?.regime || null;
+  const eqGov = brainState?.equityGovernor || null;
+  const stratKey = isCncSwingEligible ? 'CNC_SWING_CHAMPIONS' : 'MIS_INTRADAY';
+  const stratInfo = brainState?.strategyAllocator?.byId?.[stratKey] || null;
 
   let vetoReason = gate.vetoReason || null;
   let qualifiesForAutoExec = false;
   if (benchedEntry) {
     vetoReason = `Brain Auto-Bench Veto: ${benchedEntry.reason} (${benchedEntry.trades} trades, Net ₹${benchedEntry.netPnl})`;
+  } else if (stratInfo && stratInfo.status === 'SHADOW_PAUSED') {
+    vetoReason = `Brain CIO Shadow-Pause (${stratKey}): ${stratInfo.shadowReason || 'Strategy decaying — paused until recovery'}`;
+  } else if (!isCncSwingEligible && eqGov && eqGov.allowIntradayMis === false) {
+    vetoReason = `Brain Equity Shield (${eqGov.state}): ${eqGov.rationale}`;
   } else if (regimeObj && action === 'BUY' && regimeObj.allowNewLongs === false) {
     vetoReason = `Brain Regime Veto (${regimeObj.regime}): ${regimeObj.directive}`;
   } else if (regimeObj && action === 'SELL' && regimeObj.allowNewShorts === false) {

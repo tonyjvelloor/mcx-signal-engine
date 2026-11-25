@@ -125,6 +125,31 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:
     </div>
   </div>
 
+  <!-- ══ CIO META-STRATEGY BRAIN v2: STRATEGY ALLOCATOR + EQUITY GOVERNOR + TEMPORAL EDGE ══ -->
+  <div id="cio-brain-panel" style="display:grid;grid-template-columns:1.35fr 1fr;gap:1rem;margin-bottom:1.5rem">
+    <div class="scard" style="padding:1.1rem 1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <div class="scard-title" style="margin-bottom:0">🧠 CIO Meta-Strategy Capital Allocator (Auto-Routes to Winning Engines)</div>
+        <span id="cio-gov-badge" class="badge b-t1">NORMAL · 100% RISK</span>
+      </div>
+      <div id="cio-strategy-list" style="display:flex;flex-direction:column;gap:7px;font-family:var(--fm);font-size:10px">
+        <div style="color:var(--txd)">Loading live strategy weights...</div>
+      </div>
+    </div>
+
+    <div class="scard" style="padding:1.1rem 1.25rem;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+      <div>
+        <div class="scard-title" style="margin-bottom:6px">⏱️ Time-of-Day Edge Matrix (Golden vs Toxic IST Hours)</div>
+        <div id="cio-temporal-list" style="display:flex;flex-direction:column;gap:5px;font-family:var(--fm);font-size:10px">
+          <div style="color:var(--txd)">Analyzing entry windows...</div>
+        </div>
+      </div>
+      <div id="cio-gov-detail" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9.5px;color:var(--txd);line-height:1.45">
+        🛡️ Equity Curve Governor &amp; Sector Concentration Guard (max 1 trade/sector) active.
+      </div>
+    </div>
+  </div>
+
   <div class="stat-cards">
     <div class="scard">
       <div class="scard-title">Total Trades</div>
@@ -647,14 +672,61 @@ async function loadQuantScorecard() {
       const rg = d.brain.regime || {};
       const ex = d.brain.execution || {};
       const rgCol = rg.regime === 'BULL_TREND' ? 'var(--grn)' : (rg.regime === 'HIGH_VOL_PANIC' || rg.regime === 'BEAR_DRIFT' ? 'var(--red)' : 'var(--amb)');
+      const brSrc = rg.breadthSource === 'LIVE_INTRADAY' ? `Live Breadth ${rg.advPct}%` : `Breadth ${rg.advPct}%`;
       brBox.innerHTML = `
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-          <span>🧠 Regime: <strong style="color:${rgCol}">${rg.regime || 'NEUTRAL'}</strong> (${Math.round((rg.sizeMultiplier || 1) * 100)}% size)</span>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;flex-wrap:wrap;gap:4px">
+          <span>🧠 Regime: <strong style="color:${rgCol}">${rg.regime || 'NEUTRAL'}</strong> (${brSrc} · ${Math.round((d.brain.combinedSizeMultiplier || rg.sizeMultiplier || 1) * 100)}% size)</span>
           <span>Exec Score: <strong style="color:var(--gold)">${ex.executionScore ?? 75}/100</strong></span>
         </div>
-        <div style="color:var(--txd);font-size:9.5px">${(ex.diagnoses && ex.diagnoses[0]) || rg.directive || ''}</div>
-        <div style="color:var(--grn);font-size:9px;margin-top:3px">🏆 Active 2.5Y Champions (${(d.brain.activeChampions || []).length}): ${(d.brain.activeChampions || []).join(', ') || 'None'}</div>
+        <div style="color:var(--txd);font-size:9.5px">${rg.directive || (ex.diagnoses && ex.diagnoses[0]) || ''}</div>
+        <div style="color:var(--grn);font-size:9px;margin-top:3px">🏆 Active 2.5Y Champions (${(d.brain.activeChampions || []).length}): ${(d.brain.activeChampions || []).slice(0, 8).join(', ') || 'None'}</div>
       `;
+
+      // Render CIO Meta-Strategy Brain v2 Panel
+      const gov = d.brain.equityGovernor || {};
+      const govBadge = document.getElementById('cio-gov-badge');
+      if (govBadge) {
+        const gState = gov.state || 'NORMAL';
+        govBadge.textContent = `${gState} · ${Math.round((gov.riskMultiplier ?? 1) * 100)}% RISK`;
+        govBadge.className = gState === 'NORMAL' ? 'badge b-t1' : (gState === 'CAPITAL_SHIELD' ? 'badge b-sl' : 'badge b-open');
+      }
+      const govDet = document.getElementById('cio-gov-detail');
+      if (govDet) {
+        govDet.innerHTML = `🛡️ <strong style="color:var(--tx)">Equity Governor:</strong> ${gov.rationale || 'Healthy'} · <strong style="color:var(--cya)">Sector Guard:</strong> Max 1 open trade per NSE sector.`;
+      }
+
+      const stratList = document.getElementById('cio-strategy-list');
+      const alloc = d.brain.strategyAllocator;
+      if (stratList && alloc && Array.isArray(alloc.strategies)) {
+        stratList.innerHTML = alloc.strategies.map(st => {
+          const stCol = st.status === 'PRIMARY' ? 'var(--grn)' : (st.status === 'SHADOW_PAUSED' ? 'var(--red)' : (st.status === 'REDUCED' ? 'var(--amb)' : 'var(--cya)'));
+          const pnlCol = st.netPnl > 0 ? 'var(--grn)' : st.netPnl < 0 ? 'var(--red)' : 'var(--txd)';
+          const liveStats = st.trades > 0
+            ? `${st.trades}tr · ${st.winRate}% WR · <span style="color:${pnlCol}">${st.netPnl >= 0 ? '+' : ''}₹${st.netPnl}</span>`
+            : `2.5Y Prior ${st.priorScore}/100`;
+          return `<div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;gap:6px">
+              <span><strong style="color:var(--tx)">${st.label}</strong> <span style="color:var(--txd);font-size:9px">(${st.brokerageMode})</span></span>
+              <span><strong style="color:${stCol}">${st.status}</strong> · <strong style="color:var(--gold)">${st.weightPct}%</strong> · ${liveStats}</span>
+            </div>
+            <div style="height:5px;background:var(--bg4);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${st.weightPct}%;background:${stCol}"></div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      const tempEl = document.getElementById('cio-temporal-list');
+      if (tempEl && Array.isArray(d.brain.temporalEdge)) {
+        tempEl.innerHTML = d.brain.temporalEdge.map(w => {
+          const vCol = w.verdict === 'GOLDEN_HOUR' ? 'var(--grn)' : (w.verdict === 'TOXIC_HOUR' ? 'var(--red)' : 'var(--txd)');
+          const pCol = w.netPnl > 0 ? 'var(--grn)' : w.netPnl < 0 ? 'var(--red)' : 'var(--txd)';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;background:var(--bg3);border:1px solid var(--br);border-radius:4px">
+            <span style="color:var(--tx)">${w.label}</span>
+            <span>${w.trades}tr ${w.winRate != null ? '· ' + w.winRate + '% WR ' : ''}· <strong style="color:${pCol}">${w.netPnl >= 0 ? '+' : ''}₹${w.netPnl}</strong> · <strong style="color:${vCol};font-size:8.5px">${w.verdict}</strong></span>
+          </div>`;
+        }).join('');
+      }
     }
 
     const mfeBody = document.getElementById('qs-mfemae-body');

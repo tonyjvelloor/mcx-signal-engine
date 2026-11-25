@@ -91,14 +91,39 @@ function updateTradeExcursions(db, openTrades = [], latestPrices = {}) {
 }
 
 /**
- * Layer 1: Market Regime Brain
- * Classifies live NSE market into BULL_TREND, RANGE_CHOP, BEAR_DRIFT, or HIGH_VOL_PANIC.
+ * Layer 1: Live Intraday Market Regime Brain (v2)
+ * Computes TRUE live intraday breadth from live NSE sectoral indices & live stock quotes
+ * (never fooled by stale yesterday EOD Bhavcopy breadth during live trading hours!).
  */
-function classifyMarketRegime({ nseMcpOverview = null } = {}) {
+function classifyMarketRegime({ nseMcpOverview = null, nseMcpQuotes = null } = {}) {
   const n50Pct = Number(nseMcpOverview?.nifty50?.percChange ?? 0);
   const nBkPct = Number(nseMcpOverview?.niftyBank?.percChange ?? 0);
-  const advPct = Number(nseMcpOverview?.breadth?.advPct ?? 50);
+  const eodAdvPct = Number(nseMcpOverview?.breadth?.advPct ?? 50);
   const hasLive = Boolean(nseMcpOverview && (nseMcpOverview.nifty50 || nseMcpOverview.breadth));
+
+  // Derive TRUE real-time intraday breadth from live sectoral indices + live batch quotes
+  let liveBreadthSamples = 0;
+  let liveBreadthGreen = 0;
+  const secMap = nseMcpOverview?.sectorMap || {};
+  for (const val of Object.values(secMap)) {
+    if (val && typeof val.percChange === 'number' && isFinite(val.percChange)) {
+      liveBreadthSamples++;
+      if (val.percChange > 0.05) liveBreadthGreen++;
+    }
+  }
+  if (nseMcpQuotes && typeof nseMcpQuotes === 'object') {
+    for (const q of Object.values(nseMcpQuotes)) {
+      if (q && typeof q.percChange === 'number' && isFinite(q.percChange)) {
+        liveBreadthSamples++;
+        if (q.percChange > 0.05) liveBreadthGreen++;
+      }
+    }
+  }
+  const hasLiveIntradayBreadth = liveBreadthSamples >= 4;
+  const advPct = hasLiveIntradayBreadth
+    ? +((liveBreadthGreen / liveBreadthSamples) * 100).toFixed(1)
+    : eodAdvPct;
+  const breadthSource = hasLiveIntradayBreadth ? 'LIVE_INTRADAY' : 'EOD_BHAVCOPY';
 
   if (!hasLive) {
     return {
@@ -107,6 +132,8 @@ function classifyMarketRegime({ nseMcpOverview = null } = {}) {
       niftyPct: 0,
       bankPct: 0,
       advPct: 50,
+      eodAdvPct: 50,
+      breadthSource: 'NONE',
       allowNewLongs: true,
       allowNewShorts: true,
       allowBreakouts: true,
@@ -116,51 +143,59 @@ function classifyMarketRegime({ nseMcpOverview = null } = {}) {
     };
   }
 
-  if (n50Pct <= -1.45 || advPct <= 24) {
+  // Strong directional panic override (protects immediately on -1.25%+ sell-offs)
+  if (n50Pct <= -1.25 || (n50Pct <= -0.60 && advPct <= 24)) {
     return {
       regime: 'HIGH_VOL_PANIC',
-      confidence: 90,
+      confidence: 92,
       niftyPct: n50Pct,
       bankPct: nBkPct,
       advPct,
+      eodAdvPct,
+      breadthSource,
       allowNewLongs: false,
       allowNewShorts: true,
       allowBreakouts: false,
       preferCncSwing: false,
       sizeMultiplier: 0.5,
-      directive: `Panic sell-off (Nifty ${n50Pct}%, Adv ${advPct}%): Blocking all new longs & breakouts; capital preservation at 50% size.`
+      directive: `Panic sell-off (Nifty ${n50Pct}%, Live Breadth ${advPct}%): Blocking all new longs & breakouts; capital preservation at 50% size.`
     };
   }
 
-  if (n50Pct <= -0.45 && advPct < 43) {
+  // Strong directional bull trend override (blocks counter-trend shorts on +0.65%+ Nifty rallies!)
+  if (n50Pct >= 0.65 || (n50Pct >= 0.30 && advPct >= 56)) {
+    return {
+      regime: 'BULL_TREND',
+      confidence: n50Pct >= 1.0 ? 90 : 82,
+      niftyPct: n50Pct,
+      bankPct: nBkPct,
+      advPct,
+      eodAdvPct,
+      breadthSource,
+      allowNewLongs: true,
+      allowNewShorts: false,
+      allowBreakouts: true,
+      preferCncSwing: true,
+      sizeMultiplier: 1.0,
+      directive: `Bullish trend (Nifty +${n50Pct}%, Live Breadth ${advPct}%): Blocking counter-trend shorts; full size on CNC Champions & aligned longs.`
+    };
+  }
+
+  if (n50Pct <= -0.40 && advPct < 44) {
     return {
       regime: 'BEAR_DRIFT',
       confidence: 78,
       niftyPct: n50Pct,
       bankPct: nBkPct,
       advPct,
+      eodAdvPct,
+      breadthSource,
       allowNewLongs: false,
       allowNewShorts: true,
       allowBreakouts: false,
       preferCncSwing: false,
       sizeMultiplier: 0.75,
-      directive: `Bearish drift (Nifty ${n50Pct}%, Adv ${advPct}%): Blocking intraday longs; favoring short setups & defensive 75% sizing.`
-    };
-  }
-
-  if (n50Pct >= 0.35 && advPct >= 54) {
-    return {
-      regime: 'BULL_TREND',
-      confidence: 82,
-      niftyPct: n50Pct,
-      bankPct: nBkPct,
-      advPct,
-      allowNewLongs: true,
-      allowNewShorts: false,
-      allowBreakouts: true,
-      preferCncSwing: true,
-      sizeMultiplier: 1.0,
-      directive: `Bullish trend (Nifty +${n50Pct}%, Adv ${advPct}%): Full size on proven Nifty-50 CNC Swing Champions & momentum longs.`
+      directive: `Bearish drift (Nifty ${n50Pct}%, Live Breadth ${advPct}%): Blocking intraday longs; favoring short setups & defensive 75% sizing.`
     };
   }
 
@@ -170,12 +205,14 @@ function classifyMarketRegime({ nseMcpOverview = null } = {}) {
     niftyPct: n50Pct,
     bankPct: nBkPct,
     advPct,
+    eodAdvPct,
+    breadthSource,
     allowNewLongs: true,
     allowNewShorts: true,
     allowBreakouts: false,
     preferCncSwing: true,
     sizeMultiplier: 0.75,
-    directive: `Sideways chop (Nifty ${n50Pct >= 0 ? '+' : ''}${n50Pct}%, Adv ${advPct}%): Pausing weak breakouts; favoring Mean-Reversion & CNC Champions at 75% size.`
+    directive: `Sideways chop (Nifty ${n50Pct >= 0 ? '+' : ''}${n50Pct}%, Live Breadth ${advPct}%): Pausing weak breakouts; favoring Mean-Reversion & CNC Champions at 75% size.`
   };
 }
 
@@ -311,19 +348,337 @@ function auditExecutionQuality(db) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// BRAIN v2 CIO MODULES:
+//   • Sector Concentration & Correlation Guard
+//   • Live Equity Curve Anti-Tilt Governor
+//   • Multi-Strategy Meta-Allocator (Empirical Prior + Live Decay Bandit)
+//   • Time-of-Day Edge Matrix (Golden vs Toxic IST Windows)
+// ─────────────────────────────────────────────────────────────
+
+const SYMBOL_SECTOR_MAP = {
+  HDFCBANK: 'BANKING', ICICIBANK: 'BANKING', KOTAKBANK: 'BANKING', AXISBANK: 'BANKING',
+  SBIN: 'BANKING', INDUSINDBK: 'BANKING', CANBK: 'BANKING', BANKBARODA: 'BANKING', PNB: 'BANKING',
+  BAJFINANCE: 'NBFC_FIN', BAJAJFINSV: 'NBFC_FIN', SHRIRAMFIN: 'NBFC_FIN', JIOFIN: 'NBFC_FIN',
+  SBILIFE: 'INSURANCE', HDFCLIFE: 'INSURANCE', ICICIGI: 'INSURANCE', LICI: 'INSURANCE',
+  TCS: 'IT', INFY: 'IT', HCLTECH: 'IT', TECHM: 'IT', WIPRO: 'IT', LTIM: 'IT',
+  RELIANCE: 'ENERGY', ONGC: 'ENERGY', BPCL: 'ENERGY', IOC: 'ENERGY', GAIL: 'ENERGY',
+  NTPC: 'POWER', POWERGRID: 'POWER', ADANIPOWER: 'POWER', TATAPOWER: 'POWER', ADANIGREEN: 'POWER',
+  MARUTI: 'AUTO', 'M&M': 'AUTO', 'BAJAJ-AUTO': 'AUTO', HEROMOTOCO: 'AUTO', EICHERMOT: 'AUTO', TATAMOTORS: 'AUTO', TVSMOTOR: 'AUTO',
+  ITC: 'FMCG', HINDUNILVR: 'FMCG', NESTLEIND: 'FMCG', TATACONSUM: 'FMCG', BRITANNIA: 'FMCG',
+  TATASTEEL: 'METALS', HINDALCO: 'METALS', JSWSTEEL: 'METALS', VEDL: 'METALS', COALINDIA: 'METALS',
+  SUNPHARMA: 'PHARMA', CIPLA: 'PHARMA', DRREDDY: 'PHARMA', APOLLOHOSP: 'PHARMA', DIVISLAB: 'PHARMA',
+  BHARTIARTL: 'TELECOM', LT: 'INFRA', ADANIPORTS: 'INFRA', ADANIENT: 'INFRA', ULTRACEMCO: 'INFRA', GRASIM: 'INFRA',
+  ETERNAL: 'CONSUMER_TECH', TITAN: 'CONSUMER', TRENT: 'CONSUMER', ASIANPAINT: 'CONSUMER',
+  GOLDBEES: 'GOLD_SAFE_HAVEN', LIQUIDBEES: 'CASH_RESERVE'
+};
+
+function getSymbolSector(symbol) {
+  const s = String(symbol || '').toUpperCase().replace(/\d{2}[A-Z]{3}FUT$/, '').trim();
+  if (/GOLD|SILVER/.test(s)) return 'PRECIOUS_METALS';
+  if (/CRUDE|NATGAS/.test(s)) return 'ENERGY_MCX';
+  if (/COPPER|ZINC|ALUM/.test(s)) return 'BASE_METALS_MCX';
+  return SYMBOL_SECTOR_MAP[s] || 'OTHER';
+}
+
 /**
- * Full Brain Evaluation combining Regime + Execution Audit + Nifty-50 2.5Y Champions
+ * Sector Concentration Guard: Prevents opening 2 simultaneous positions in the exact same
+ * correlated sector (e.g., AXISBANK + ICICIBANK + HDFCBANK all stopping out on one Bank Nifty spike).
  */
-function evaluateBrainState({ db = null, nseMcpOverview = null, swingBacktestData = null } = {}) {
-  const regime = classifyMarketRegime({ nseMcpOverview });
+function checkSectorConcentration(openTrades = [], candidateSymbol = '', maxPerSector = 1) {
+  const sector = getSymbolSector(candidateSymbol);
+  if (sector === 'OTHER' || sector === 'GOLD_SAFE_HAVEN' || sector === 'CASH_RESERVE') {
+    return { blocked: false, sector, activeInSector: [] };
+  }
+  const activeInSector = (openTrades || [])
+    .filter(t => String(t.status || 'OPEN').toUpperCase() === 'OPEN')
+    .filter(t => getSymbolSector(t.symbol) === sector)
+    .map(t => String(t.symbol).toUpperCase());
+  const blocked = activeInSector.length >= maxPerSector;
+  return {
+    blocked,
+    sector,
+    activeInSector,
+    reason: blocked ? `Brain Sector Guard: Already holding ${activeInSector.join(', ')} in ${sector} (max ${maxPerSector}/sector)` : null
+  };
+}
+
+/**
+ * Live Equity Curve Governor (Anti-Tilt Capital Shield):
+ * Compares live paper equity against peak equity & its own 5-trade moving average.
+ */
+function evaluateEquityGovernor(db, baseCapital = 15000) {
+  const base = Number(baseCapital || 15000);
+  if (!db) {
+    return { state: 'NORMAL', riskMultiplier: 1.0, allowIntradayMis: true, currentEquity: base, peakEquity: base, drawdownPct: 0, consecutiveLosses: 0, above5TradeMa: true, rationale: 'Baseline equity healthy.' };
+  }
+  const closed = db.prepare(`
+    SELECT id, net_pnl FROM paper_trades
+    WHERE status != 'OPEN' AND symbol NOT LIKE '%TEST%'
+    ORDER BY id ASC
+  `).all();
+
+  let eq = base, peak = base;
+  const curve = [base];
+  for (const t of closed) {
+    eq = +(eq + Number(t.net_pnl || 0)).toFixed(2);
+    if (eq > peak) peak = eq;
+    curve.push(eq);
+  }
+
+  const drawdownPct = peak > 0 ? +(((peak - eq) / peak) * 100).toFixed(2) : 0;
+  let consecutiveLosses = 0;
+  for (let i = closed.length - 1; i >= 0; i--) {
+    if (Number(closed[i].net_pnl || 0) < 0) consecutiveLosses++;
+    else break;
+  }
+
+  const recentCurve = curve.slice(-5);
+  const ma5 = recentCurve.reduce((a, b) => a + b, 0) / recentCurve.length;
+  const above5TradeMa = eq >= ma5 - 1;
+
+  let state = 'NORMAL';
+  let riskMultiplier = 1.0;
+  let allowIntradayMis = true;
+  let rationale = `Equity ₹${eq.toLocaleString('en-IN')} at/above 5-trade MA (DD ${drawdownPct}%) — full 100% risk active.`;
+
+  if (drawdownPct >= 4.5) {
+    state = 'CAPITAL_SHIELD';
+    riskMultiplier = 0.5;
+    allowIntradayMis = false;
+    rationale = `Drawdown ${drawdownPct}% ≥ 4.5% — Intraday MIS paused; capital shielded in ₹0-brok All-Weather CNC & Cash only.`;
+  } else if (drawdownPct >= 2.5 || consecutiveLosses >= 2 || (!above5TradeMa && closed.length >= 5)) {
+    state = 'DEFENSIVE';
+    riskMultiplier = 0.6;
+    allowIntradayMis = true;
+    rationale = `Defensive throttle (DD ${drawdownPct}%, ${consecutiveLosses} loss streak, ${above5TradeMa ? 'above' : 'below'} 5-trade MA) — stepping risk down to 60%.`;
+  }
+
+  return {
+    state,
+    riskMultiplier,
+    allowIntradayMis,
+    currentEquity: eq,
+    peakEquity: peak,
+    drawdownPct,
+    consecutiveLosses,
+    above5TradeMa,
+    ma5Equity: +ma5.toFixed(2),
+    rationale
+  };
+}
+
+/**
+ * Multi-Strategy CIO Capital Allocator (Empirical 2.5Y Prior + Live Rolling Bandit):
+ * Ensures capital always concentrates in winning engines and auto-pauses any decaying strategy
+ * into SHADOW_PAUSED until it recovers.
+ */
+function evaluateStrategyBandit(db, { regime = null, swingBacktestData = null, allWeatherBacktest = null } = {}) {
+  const engines = {
+    ALL_WEATHER_CNC: {
+      id: 'ALL_WEATHER_CNC',
+      label: 'All-Weather CNC (RSI2 + Gold)',
+      brokerageMode: '₹0 Brok CNC',
+      priorScore: allWeatherBacktest?.returnToDd ? Math.min(95, Math.round(58 + allWeatherBacktest.returnToDd * 10)) : 88,
+      trades: 0, wins: 0, netPnl: 0, recentPnls: []
+    },
+    CNC_SWING_CHAMPIONS: {
+      id: 'CNC_SWING_CHAMPIONS',
+      label: '2.5Y CNC Swing Champions',
+      brokerageMode: '₹0 Brok CNC',
+      priorScore: swingBacktestData?.avgChampionPF ? Math.min(92, Math.round(55 + swingBacktestData.avgChampionPF * 16)) : 80,
+      trades: 0, wins: 0, netPnl: 0, recentPnls: []
+    },
+    MIS_INTRADAY: {
+      id: 'MIS_INTRADAY',
+      label: 'MIS Intraday Dual-Archetype',
+      brokerageMode: '5x MIS',
+      priorScore: 60,
+      trades: 0, wins: 0, netPnl: 0, recentPnls: []
+    },
+    MCX_COMMODITY: {
+      id: 'MCX_COMMODITY',
+      label: 'MCX Commodities Evening',
+      brokerageMode: 'MCX / Proxy',
+      priorScore: 55,
+      trades: 0, wins: 0, netPnl: 0, recentPnls: []
+    }
+  };
+
+  if (db) {
+    const closed = db.prepare(`
+      SELECT symbol, net_pnl, brokerage, exit_reason FROM paper_trades
+      WHERE status != 'OPEN' AND symbol NOT LIKE '%TEST%'
+      ORDER BY id ASC
+    `).all();
+    for (const t of closed) {
+      const reason = String(t.exit_reason || '').toUpperCase();
+      const sym = String(t.symbol || '').toUpperCase();
+      let key = 'MIS_INTRADAY';
+      if (reason.includes('AUTO_AW_') || reason.includes('CNC_WASHOUT') || reason.includes('CNC_GOLD')) {
+        key = 'ALL_WEATHER_CNC';
+      } else if (reason.includes('CNC_SWING') || (Number(t.brokerage || 0) === 0 && !/GOLD|SILVER|CRUDE|NATGAS|COPPER/.test(sym))) {
+        key = 'CNC_SWING_CHAMPIONS';
+      } else if (/GOLD|SILVER|CRUDE|NATGAS|COPPER|ZINC|ALUM|COTTON/.test(sym)) {
+        key = 'MCX_COMMODITY';
+      }
+      const pnl = Number(t.net_pnl || 0);
+      const e = engines[key];
+      e.trades++;
+      if (pnl > 0) e.wins++;
+      e.netPnl = +(e.netPnl + pnl).toFixed(2);
+      e.recentPnls.push(pnl);
+    }
+  }
+
+  const rg = regime?.regime || 'NEUTRAL_WAIT';
+  const list = Object.values(engines).map(e => {
+    const wr = e.trades > 0 ? Math.round((e.wins / e.trades) * 100) : null;
+    const last4 = e.recentPnls.slice(-4);
+    const last4Wins = last4.filter(p => p > 0).length;
+    const last4Net = last4.reduce((a, b) => a + b, 0);
+
+    // Bayesian blend: starts at empirical 2.5Y prior and smoothly shifts weight to live realized edge as N grows
+    let liveAdj = 0;
+    if (e.trades > 0) {
+      const confidenceWeight = Math.min(0.65, e.trades / 12);
+      const liveScore = Math.max(15, Math.min(95, 50 + (wr - 50) * 0.8 + (e.netPnl > 0 ? Math.min(20, e.netPnl / 15) : Math.max(-25, e.netPnl / 12))));
+      liveAdj = (liveScore - e.priorScore) * confidenceWeight;
+    }
+
+    // Regime fit bonus/penalty
+    let regimeAdj = 0;
+    if (rg === 'HIGH_VOL_PANIC' || rg === 'BEAR_DRIFT') {
+      if (e.id === 'ALL_WEATHER_CNC') regimeAdj += 10; // Built-in Gold/LiquidBees shield shines in panics
+      if (e.id === 'CNC_SWING_CHAMPIONS') regimeAdj -= 15; // Long-only swing pauses in bear drifts
+    } else if (rg === 'BULL_TREND') {
+      if (e.id === 'CNC_SWING_CHAMPIONS' || e.id === 'ALL_WEATHER_CNC') regimeAdj += 6;
+    }
+
+    const compositeScore = Math.max(5, Math.min(98, Math.round(e.priorScore + liveAdj + regimeAdj)));
+    const isDecaying = last4.length >= 4 && (last4Wins / last4.length) < 0.35 && last4Net < -180;
+
+    let status = 'ACTIVE';
+    let sizeMultiplier = 1.0;
+    if (isDecaying) {
+      status = 'SHADOW_PAUSED';
+      sizeMultiplier = 0.0;
+    } else if (compositeScore >= 75) {
+      status = 'PRIMARY';
+      sizeMultiplier = 1.0;
+    } else if (compositeScore < 52) {
+      status = 'REDUCED';
+      sizeMultiplier = 0.6;
+    }
+
+    return {
+      id: e.id,
+      label: e.label,
+      brokerageMode: e.brokerageMode,
+      priorScore: e.priorScore,
+      compositeScore,
+      trades: e.trades,
+      wins: e.wins,
+      winRate: wr,
+      netPnl: e.netPnl,
+      status,
+      sizeMultiplier,
+      shadowReason: isDecaying ? `Strategy decay: ${last4Wins}/4 wins (₹${last4Net.toFixed(0)}) — paused in shadow mode` : null
+    };
+  });
+
+  // Convert active composite scores into normalized capital weights (%)
+  const activeSum = list.reduce((s, x) => s + (x.status === 'SHADOW_PAUSED' ? 0 : Math.pow(x.compositeScore / 50, 2)), 0) || 1;
+  for (const x of list) {
+    x.weightPct = x.status === 'SHADOW_PAUSED'
+      ? 0
+      : Math.round((Math.pow(x.compositeScore / 50, 2) / activeSum) * 100);
+  }
+  list.sort((a, b) => b.compositeScore - a.compositeScore);
+
+  return {
+    primaryStrategy: list[0]?.id || 'ALL_WEATHER_CNC',
+    pausedStrategies: list.filter(x => x.status === 'SHADOW_PAUSED').map(x => x.id),
+    strategies: list,
+    byId: Object.fromEntries(list.map(x => [x.id, x]))
+  };
+}
+
+/**
+ * Time-of-Day Temporal Edge Matrix (IST Entry Windows):
+ * Identifies your Golden Hours vs Toxic Hours from real SQLite history.
+ */
+function auditTemporalEdge(db) {
+  const buckets = {
+    OPEN_DRIVE: { id: 'OPEN_DRIVE', label: '09:15–10:30 Open Drive', trades: 0, wins: 0, netPnl: 0 },
+    MID_MORNING: { id: 'MID_MORNING', label: '10:30–11:15 Mid-Morning', trades: 0, wins: 0, netPnl: 0 },
+    MIDDAY_CHOP: { id: 'MIDDAY_CHOP', label: '11:15–13:30 Midday', trades: 0, wins: 0, netPnl: 0 },
+    AFTERNOON: { id: 'AFTERNOON', label: '13:30–15:20 Afternoon', trades: 0, wins: 0, netPnl: 0 },
+    MCX_EVENING: { id: 'MCX_EVENING', label: '15:20–23:30 MCX Evening', trades: 0, wins: 0, netPnl: 0 }
+  };
+  if (!db) return Object.values(buckets);
+
+  const rows = db.prepare(`
+    SELECT entry_time, created_at, net_pnl FROM paper_trades
+    WHERE status != 'OPEN' AND symbol NOT LIKE '%TEST%'
+  `).all();
+
+  for (const r of rows) {
+    const ts = new Date(r.entry_time || r.created_at || Date.now());
+    if (isNaN(ts.getTime())) continue;
+    const ist = new Date(ts.getTime() + 5.5 * 3600000);
+    const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    let k = 'MCX_EVENING';
+    if (mins >= 555 && mins < 630) k = 'OPEN_DRIVE';
+    else if (mins >= 630 && mins < 675) k = 'MID_MORNING';
+    else if (mins >= 675 && mins < 810) k = 'MIDDAY_CHOP';
+    else if (mins >= 810 && mins <= 920) k = 'AFTERNOON';
+    const b = buckets[k];
+    const pnl = Number(r.net_pnl || 0);
+    b.trades++;
+    if (pnl > 0) b.wins++;
+    b.netPnl = +(b.netPnl + pnl).toFixed(2);
+  }
+
+  return Object.values(buckets).map(b => ({
+    ...b,
+    winRate: b.trades > 0 ? Math.round((b.wins / b.trades) * 100) : null,
+    verdict: b.trades < 2 ? 'COLLECTING' : (b.netPnl > 0 ? 'GOLDEN_HOUR' : 'TOXIC_HOUR')
+  }));
+}
+
+/**
+ * Full Brain v2 Evaluation combining:
+ * Live Intraday Regime + MFE/MAE Execution Audit + Strategy Bandit + Equity Governor + Temporal Edge + Champions
+ */
+function evaluateBrainState({
+  db = null,
+  nseMcpOverview = null,
+  nseMcpQuotes = null,
+  swingBacktestData = null,
+  allWeatherBacktest = null,
+  baseCapital = 15000
+} = {}) {
+  const regime = classifyMarketRegime({ nseMcpOverview, nseMcpQuotes });
   const execution = auditExecutionQuality(db);
+  const equityGovernor = evaluateEquityGovernor(db, baseCapital);
+  const strategyAllocator = evaluateStrategyBandit(db, { regime, swingBacktestData, allWeatherBacktest });
+  const temporalEdge = auditTemporalEdge(db);
   const benchedSet = new Set(execution.autoBenchedSymbols.map(b => b.symbol));
   const champions = (swingBacktestData?.provenChampions || []).filter(sym => !benchedSet.has(sym));
 
+  // Combined conservative size multiplier (Regime × Equity Curve Governor)
+  const combinedSizeMultiplier = +(Math.min(regime.sizeMultiplier || 1, equityGovernor.riskMultiplier || 1)).toFixed(2);
+
   return {
+    version: '2.0-CIO',
     updatedAt: new Date().toISOString(),
     regime,
     execution,
+    equityGovernor,
+    strategyAllocator,
+    temporalEdge,
+    combinedSizeMultiplier,
     activeChampions: champions,
     totalChampionsAvailable: swingBacktestData?.provenChampionsCount || 0,
     benchedCount: execution.autoBenchedSymbols.length
@@ -432,10 +787,12 @@ function generateDailyPostMortem(db, { nseMcpOverview = null, swingBacktestData 
 function buildQuantScorecard(db, {
   accountProfile = { capital: 15000 },
   nseMcpOverview = null,
-  swingBacktestData = null
+  nseMcpQuotes = null,
+  swingBacktestData = null,
+  allWeatherBacktest = null
 } = {}) {
   const baseCap = Number(accountProfile?.capital || 15000);
-  const brain = evaluateBrainState({ db, nseMcpOverview, swingBacktestData });
+  const brain = evaluateBrainState({ db, nseMcpOverview, nseMcpQuotes, swingBacktestData, allWeatherBacktest, baseCapital: baseCap });
   if (!db) {
     return {
       ok: true,
@@ -592,6 +949,11 @@ module.exports = {
   updateTradeExcursions,
   classifyMarketRegime,
   auditExecutionQuality,
+  getSymbolSector,
+  checkSectorConcentration,
+  evaluateEquityGovernor,
+  evaluateStrategyBandit,
+  auditTemporalEdge,
   evaluateBrainState,
   generateDailyPostMortem,
   buildQuantScorecard

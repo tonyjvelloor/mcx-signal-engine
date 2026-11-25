@@ -1094,14 +1094,18 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 1d2c. Self-Auditing Trading Brain Endpoint (Market Regime + MFE/MAE Execution Audit + Auto-Bench)
+    // 1d2c. Self-Auditing Trading Brain v2 CIO Endpoint (Live Intraday Regime + Strategy Bandit + Equity Governor + Temporal Edge)
     if (pathname === '/api/brain' && req.method === 'GET') {
       try {
         const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+        const cachedAwBt = allWeatherEngine.loadCachedAllWeatherBacktest();
         const brainState = tradingBrain.evaluateBrainState({
           db,
           nseMcpOverview: autoPilotState.nseMcpOverview,
-          swingBacktestData: cachedSwingBt
+          nseMcpQuotes: autoPilotState.nseMcpQuotes,
+          swingBacktestData: cachedSwingBt,
+          allWeatherBacktest: cachedAwBt,
+          baseCapital: getAccountProfile().capital || 15000
         });
         autoPilotState.brainState = brainState;
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1112,14 +1116,17 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 1d2d. Institutional Quant Scorecard (Equity Curve, CNC vs MIS Attribution, MFE/MAE, Paper-to-Live Graduation)
+    // 1d2d. Institutional Quant Scorecard (Equity Curve, CNC vs MIS Attribution, MFE/MAE, Paper-to-Live Graduation, CIO Brain v2)
     if (pathname === '/api/quant-scorecard' && req.method === 'GET') {
       try {
         const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+        const cachedAwBt = allWeatherEngine.loadCachedAllWeatherBacktest();
         const scorecard = tradingBrain.buildQuantScorecard(db, {
           accountProfile: getAccountProfile(),
           nseMcpOverview: autoPilotState.nseMcpOverview,
-          swingBacktestData: cachedSwingBt
+          nseMcpQuotes: autoPilotState.nseMcpQuotes,
+          swingBacktestData: cachedSwingBt,
+          allWeatherBacktest: cachedAwBt
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(scorecard));
@@ -2969,12 +2976,19 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     if (nseMcpOverview) {
       autoPilotState.nseMcpOverview = nseMcpOverview;
     }
+    if (nseMcpQuotes && Object.keys(nseMcpQuotes).length > 0) {
+      autoPilotState.nseMcpQuotes = nseMcpQuotes;
+    }
 
-    // Evaluate Self-Auditing Trading Brain (Regime + MFE/MAE Execution Audit + Auto-Bench)
+    // Evaluate Self-Auditing Trading Brain v2 (Live Intraday Regime + CIO Bandit + Equity Governor + Auto-Bench)
+    const cachedAwBt = allWeatherEngine.loadCachedAllWeatherBacktest();
     const brainState = tradingBrain.evaluateBrainState({
       db,
       nseMcpOverview,
-      swingBacktestData: cachedSwingBt
+      nseMcpQuotes,
+      swingBacktestData: cachedSwingBt,
+      allWeatherBacktest: cachedAwBt,
+      baseCapital: accProfile.capital || 15000
     });
     autoPilotState.brainState = brainState;
 
@@ -3145,6 +3159,16 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           const p = cand.executionPlan;
           if (!p || openSyms.has(p.tradingsymbol)) continue;
 
+          // Brain v2 CIO Guard 1: Prevent correlated sector over-concentration (max 1 open trade per sector)
+          if (!allowForceEntry) {
+            const secGuard = tradingBrain.checkSectorConcentration(openNow, p.tradingsymbol, 1);
+            if (secGuard.blocked) continue;
+            // Brain v2 CIO Guard 2: Respect MCX strategy shadow-pause if commodity strategy is decaying
+            if (p.exchange === 'MCX' && brainState?.strategyAllocator?.byId?.MCX_COMMODITY?.status === 'SHADOW_PAUSED') {
+              continue;
+            }
+          }
+
           if (!allowForceEntry) {
             if (p.exchange === 'NSE' && !sessionInfo.isNseHours) continue;
             if (p.exchange === 'MCX' && !sessionInfo.isMcxHours) continue;
@@ -3201,6 +3225,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
 
           autoPilotState.symbolLastEntryMs[p.tradingsymbol] = Date.now();
           openSyms.add(p.tradingsymbol);
+          openNow.push({ symbol: p.tradingsymbol, status: 'OPEN' });
           slotsLeft--;
           dailyTradesLeft--;
 
