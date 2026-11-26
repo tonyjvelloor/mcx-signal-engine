@@ -90,6 +90,7 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:
     </div>
     <div style="display:flex;gap:6px;background:var(--bg2);border:1px solid var(--br);padding:4px;border-radius:8px;flex-wrap:wrap">
       <button id="ltab-paper" onclick="switchLogTab('paper')" class="rfbtn" style="background:var(--bg4);color:var(--gold)">📝 Zerodha Paper (SQLite)</button>
+      <button id="ltab-accuracy" onclick="switchLogTab('accuracy')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🎯 Signal Accuracy</button>
       <button id="ltab-olymp" onclick="switchLogTab('olymp')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🌐 Olymp Trade (USD)</button>
       <button id="ltab-edge" onclick="switchLogTab('edge')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🏆 Edge Finder</button>
       <button id="ltab-signals" onclick="switchLogTab('signals')" class="rfbtn" style="border-color:transparent;color:var(--txd)">🔬 Auto Signals</button>
@@ -146,6 +147,58 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--fd);min-height:
       </div>
       <div id="cio-gov-detail" style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-family:var(--fm);font-size:9.5px;color:var(--txd);line-height:1.45">
         🛡️ Equity Curve Governor &amp; Sector Concentration Guard (max 1 trade/sector) active.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SIGNAL ACCURACY, FILTER PROOF & 15s FAST-PULSE FORMING RADAR ══ -->
+  <div id="signal-accuracy-panel" style="display:grid;grid-template-columns:1.35fr 1fr;gap:1rem;margin-bottom:1.5rem">
+    <div class="scard" style="padding:1.1rem 1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="scard-title" style="margin-bottom:2px">🎯 Shadow Signal Accuracy &amp; Filter Proof (All Generated Signals)</div>
+          <div id="sa-sub" style="font-family:var(--fm);font-size:10px;color:var(--txd)">Tracking every BUY/SELL signal (executed + skipped + blocked + Claude vetoes) net of fees &amp; slippage...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="sa-pulse-badge" class="badge b-t1" title="15-Second Fast-Pulse Scanner">⚡ 15s PULSE</span>
+          <span id="sa-ready-badge" class="badge b-open">0 / 100 GRADED</span>
+        </div>
+      </div>
+      <div id="sa-compare-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;font-family:var(--fm);font-size:10px"></div>
+      <div style="overflow-x:auto;margin-bottom:10px">
+        <table class="log-tbl" style="font-size:10px">
+          <thead>
+            <tr><th>Decision / Filter</th><th>Signals</th><th>Graded</th><th>Win Rate</th><th>PF</th><th>Sim Net ₹</th><th>Filter Proof</th></tr>
+          </thead>
+          <tbody id="sa-decision-body">
+            <tr><td colspan="7" style="color:var(--txd);text-align:center;padding:12px">Collecting live shadow signals...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="sa-replay-box" style="background:var(--bg3);border:1px solid var(--br);border-radius:8px;padding:9px 11px;font-family:var(--fm);font-size:10px;line-height:1.45">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px">
+          <strong style="color:var(--gold)">📊 74-Day Zero-Look-Ahead 5m Historical Signal Replay</strong>
+          <button id="btn-run-replay" onclick="triggerHistoricalReplay()" class="btn-sm" style="margin-left:0;color:var(--cya);border-color:rgba(6,182,212,0.4)">↻ Re-Run Replay</button>
+        </div>
+        <div id="sa-replay-content" style="color:var(--txd)">Loading historical replay report...</div>
+      </div>
+    </div>
+
+    <div class="scard" style="padding:1.1rem 1.25rem;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="scard-title" style="margin-bottom:0">⚡ 15s Fast-Pulse: Forming Setups Radar</div>
+          <span id="sa-forming-count" style="font-family:var(--fm);font-size:10px;color:var(--cya)">0 active</span>
+        </div>
+        <div id="sa-forming-list" style="display:flex;flex-direction:column;gap:5px;font-family:var(--fm);font-size:10px;max-height:195px;overflow-y:auto">
+          <div style="color:var(--txd)">Scanning live quotes every 15s for 54–61% building setups...</div>
+        </div>
+      </div>
+      <div>
+        <div class="scard-title" style="margin-bottom:6px">🔬 Daily Self-Improvement &amp; Calibration Insights</div>
+        <div id="sa-insights-list" style="display:flex;flex-direction:column;gap:5px;font-family:var(--fm);font-size:9.8px;line-height:1.4;max-height:160px;overflow-y:auto">
+          <div style="color:var(--txd)">Loading calibration insights...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -292,7 +345,7 @@ let activeLogTab = 'paper';
 
 function switchLogTab(tab) {
   activeLogTab = tab;
-  ['paper', 'olymp', 'edge', 'signals'].forEach(t => {
+  ['paper', 'accuracy', 'olymp', 'edge', 'signals'].forEach(t => {
     const btn = document.getElementById('ltab-' + t);
     if (!btn) return;
     btn.style.background = t === tab ? 'var(--bg4)' : 'transparent';
@@ -393,6 +446,61 @@ async function loadLogs() {
     pnlEl.textContent = (netPnl >= 0 ? '+₹' : '-₹') + Math.abs(Math.round(netPnl)).toLocaleString('en-IN');
     pnlEl.style.color = netPnl > 0 ? 'var(--grn)' : netPnl < 0 ? 'var(--red)' : 'var(--tx)';
     document.getElementById('st-open').textContent = openCount;
+    return;
+  }
+
+  if (activeLogTab === 'accuracy') {
+    thead.innerHTML = '<tr><th>ID / Time</th><th>Symbol</th><th>Side</th><th>Conf / Arch</th><th>Decision / Filter</th><th>Entry ₹</th><th>SL / T1</th><th>Exit ₹</th><th>MFE / MAE</th><th>Sim Net ₹</th><th>Result</th></tr>';
+    document.getElementById('st-total-sub').textContent = 'All forward signals (30D)';
+    document.getElementById('st-wr-sub').textContent = 'Graded shadow signals';
+    document.getElementById('st-pnl-title').textContent = 'Sim Net P&L (₹)';
+    document.getElementById('st-pnl-sub').textContent = 'All signals net of fees+slippage';
+
+    let d = null;
+    try {
+      const res = await fetch('/api/signal-accuracy');
+      if (res.ok) d = await res.json();
+    } catch (_) {}
+
+    const rows = (d && Array.isArray(d.recentSignals)) ? d.recentSignals : [];
+    const sum = (d && d.summary) || {};
+    document.getElementById('st-total').textContent = sum.total || 0;
+    document.getElementById('st-wr').textContent = (sum.graded > 0 ? sum.winRate : 0) + '%';
+    const pnlEl = document.getElementById('st-pnl');
+    const netVal = Number(sum.netPnlRs || 0);
+    pnlEl.textContent = (netVal >= 0 ? '+₹' : '-₹') + Math.abs(Math.round(netVal)).toLocaleString('en-IN');
+    pnlEl.style.color = netVal > 0 ? 'var(--grn)' : netVal < 0 ? 'var(--red)' : 'var(--tx)';
+    document.getElementById('st-open').textContent = sum.open || 0;
+    document.getElementById('st-open-sub').textContent = 'Open shadow signals tracking live';
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><span style="font-size:32px;display:block;margin-bottom:1rem">🎯</span>Shadow Signal Auditor is active! Every BUY/SELL setup (executed, skipped, blocked, or Claude-vetoed) will appear and auto-grade here during live NSE/MCX sessions.</div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(r => {
+      const dt = new Date(r.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const isOpen = r.status === 'OPEN';
+      const pnl = r.sim_net_pnl != null ? Number(r.sim_net_pnl) : null;
+      const decCol = r.decision === 'EXECUTED' ? 'var(--grn)' : String(r.decision).startsWith('VETOED_') ? 'var(--pur)' : String(r.decision).startsWith('SKIPPED_') ? 'var(--amb)' : 'var(--cya)';
+      const resBadge = isOpen
+        ? '<span class="badge b-open">⏳ TRACKING</span>'
+        : (r.is_correct ? '<span class="badge b-t1">✓ RIGHT</span>' : '<span class="badge b-sl">✕ WRONG</span>');
+      const pnlFmt = pnl == null ? '—' : `<span class="${pnl >= 0 ? 'c-grn' : 'c-red'}">${pnl >= 0 ? '+₹' : '-₹'}${Math.abs(Math.round(pnl))}</span>`;
+      return `<tr>
+        <td><div style="font-size:9px;color:var(--txd)">#${r.id}</div><div style="color:var(--txd)">${dt}</div></td>
+        <td style="font-weight:700;color:var(--gold)">${r.symbol}</td>
+        <td><span class="badge ${r.side === 'BUY' ? 'b-buy' : 'b-sell'}">${r.side}</span></td>
+        <td><strong>${Math.round(r.confidence || 0)}%</strong> <span style="color:var(--txd);font-size:9px">${(r.archetype || '').replace('_', ' ')}</span></td>
+        <td><div style="color:${decCol};font-weight:700;font-size:9.5px">${r.decision}</div><div style="color:var(--txd);font-size:8.5px;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.decision_reason || '').replace(/"/g, '&quot;')}">${r.decision_reason || ''}</div></td>
+        <td>₹${Number(r.entry_price).toLocaleString('en-IN')}</td>
+        <td><span style="color:var(--red)">${Number(r.stop_loss).toFixed(1)}</span> / <span style="color:var(--grn)">${Number(r.target1).toFixed(1)}</span></td>
+        <td>${r.exit_price ? '₹' + Number(r.exit_price).toLocaleString('en-IN') : '—'}</td>
+        <td><span style="color:var(--grn)">+${Number(r.mfe_r || 0).toFixed(2)}R</span> / <span style="color:var(--red)">-${Number(r.mae_r || 0).toFixed(2)}R</span></td>
+        <td>${pnlFmt}</td>
+        <td>${resBadge}</td>
+      </tr>`;
+    }).join('');
     return;
   }
 
@@ -773,6 +881,141 @@ async function loadQuantScorecard() {
   } catch (_) {}
 }
 
+async function loadSignalAccuracyPanel() {
+  try {
+    const r = await fetch('/api/signal-accuracy');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !d.ok) return;
+
+    const s = d.summary || {};
+    const cmp = d.comparison || {};
+    const sub = document.getElementById('sa-sub');
+    if (sub) {
+      sub.textContent = `Today: ${s.todayTotal || 0} signals (${s.todayGraded || 0} graded, ${s.todayWinRate || 0}% WR) · 30D: ${s.total || 0} total (${s.open || 0} tracking live, ${s.graded || 0} graded · PF ${s.profitFactor || 0}x · Avg MFE +${s.avgMfeR || 0}R / MAE -${s.avgMaeR || 0}R)`;
+    }
+
+    const readyBadge = document.getElementById('sa-ready-badge');
+    if (readyBadge) {
+      readyBadge.textContent = `${s.graded || 0} / ${s.targetSignals || 100} GRADED (${s.samplePct || 0}%)`;
+      readyBadge.className = s.readinessVerdict === 'STATISTICALLY_VALIDATED' ? 'badge b-t1' : (s.readinessVerdict === 'EDGE_UNDER_REVIEW' ? 'badge b-sl' : 'badge b-open');
+    }
+
+    const pulseBadge = document.getElementById('sa-pulse-badge');
+    if (pulseBadge && d.fastPulse) {
+      const scanMs = d.fastPulse.lastScanDurationMs ? ` · Scan ${(d.fastPulse.lastScanDurationMs / 1000).toFixed(1)}s` : '';
+      pulseBadge.textContent = `⚡ 15s PULSE${scanMs}`;
+    }
+
+    const cmpEl = document.getElementById('sa-compare-grid');
+    if (cmpEl) {
+      const cards = [
+        { title: 'Executed Trades', obj: cmp.executed || {}, col: 'var(--grn)' },
+        { title: 'Cap-Skipped (4–6/d)', obj: cmp.capacitySkipped || {}, col: 'var(--amb)' },
+        { title: 'Filtered / Blocked', obj: cmp.filteredOut || {}, col: 'var(--cya)' },
+        { title: 'Claude CRO Vetoes', obj: cmp.claudeVetoes || {}, col: 'var(--pur)' }
+      ];
+      cmpEl.innerHTML = cards.map(c => {
+        const x = c.obj;
+        const pCol = (x.netPnlRs || 0) > 0 ? 'var(--grn)' : (x.netPnlRs || 0) < 0 ? 'var(--red)' : 'var(--txd)';
+        return `<div style="background:var(--bg3);border:1px solid var(--br);border-radius:6px;padding:7px 8px">
+          <div style="color:${c.col};font-weight:700;font-size:9px;margin-bottom:2px">${c.title}</div>
+          <div style="font-size:13px;font-weight:700;color:${pCol}">${(x.netPnlRs || 0) >= 0 ? '+' : ''}₹${Math.round(x.netPnlRs || 0)}</div>
+          <div style="font-size:9px;color:var(--txd)">${x.total || 0} sig · ${x.graded || 0} grd · ${x.winRate || 0}% WR</div>
+        </div>`;
+      }).join('');
+    }
+
+    const decBody = document.getElementById('sa-decision-body');
+    if (decBody) {
+      const list = d.byDecision || [];
+      if (!list.length) {
+        decBody.innerHTML = '<tr><td colspan="7" style="color:var(--txd);text-align:center;padding:12px">Shadow Auditor armed — forward signals will populate here on the next live NSE/MCX scan.</td></tr>';
+      } else {
+        decBody.innerHTML = list.slice(0, 8).map(row => {
+          const pCol = row.netPnlRs > 0 ? 'var(--grn)' : row.netPnlRs < 0 ? 'var(--red)' : 'var(--txd)';
+          const vCol = String(row.filterVerdict || '').includes('SAVED') || String(row.filterVerdict || '').includes('PROFITABLE') ? 'var(--grn)' : String(row.filterVerdict || '').includes('BLOCKED +') || String(row.filterVerdict || '').includes('NEGATIVE') ? 'var(--red)' : 'var(--txd)';
+          return `<tr>
+            <td style="font-weight:700;color:var(--tx)">${row.decision}</td>
+            <td>${row.total}</td>
+            <td>${row.graded} (${row.wins}W/${row.losses}L)</td>
+            <td>${row.winRate}%</td>
+            <td>${row.profitFactor}x</td>
+            <td style="color:${pCol};font-weight:700">${row.netPnlRs >= 0 ? '+' : ''}₹${Math.round(row.netPnlRs)}</td>
+            <td style="color:${vCol};font-weight:700;font-size:9px">${row.filterVerdict}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    const repContent = document.getElementById('sa-replay-content');
+    if (repContent) {
+      const hr = d.historicalReplay;
+      if (!hr || !hr.ok) {
+        repContent.textContent = 'No historical replay cached yet. Click "Re-Run Replay" to grade all 5m candles.';
+      } else {
+        const cov = hr.coverage || {};
+        const q = hr.qualifyingSignals || {};
+        const f = hr.filteredOutSignals || {};
+        const midWin = (hr.bySessionWindow || []).find(w => w.sessionWindow === 'MIDDAY_CHOP');
+        const chopBlk = (hr.byDecision || []).find(x => x.decision === 'BLOCKED_CHOP_SHIELD');
+        const feePerTr = q.signals ? (q.totalFeesRs / q.signals).toFixed(2) : '0';
+        repContent.innerHTML = `
+          <div>Coverage: <strong style="color:var(--tx)">${cov.symbolsCovered} stocks · ${(cov.totalBarsScanned || 0).toLocaleString('en-IN')} 5m bars · ${cov.tradingDaysCovered} trading days</strong> (${cov.dateRange})</div>
+          <div style="margin-top:3px">Raw 5m MIS Qualifying (${q.signals} sig): <strong style="color:${q.netPnlRs >= 0 ? 'var(--grn)' : 'var(--red)'}">${q.winRate}% WR · PF ${q.profitFactor}x · ₹${Math.round(q.netPnlRs).toLocaleString('en-IN')}</strong> (Avg Zerodha MIS fee drag: <strong style="color:var(--amb)">₹${feePerTr}/trade</strong>)</div>
+          <div style="margin-top:3px">Shield Proof: ${chopBlk ? `<strong style="color:var(--grn)">Midday Chop Shield avoided ₹${Math.abs(Math.round(chopBlk.netPnlRs)).toLocaleString('en-IN')}</strong> (${chopBlk.signals} blocked @ ${chopBlk.winRate}% WR)` : ''} ${midWin && midWin.qualifying ? `· <strong style="color:var(--cya)">Midday Mean-Reverter (${midWin.qualifying.signals} sig): ${midWin.qualifying.winRate}% WR, PF ${midWin.qualifying.profitFactor}x, +₹${Math.round(midWin.qualifying.netPnlRs)}</strong>` : ''}</div>
+        `;
+      }
+    }
+
+    const formList = document.getElementById('sa-forming-list');
+    const formCnt = document.getElementById('sa-forming-count');
+    const forming = d.formingSetups || [];
+    if (formCnt) formCnt.textContent = `${forming.length} tracked`;
+    if (formList) {
+      if (!forming.length) {
+        formList.innerHTML = '<div style="color:var(--txd)">No 54%+ setups forming right now — 15s Fast-Pulse is monitoring all symbols.</div>';
+      } else {
+        formList.innerHTML = forming.slice(0, 8).map(f => {
+          const stCol = f.stage === 'READY_NOW' ? 'var(--grn)' : (f.stage === 'FORMING' ? 'var(--gold)' : 'var(--cya)');
+          const stLbl = f.stage === 'READY_NOW' ? '🚀 READY' : (f.stage === 'FORMING' ? '⚡ FORMING' : '🛡️ FILTERED');
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 7px;background:var(--bg3);border:1px solid var(--br);border-radius:5px;gap:6px">
+            <div>
+              <strong style="color:var(--gold)">${f.symbol}</strong>
+              <span class="badge ${f.side === 'BUY' ? 'b-buy' : 'b-sell'}" style="padding:1px 5px;font-size:8.5px;margin-left:3px">${f.side}</span>
+              <span style="color:${stCol};font-weight:700;font-size:8.5px;margin-left:4px">${stLbl}</span>
+              <div style="color:var(--txd);font-size:8.5px;margin-top:1px">${f.note}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="color:var(--tx);font-weight:700">${f.confidence}%</div>
+              <div style="color:var(--txd);font-size:8.5px">₹${Number(f.price).toFixed(1)} · 1:${f.netRR}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    const insList = document.getElementById('sa-insights-list');
+    if (insList) {
+      const ins = d.dailyInsights || [];
+      insList.innerHTML = ins.map(it => {
+        const col = it.severity === 'GOOD' ? 'var(--grn)' : it.severity === 'WARN' ? 'var(--amb)' : 'var(--cya)';
+        return `<div style="background:var(--bg3);border-left:2px solid ${col};padding:5px 8px;border-radius:4px;color:var(--txd)">• ${it.text}</div>`;
+      }).join('');
+    }
+  } catch (_) {}
+}
+
+async function triggerHistoricalReplay() {
+  const btn = document.getElementById('btn-run-replay');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Replaying...'; }
+  try {
+    const r = await fetch('/api/signal-accuracy/replay', { method: 'POST' });
+    if (r.ok) await loadSignalAccuracyPanel();
+  } catch (_) {}
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Re-Run Replay'; }
+}
+
 async function triggerEodPostMortem() {
   const btn = document.getElementById('btn-run-pm');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Running...'; }
@@ -786,9 +1029,10 @@ async function triggerEodPostMortem() {
   if (btn) { btn.disabled = false; btn.textContent = '🧠 Run EOD Brain'; }
 }
 
-setInterval(() => { loadLogs(); loadQuantScorecard(); }, 8000);
+setInterval(() => { loadLogs(); loadQuantScorecard(); loadSignalAccuracyPanel(); }, 8000);
 loadLogs();
 loadQuantScorecard();
+loadSignalAccuracyPanel();
 </script>
 </body>
 </html>

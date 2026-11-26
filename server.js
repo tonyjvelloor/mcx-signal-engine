@@ -32,6 +32,7 @@ const swingBacktest = require('./shared/swing_backtest');
 const tradingBrain = require('./shared/trading_brain');
 const allWeatherEngine = require('./shared/all_weather_engine');
 const claudeDesk = require('./shared/claude_desk');
+const signalAuditor = require('./shared/signal_auditor');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -230,6 +231,7 @@ try {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  signalAuditor.ensureSignalAuditSchema(db);
   console.log('📦 SQLite database initialized: market_data.db');
 } catch (e) {
   console.warn('⚠️ SQLite initialization warning:', e.message);
@@ -1304,6 +1306,42 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/ai-budget' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(claudeDesk.getAiBudgetStatus(db)));
+    }
+
+    // 1d2i. Shadow Signal Accuracy, Filter Proof, Claude Counterfactual & Forming Setups Radar
+    if (pathname === '/api/signal-accuracy' && req.method === 'GET') {
+      try {
+        const days = Math.min(90, Math.max(1, parseInt(query.days, 10) || 30));
+        const report = signalAuditor.getSignalAccuracyReport(db, {
+          days,
+          limitRecent: 80,
+          formingSetups: autoPilotState.formingSetups || []
+        });
+        report.fastPulse = {
+          enabled: true,
+          intervalSec: 15,
+          lastFastPulseAt: autoPilotState.lastFastPulseAt || null,
+          lastScanDurationMs: autoPilotState.lastScanDurationMs || null
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(report));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
+    // 1d2j. Trigger Zero-Look-Ahead 5m Historical Signal Replay On-Demand
+    if (pathname === '/api/signal-accuracy/replay' && req.method === 'POST') {
+      try {
+        const { runHistoricalSignalReplay } = require('./scripts/replay_historical_signals');
+        const replay = runHistoricalSignalReplay();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(replay));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
     }
 
     // 1d3. Trigger Daily Historical Archiver On-Demand
@@ -3026,6 +3064,10 @@ setInterval(() => {
               dateIst: kt.dateStr
             });
             const bk = createSafeSqliteBackup(db, kt.dateStr);
+            try {
+              const { runHistoricalSignalReplay } = require('./scripts/replay_historical_signals');
+              runHistoricalSignalReplay();
+            } catch (_) {}
             console.log(`🧠 [EOD BRAIN ${kt.dateStr} · ${pm.source}] Regime: ${pm.regime} | ExecScore: ${pm.executionScore}/100 | Day P&L: ₹${pm.netPnlDay} | Champions: ${bt.provenChampionsCount} | Backup: ${bk.ok ? bk.file : 'skipped'}`);
           } catch (e) {
             console.error('Scheduler EOD Brain pipeline error:', e.message);
@@ -3129,8 +3171,16 @@ setInterval(evaluateGttBreakevenGuards, 10000);
 // and auto-executes paper trades within the ₹15,000 capital / ₹150 risk-per-trade guardrails.
 // ─────────────────────────────────────────────────────────────
 let autoPilotBusy = false;
+let fastPulseBusy = false;
 
 async function loadCandlesForAutoPilotSymbol({ ticker, dbSym, fetchLive = false }) {
+  // Fast RAM cache (45s TTL) to avoid hammering Yahoo sequentially every cycle
+  const cacheKey = `ap_5m_${dbSym}`;
+  const memHit = getCached(cacheKey);
+  if (memHit && Array.isArray(memHit) && memHit.length >= 25) {
+    return memHit;
+  }
+
   // 1. When market is open (fetchLive=true), fetch fresh Yahoo 5m bars and update SQLite
   if (fetchLive) {
     try {
@@ -3155,19 +3205,24 @@ async function loadCandlesForAutoPilotSymbol({ ticker, dbSym, fetchLive = false 
               for (const c of rows.slice(-60)) ins.run(dbSym, c.time, c.open, c.high, c.low, c.close, c.volume);
             } catch (_) {}
           }
-          return rows.slice(-240);
+          const sliced = rows.slice(-240);
+          setCache(cacheKey, sliced, 45000);
+          return sliced;
         }
       }
     } catch (_) {}
   }
 
-  // 2. Instant read from local SQLite 5m archive (135,000+ bars across 12 NSE stocks & 5 commodities)
+  // 2. Instant read from local SQLite 5m archive (170,000+ bars across NSE stocks & 5 commodities)
   if (db) {
     try {
       const rows = db.prepare(
         `SELECT time, open, high, low, close, volume FROM candles WHERE symbol = ? ORDER BY time DESC LIMIT 240`
       ).all(dbSym).reverse();
-      if (rows.length >= 25) return rows;
+      if (rows.length >= 25) {
+        setCache(cacheKey, rows, 30000);
+        return rows;
+      }
     } catch (_) {}
   }
   return [];
@@ -3175,6 +3230,7 @@ async function loadCandlesForAutoPilotSymbol({ ticker, dbSym, fetchLive = false 
 
 async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = false } = {}) {
   if (autoPilotBusy) return { skipped: true, reason: 'BUSY' };
+  const cycleStartMs = Date.now();
   const sessionInfo = autoPilot.getMarketSessionWindow();
   autoPilotState.lastSessionStatus = sessionInfo;
 
@@ -3222,10 +3278,10 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     });
     autoPilotState.brainState = brainState;
 
-    // Fetch 20/50 DMA + 52W High/Low + Corporate Action Shield profiles (30m cached per symbol) in chunks of 4
+    // Fetch 20/50 DMA + 52W High/Low + Corporate Action Shield profiles (30m cached per symbol) in parallel chunks of 6
     const swingProfiles = {};
-    for (let i = 0; i < activeStockUniverse.length; i += 4) {
-      const chunk = activeStockUniverse.slice(i, i + 4);
+    for (let i = 0; i < activeStockUniverse.length; i += 6) {
+      const chunk = activeStockUniverse.slice(i, i + 6);
       const chunkResults = await Promise.all(
         chunk.map(s => nseMcpClient.getSwingDailyProfile(s.symbol, nseMcpQuotes[s.symbol]?.ltp || 0).catch(() => null))
       );
@@ -3233,18 +3289,32 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         if (chunkResults[idx]) swingProfiles[s.symbol] = chunkResults[idx];
       });
     }
+    autoPilotState.swingProfilesCache = swingProfiles;
+    autoPilotState.activeStockUniverse = activeStockUniverse;
+    if (!autoPilotState.liveCandlesCache) autoPilotState.liveCandlesCache = {};
 
     const stockEvaluations = [];
     const evaluations = [];
     const latestPrices = {};
 
-    // 1. Scan & Rank Core + Proven Nifty-50 CNC Swing Champions for the ₹15,000 Budget (powered by Official NSE MCP Live Feed)
-    for (const stock of activeStockUniverse) {
-      const rawCandles = await loadCandlesForAutoPilotSymbol({
-        ticker: stock.ticker,
-        dbSym: stock.symbol,
-        fetchLive: sessionInfo.isNseHours
+    // 1. Parallelized Candle Load (chunks of 6 -> cuts scan time from ~20s down to ~2s!)
+    const stockCandlesMap = {};
+    for (let i = 0; i < activeStockUniverse.length; i += 6) {
+      const chunk = activeStockUniverse.slice(i, i + 6);
+      const loaded = await Promise.all(
+        chunk.map(s => loadCandlesForAutoPilotSymbol({ ticker: s.ticker, dbSym: s.symbol, fetchLive: sessionInfo.isNseHours }))
+      );
+      chunk.forEach((s, idx) => {
+        stockCandlesMap[s.symbol] = loaded[idx] || [];
+        if (loaded[idx] && loaded[idx].length >= 25) {
+          autoPilotState.liveCandlesCache[s.symbol] = loaded[idx];
+        }
       });
+    }
+
+    // 1b. Scan & Rank Core + Proven Nifty-50 CNC Swing Champions for the ₹15,000 Budget (powered by Official NSE MCP Live Feed)
+    for (const stock of activeStockUniverse) {
+      const rawCandles = stockCandlesMap[stock.symbol] || [];
       const stockLessons = recentLessons.filter(l => String(l.symbol || '').includes(stock.symbol));
       const mcpQuote = nseMcpQuotes[stock.symbol] || null;
       // Persist live NSE MCP 5m bar into SQLite so local candle history stays current
@@ -3342,16 +3412,43 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     }
 
     autoPilotState.lastScanAt = new Date().toISOString();
+    autoPilotState.lastScanDurationMs = Date.now() - cycleStartMs;
     autoPilotState.stockEvaluations = stockEvaluations;
     autoPilotState.topStocks = topStocks;
     autoPilotState.lastEvaluations = evaluations;
+    autoPilotState.formingSetups = signalAuditor.detectFormingSetups(stockEvaluations, evaluations);
+    autoPilotState.lastQualifyingSyms = new Set(
+      [...stockEvaluations, ...evaluations]
+        .filter(e => e.qualifiesForAutoExec && e.executionPlan)
+        .map(e => String(e.executionPlan.tradingsymbol || e.symbol || '').toUpperCase())
+    );
 
-    // Step A0: Update live MFE/MAE in R-multiples for all open trades in SQLite Execution Auditor
+    // Step A0: Update live MFE/MAE in R-multiples for all open trades & grade all open Shadow Signals
     if (db) {
       try {
         const openForAudit = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
         tradingBrain.updateTradeExcursions(db, openForAudit, latestPrices);
       } catch (_) {}
+      try {
+        signalAuditor.gradeOpenShadowSignals(db, { latestPrices, sessionInfo });
+      } catch (_) {}
+      // Log all non-qualifying directional signals (BUY/SELL blocked by filters) for 100% observational accuracy proof
+      if (sessionInfo.isAnySessionOpen) {
+        for (const ev of [...stockEvaluations, ...evaluations]) {
+          if (!ev || ev.qualifiesForAutoExec) continue;
+          if (ev.action !== 'BUY' && ev.action !== 'SELL') continue;
+          const isNse = (ev.executionPlan?.exchange || (ev.assetType === 'COMMODITY' ? 'MCX' : 'NSE')) === 'NSE';
+          if (isNse && !sessionInfo.isNseHours) continue;
+          if (!isNse && !sessionInfo.isMcxHours) continue;
+          try {
+            signalAuditor.recordAuditedSignal(db, {
+              evalObj: ev,
+              decision: signalAuditor.classifyVetoCategory(ev.vetoReason),
+              decisionReason: ev.vetoReason
+            });
+          } catch (_) {}
+        }
+      }
     }
 
     // Step A: Manage existing open paper positions (+0.70R Ratchet + Trend-Runner T2 Extension + Realistic 0.04% Slippage + EOD Exit)
@@ -3397,6 +3494,30 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         maxDailyTrades: slotBudget.effectiveMaxMisTrades
       });
 
+      const allQualifyingNow = [
+        ...stockEvaluations.filter(s => s.qualifiesForAutoExec && s.executionPlan).sort((a, b) => (b.compositeRankScore || 0) - (a.compositeRankScore || 0)),
+        ...evaluations.filter(e => e.qualifiesForAutoExec && e.executionPlan).sort((a, b) => b.confidence - a.confidence)
+      ];
+
+      if (cb.tripped || (slotBudget.profitLocked && !allowForceEntry)) {
+        // Still shadow-log every qualifying setup that was skipped because of daily cap / circuit breaker / profit lock!
+        const skipReason = cb.tripped
+          ? `Circuit breaker / daily cap (${cb.reason || 'tripped'})`
+          : 'Daily profit floor locked (60% lock)';
+        for (const qCand of allQualifyingNow) {
+          const ex = qCand.executionPlan?.exchange || 'NSE';
+          if (ex === 'NSE' && !sessionInfo.isNseHours) continue;
+          if (ex === 'MCX' && !sessionInfo.isMcxHours) continue;
+          try {
+            signalAuditor.recordAuditedSignal(db, {
+              evalObj: qCand,
+              decision: 'SKIPPED_DAILY_CAP',
+              decisionReason: skipReason
+            });
+          } catch (_) {}
+        }
+      }
+
       if (!cb.tripped && (!slotBudget.profitLocked || allowForceEntry)) {
         const openNow = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
         const openSyms = new Set(openNow.map(t => String(t.symbol).toUpperCase()));
@@ -3412,6 +3533,20 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           ...evaluations.filter(e => e.qualifiesForAutoExec && e.executionPlan).sort((a, b) => b.confidence - a.confidence)
         ];
 
+        // Shadow-log qualifying stocks ranked below Top 5 (skipped due to top-5 ranking cap)
+        const topCandSyms = new Set(candidates.map(c => c.executionPlan?.tradingsymbol));
+        for (const extraQ of allQualifyingNow) {
+          if (!topCandSyms.has(extraQ.executionPlan?.tradingsymbol) && sessionInfo.isNseHours) {
+            try {
+              signalAuditor.recordAuditedSignal(db, {
+                evalObj: extraQ,
+                decision: 'SKIPPED_SLOT_CAP',
+                decisionReason: 'Qualifying setup ranked outside Top-5 priority slots'
+              });
+            } catch (_) {}
+          }
+        }
+
         // If user explicitly clicked "Force Paper Test" (allowForceEntry=true) and no strict setup is live right now,
         // use the #1 ranked Best Stock of the Day (provided Debate did not VETO it) so they can test paper execution immediately
         if (allowForceEntry && candidates.length === 0 && topStocks.length > 0 && topStocks[0].debateVerdict !== 'VETO') {
@@ -3419,30 +3554,46 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         }
 
         for (const cand of candidates) {
-          if (slotsLeft <= 0) break;
           const p = cand.executionPlan;
-          if (!p || openSyms.has(p.tradingsymbol)) continue;
+          if (!p) continue;
           const isCncSwing = p.product === 'CNC' || p.bucket === 'CNC_SWING';
-          if (isCncSwing && cncDailyLeft <= 0) continue;
-          if (!isCncSwing && dailyTradesLeft <= 0) continue;
-
-          // Brain v2 CIO Guard 1: Prevent correlated sector over-concentration (max 1 open trade per sector)
-          if (!allowForceEntry) {
-            const secGuard = tradingBrain.checkSectorConcentration(openNow, p.tradingsymbol, 1);
-            if (secGuard.blocked) continue;
-            // Brain v2 CIO Guard 2: Respect MCX strategy shadow-pause if commodity strategy is decaying
-            if (p.exchange === 'MCX' && brainState?.strategyAllocator?.byId?.MCX_COMMODITY?.status === 'SHADOW_PAUSED') {
-              continue;
-            }
-          }
 
           if (!allowForceEntry) {
             if (p.exchange === 'NSE' && !sessionInfo.isNseHours) continue;
             if (p.exchange === 'MCX' && !sessionInfo.isMcxHours) continue;
           }
 
+          if (slotsLeft <= 0) {
+            try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'SKIPPED_SLOT_CAP', decisionReason: `Max ${autoPilotState.maxConcurrentOpen} concurrent open slots full` }); } catch (_) {}
+            continue;
+          }
+          if (openSyms.has(p.tradingsymbol)) continue;
+          if (isCncSwing && cncDailyLeft <= 0) {
+            try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'SKIPPED_DAILY_CAP', decisionReason: 'Max 3 daily CNC Swing slots used' }); } catch (_) {}
+            continue;
+          }
+          if (!isCncSwing && dailyTradesLeft <= 0) {
+            try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'SKIPPED_DAILY_CAP', decisionReason: `Daily MIS trade cap (${slotBudget.effectiveMaxMisTrades}) reached` }); } catch (_) {}
+            continue;
+          }
+
+          // Brain v2 CIO Guard 1: Prevent correlated sector over-concentration (max 1 open trade per sector)
+          if (!allowForceEntry) {
+            const secGuard = tradingBrain.checkSectorConcentration(openNow, p.tradingsymbol, 1);
+            if (secGuard.blocked) {
+              try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'BLOCKED_SECTOR_GUARD', decisionReason: secGuard.reason || 'Max 1 open trade per sector' }); } catch (_) {}
+              continue;
+            }
+            // Brain v2 CIO Guard 2: Respect MCX strategy shadow-pause if commodity strategy is decaying
+            if (p.exchange === 'MCX' && brainState?.strategyAllocator?.byId?.MCX_COMMODITY?.status === 'SHADOW_PAUSED') {
+              try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'BLOCKED_REGIME_BRAIN', decisionReason: 'MCX strategy SHADOW_PAUSED by CIO Bandit' }); } catch (_) {}
+              continue;
+            }
+          }
+
           const lastEntryMs = autoPilotState.symbolLastEntryMs[p.tradingsymbol] || 0;
           if (!allowForceEntry && (Date.now() - lastEntryMs) < autoPilotState.cooldownMinutes * 60 * 1000) {
+            try { signalAuditor.recordAuditedSignal(db, { evalObj: cand, decision: 'SKIPPED_COOLDOWN', decisionReason: `${autoPilotState.cooldownMinutes}m per-symbol cooldown active` }); } catch (_) {}
             continue;
           }
 
@@ -3455,8 +3606,9 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             execQty = Math.min(execQty, maxBonusQty);
           }
 
-          // Final Pre-Trade Claude Haiku CRO Risk-Desk Gatekeeper (15m cached per symbol+side, fails open on timeout)
+          // Final Pre-Trade Claude Haiku CRO Risk-Desk Gatekeeper (45m cached per symbol+side, fails open on timeout)
           let claudeVerdictNote = '';
+          let claudeVerdictVal = null;
           const anthropicKey = getAnthropicKey();
           if (anthropicKey) {
             const symLessons = recentLessons.filter(l => String(l.symbol || '').includes(p.tradingsymbol));
@@ -3468,6 +3620,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
               recentLessons: symLessons,
               macroSummary: brainState?.macroAlignment
             });
+            claudeVerdictVal = cro.verdict || null;
             if (!autoPilotState.claudeReviews) autoPilotState.claudeReviews = [];
             autoPilotState.claudeReviews.unshift({
               time: new Date().toISOString(),
@@ -3481,6 +3634,14 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
 
             if (!allowForceEntry && cro.verdict === 'VETO') {
               logAutoPilotEvent('CLAUDE_CRO_VETO', `🤖 Claude CRO VETOED ${p.tradingsymbol} ${p.side}: ${cro.rationale}`, cro);
+              try {
+                signalAuditor.recordAuditedSignal(db, {
+                  evalObj: cand,
+                  decision: 'VETOED_CLAUDE_CRO',
+                  decisionReason: cro.rationale || 'Claude Haiku CRO Veto',
+                  claudeVerdict: 'VETO'
+                });
+              } catch (_) {}
               continue;
             }
             if (cro.verdict === 'HALVE_SIZE') {
@@ -3518,6 +3679,16 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           const tradeId = Number(info.lastInsertRowid);
 
           try {
+            signalAuditor.recordAuditedSignal(db, {
+              evalObj: cand,
+              decision: 'EXECUTED',
+              decisionReason: `Auto-Pilot opened #${tradeId} (${p.bucket || 'MIS_INTRADAY'}${claudeVerdictNote})`,
+              claudeVerdict: claudeVerdictVal,
+              paperTradeId: tradeId
+            });
+          } catch (_) {}
+
+          try {
             db.prepare(`
               INSERT INTO signals (symbol, time, action, confidence, price, stop_loss, target1, target2, reason, status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
@@ -3550,8 +3721,8 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             symbol: p.tradingsymbol,
             exchange: p.exchange,
             side: p.side,
-            qty: p.qty,
-            entryPrice: p.entryPrice,
+            qty: execQty,
+            entryPrice: fillEntryPrice,
             stopLoss: p.stopLoss,
             target: p.target1,
             marginRequired: p.marginRequired || null,
@@ -3574,10 +3745,12 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
     return {
       ok: true,
       scannedAt: autoPilotState.lastScanAt,
+      scanDurationMs: autoPilotState.lastScanDurationMs,
       session: sessionInfo,
       lifecycle,
       openedTrades,
       topStocks,
+      formingSetups: autoPilotState.formingSetups,
       stockEvaluations,
       evaluations
     };
@@ -3586,7 +3759,124 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
   }
 }
 
-// Run initial diagnostic evaluation 6s after server boot & then every 60s during live market sessions
+/**
+ * 15-Second Fast-Pulse Scanner (NSE Live Market Hours · ₹0 Extra Claude Cost):
+ *  - Fetches ONE batch NSE live quote call (~300ms) instead of 20 sequential HTTP fetches
+ *  - Immediately updates open trade MFE/MAE, trails SL/T1/Ratchets 4x faster, & grades shadow signals
+ *  - Re-evaluates cached 5m candles in RAM (<25ms) to refresh "Forming Setups" early-warning radar
+ *  - If a brand-new qualifying breakout triggers between 60s full scans, fires runAutoPaperPilotCycle immediately!
+ */
+async function runFastPricePulse() {
+  if (fastPulseBusy || autoPilotBusy || !autoPilotState.enabled || killSwitchState.active) return;
+  const sessionInfo = autoPilot.getMarketSessionWindow();
+  if (!sessionInfo.isNseHours) return;
+  const universe = autoPilotState.activeStockUniverse;
+  const candlesCache = autoPilotState.liveCandlesCache;
+  if (!Array.isArray(universe) || universe.length === 0 || !candlesCache) return;
+
+  fastPulseBusy = true;
+  try {
+    const quotes = await nseMcpClient.getBatchStockQuotes(universe.map(s => s.symbol)).catch(() => null);
+    if (!quotes || Object.keys(quotes).length === 0) return;
+    autoPilotState.nseMcpQuotes = quotes;
+    autoPilotState.lastFastPulseAt = new Date().toISOString();
+
+    const latestPrices = {};
+    const fastEvals = [];
+    const accProfile = getAccountProfile();
+    const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
+    const swingProfiles = autoPilotState.swingProfilesCache || {};
+    const bucketSec = Math.floor(Date.now() / 300000) * 300;
+    const prevQual = autoPilotState.lastQualifyingSyms || new Set();
+    let newBreakoutDetected = false;
+
+    for (const stock of universe) {
+      const q = quotes[stock.symbol];
+      if (!q || !(q.ltp > 0)) continue;
+      latestPrices[stock.symbol] = {
+        price: q.ltp,
+        high: q.ltp,
+        low: q.ltp,
+        isLive: true,
+        regime: autoPilotState.brainState?.regime?.regime || 'NEUTRAL',
+        sessionWindow: sessionInfo.nseSessionPhase
+      };
+
+      // Update in-progress 5m bar in SQLite so chart history captures intraday wicks at 15s resolution
+      if (db) {
+        try {
+          const ex = db.prepare(`SELECT open, high, low FROM candles WHERE symbol = ? AND interval = '5m' AND time = ?`).get(stock.symbol, bucketSec);
+          const op = ex ? ex.open : q.ltp;
+          const hi = ex ? Math.max(ex.high, q.ltp) : q.ltp;
+          const lo = ex ? Math.min(ex.low, q.ltp) : q.ltp;
+          db.prepare(`INSERT OR REPLACE INTO candles (symbol, interval, time, open, high, low, close, volume) VALUES (?, '5m', ?, ?, ?, ?, ?, ?)`).run(
+            stock.symbol, bucketSec, op, hi, lo, q.ltp, q.volume || 0
+          );
+        } catch (_) {}
+      }
+
+      const rawCandles = candlesCache[stock.symbol];
+      if (Array.isArray(rawCandles) && rawCandles.length >= 25) {
+        const sev = autoPilot.evaluateStockForAutoPilot({
+          stock,
+          rawCandles,
+          nseMcpQuote: q,
+          nseMcpOverview: autoPilotState.nseMcpOverview,
+          swingProfile: swingProfiles[stock.symbol] || null,
+          multiYearSwingEdge: cachedSwingBt?.bySymbol?.[stock.symbol] || null,
+          brainState: autoPilotState.brainState,
+          accountProfile: accProfile,
+          todayTrades: []
+        });
+        fastEvals.push(sev);
+        if (sev.qualifiesForAutoExec && !prevQual.has(stock.symbol)) {
+          newBreakoutDetected = true;
+        }
+      }
+    }
+
+    if (fastEvals.length > 0) {
+      autoPilotState.formingSetups = signalAuditor.detectFormingSetups(fastEvals, autoPilotState.lastEvaluations || []);
+    }
+
+    // Fast-path open trade protection & shadow signal grading (4x faster SL/T1/Ratchet response)
+    if (db && Object.keys(latestPrices).length > 0) {
+      try {
+        const openForAudit = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
+        tradingBrain.updateTradeExcursions(db, openForAudit, latestPrices);
+      } catch (_) {}
+      try {
+        const fastLife = autoPilot.manageOpenPaperPositions({
+          db,
+          latestPrices,
+          sessionInfo,
+          brainState: autoPilotState.brainState,
+          applySlippage: true
+        });
+        for (const be of fastLife.breakevenArmed) {
+          logAutoPilotEvent('BREAKEVEN_ARMED', `⚡ [15s Pulse] Trailed ${be.symbol} (#${be.tradeId}) SL to ₹${be.newSl} (${be.stage || 'BE_ARMED'})`, be);
+        }
+        for (const cl of fastLife.closed) {
+          logAutoPilotEvent('AUTO_CLOSED', `⚡ [15s Pulse] Closed ${cl.symbol} ${cl.side} (#${cl.tradeId}) via ${cl.exitReason} @ ₹${cl.exitPrice} | Net P&L: ₹${cl.netPnl}`, cl);
+        }
+      } catch (_) {}
+      try {
+        signalAuditor.gradeOpenShadowSignals(db, { latestPrices, sessionInfo });
+      } catch (_) {}
+    }
+
+    // Immediate breakout handoff: if a brand-new qualifying signal just fired, run full Auto-Pilot right now!
+    if (newBreakoutDetected && !autoPilotBusy) {
+      setTimeout(() => {
+        runAutoPaperPilotCycle({ forceScan: false, allowForceEntry: false }).catch(() => {});
+      }, 150);
+    }
+  } finally {
+    fastPulseBusy = false;
+  }
+}
+
+// Run initial diagnostic evaluation 6s after server boot, 60s full scan, & 15s live NSE Fast-Pulse
 setTimeout(() => {
   runAutoPaperPilotCycle({ forceScan: true, allowForceEntry: false }).catch(() => {});
 }, 6000);
@@ -3596,5 +3886,9 @@ setInterval(() => {
     runAutoPaperPilotCycle({ forceScan: false, allowForceEntry: false }).catch(() => {});
   }
 }, 60 * 1000);
+
+setInterval(() => {
+  runFastPricePulse().catch(() => {});
+}, 15 * 1000);
 
 module.exports = server;

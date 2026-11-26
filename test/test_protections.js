@@ -896,5 +896,112 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   });
   assert.strictEqual(guardedRes.source, 'DETERMINISTIC_FALLBACK', 'Budget-capped CRO call must fail cleanly to ₹0 deterministic fallback');
   assert.ok(String(guardedRes.budgetBlocked || '').includes('DAILY_AI_BUDGET_CAP'));
-  console.log('✓ Test 25 Passed: Claude API Cost & Token Budget Governor (₹8/day, 15 calls/day, ₹120/mo hard cap & ₹0 fallback) verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 25 Passed: Claude API Cost & Token Budget Governor (₹8/day, 15 calls/day, ₹120/mo hard cap & ₹0 fallback) verified.');
+
+  // =========================================================================
+  // Test 26: Shadow Signal Auditor — Logging, Dedup, Conservative SL-First Grading & Filter Proof
+  // =========================================================================
+  const signalAuditor = require('../shared/signal_auditor');
+  const saDb = new DatabaseSync(':memory:');
+  signalAuditor.ensureSignalAuditSchema(saDb);
+
+  const mockExecEval = {
+    assetType: 'STOCK',
+    symbol: 'HDFCBANK',
+    action: 'BUY',
+    confidence: 78,
+    compositeRankScore: 81,
+    archetype: 'TREND_RUNNER',
+    regime: 'TRENDING',
+    sessionWindow: 'MORNING_DRIVE',
+    executionPlan: {
+      tradingsymbol: 'HDFCBANK',
+      exchange: 'NSE',
+      bucket: 'MIS_INTRADAY',
+      side: 'BUY',
+      qty: 10,
+      lotMultiplier: 1,
+      entryPrice: 1000,
+      stopLoss: 990,
+      target1: 1020,
+      netRR: 1.85
+    }
+  };
+  const mockVetoEval = {
+    assetType: 'STOCK',
+    symbol: 'INFY',
+    action: 'SELL',
+    confidence: 68,
+    compositeRankScore: 66,
+    archetype: 'MEAN_REVERTER',
+    regime: 'TRANSITIONAL',
+    sessionWindow: 'MIDDAY_CHOP',
+    vetoReason: 'Claude CRO Veto: Overextended',
+    executionPlan: {
+      tradingsymbol: 'INFY',
+      exchange: 'NSE',
+      bucket: 'MIS_INTRADAY',
+      side: 'SELL',
+      qty: 10,
+      lotMultiplier: 1,
+      entryPrice: 1500,
+      stopLoss: 1515,
+      target1: 1470,
+      netRR: 1.75
+    }
+  };
+
+  // 1. Record skipped signal then upgrade to EXECUTED (no duplicate!)
+  const rSkip = signalAuditor.recordAuditedSignal(saDb, { evalObj: mockExecEval, decision: 'SKIPPED_SLOT_CAP', decisionReason: 'Slots full' });
+  assert.strictEqual(rSkip.recorded, true);
+  const rDup = signalAuditor.recordAuditedSignal(saDb, { evalObj: mockExecEval, decision: 'SKIPPED_SLOT_CAP', decisionReason: 'Duplicate' });
+  assert.strictEqual(rDup.recorded, false, 'Open shadow signal must deduplicate');
+  const rExec = signalAuditor.recordAuditedSignal(saDb, { evalObj: mockExecEval, decision: 'EXECUTED', paperTradeId: 99 });
+  assert.strictEqual(rExec.updated, true, 'Executing an already-open shadow signal must upgrade it in place');
+
+  // 2. Record Claude CRO Veto counterfactual
+  const rVeto = signalAuditor.recordAuditedSignal(saDb, { evalObj: mockVetoEval, decision: 'VETOED_CLAUDE_CRO', claudeVerdict: 'VETO' });
+  assert.strictEqual(rVeto.recorded, true);
+
+  // 3. Grade both: HDFCBANK hits T1 (WIN), INFY hits SL (LOSS -> proves Claude Veto saved money!)
+  const gRes = signalAuditor.gradeOpenShadowSignals(saDb, {
+    latestPrices: {
+      HDFCBANK: { price: 1022, high: 1025, low: 998, isLive: true },
+      INFY: { price: 1516, high: 1518, low: 1495, isLive: true }
+    },
+    sessionInfo: { isNseEodCutoff: false, isMcxEodCutoff: false }
+  });
+  assert.strictEqual(gRes.graded.length, 2, 'Both shadow signals must resolve cleanly');
+  const hdfcGraded = gRes.graded.find(x => x.symbol === 'HDFCBANK');
+  const infyGraded = gRes.graded.find(x => x.symbol === 'INFY');
+  assert.strictEqual(hdfcGraded.exitReason, 'SHADOW_T1_WIN');
+  assert.ok(hdfcGraded.simNetPnl > 0, 'T1 hit must yield positive net simulated P&L after fees & slippage');
+  assert.strictEqual(infyGraded.exitReason, 'SHADOW_SL_LOSS');
+  assert.ok(infyGraded.simNetPnl < 0, 'SL hit must yield negative simulated P&L');
+
+  // 4. Verify Forming Setups Radar & Accuracy Report + CDSL DP fee in CNC simulation
+  const cncOutcome = signalAuditor.computeSimulatedOutcome({
+    side: 'BUY', exchange: 'NSE', bucket: 'CNC_SWING',
+    entryPrice: 1000, exitPrice: 1045, stopLoss: 980, qty: 5, lotMultiplier: 1
+  });
+  assert.ok(cncOutcome.fees >= signalAuditor.CDSL_CNC_DP_CHARGE_RS, 'CNC simulated fees must include ₹15.34 CDSL DP charge');
+
+  const forming = signalAuditor.detectFormingSetups([
+    {
+      assetType: 'STOCK', symbol: 'TCS', action: 'WAIT', confidence: 58, compositeRankScore: 64,
+      archetype: 'TREND_RUNNER', htfBias: 'BULLISH', smcState: 'BOS_UP', qualifiesForAutoExec: false,
+      executionPlan: { tradingsymbol: 'TCS', side: 'BUY', entryPrice: 3500, stopLoss: 3460, target1: 3580, netRR: 1.8 }
+    }
+  ], []);
+  assert.strictEqual(forming.length, 1);
+  assert.strictEqual(forming[0].stage, 'FORMING');
+  assert.strictEqual(forming[0].gapToTrigger, 4);
+
+  const rep = signalAuditor.getSignalAccuracyReport(saDb, { days: 30, formingSetups: forming });
+  assert.strictEqual(rep.ok, true);
+  assert.strictEqual(rep.summary.graded, 2);
+  assert.strictEqual(rep.comparison.executed.wins, 1);
+  assert.strictEqual(rep.comparison.claudeVetoes.losses, 1);
+  assert.ok(rep.comparison.claudeVetoes.netPnlRs < 0, 'Claude counterfactual ledger must capture saved losses');
+  console.log('✓ Test 26 Passed: Shadow Signal Auditor, Conservative SL-First Grading, Claude Counterfactual & 15s Forming Radar verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();
