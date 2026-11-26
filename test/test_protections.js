@@ -1003,5 +1003,58 @@ console.log('✓ Test 7 Passed: Global USD / Olymp Trade mode conversion, FTT gu
   assert.strictEqual(rep.comparison.executed.wins, 1);
   assert.strictEqual(rep.comparison.claudeVetoes.losses, 1);
   assert.ok(rep.comparison.claudeVetoes.netPnlRs < 0, 'Claude counterfactual ledger must capture saved losses');
-  console.log('✓ Test 26 Passed: Shadow Signal Auditor, Conservative SL-First Grading, Claude Counterfactual & 15s Forming Radar verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
+  console.log('✓ Test 26 Passed: Shadow Signal Auditor, Conservative SL-First Grading, Claude Counterfactual & 15s Forming Radar verified.');
+
+  // =========================================================================
+  // Test 27: Unified Capital Ledger, CDSL CNC DP Charge & Trade DNA Pattern Memory
+  // =========================================================================
+  const tradeInt = require('../shared/trade_intelligence');
+  const tiDb = new DatabaseSync(':memory:');
+  tiDb.exec(`
+    CREATE TABLE paper_trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, side TEXT, qty REAL,
+      entry_price REAL, entry_time TEXT, stop_loss REAL, target REAL,
+      exit_price REAL, exit_time TEXT, brokerage REAL, stt_gst REAL,
+      net_pnl REAL, status TEXT, exit_reason TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE trade_execution_audit (
+      trade_id INTEGER PRIMARY KEY, symbol TEXT, side TEXT, entry_price REAL,
+      init_sl REAL, target REAL, mfe_price REAL, mae_price REAL, mfe_r REAL, mae_r REAL, updated_at TEXT
+    );
+    CREATE TABLE trade_lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, side TEXT, regime TEXT,
+      session_window TEXT, parity_signal TEXT, exit_reason TEXT, net_pnl REAL, lesson TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  signalAuditor.ensureSignalAuditSchema(tiDb);
+
+  // Realized +₹500 profit, plus 1 open CNC Swing (₹4,000 cash) + 1 open MIS (₹5,000 notional = ₹1,000 margin) + 1 open GOLDBEES (₹1,000)
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, exit_price, exit_time, brokerage, stt_gst, net_pnl, status, exit_reason) VALUES ('HDFCBANK','BUY',10,800,'2026-11-24T04:00:00Z',790,820,855,'2026-11-24T05:00:00Z',40,10,500,'WIN','AUTO_TARGET')`).run();
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason) VALUES ('HDFCBANK','BUY',10,800,'2026-11-25T04:00:00Z',790,820,40,10,'WIN','AUTO_TARGET')`).run();
+  tiDb.prepare(`UPDATE paper_trades SET net_pnl = 150 WHERE id = 2`).run();
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason) VALUES ('HDFCBANK','BUY',10,800,'2026-11-26T04:00:00Z',790,820,40,10,'WIN','AUTO_TARGET')`).run();
+  tiDb.prepare(`UPDATE paper_trades SET net_pnl = 120 WHERE id = 3`).run();
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason) VALUES ('ETERNAL','BUY',20,200,'2026-11-26T04:00:00Z',196,209,0,8,'OPEN','AUTO_PILOT_CNC_SWING')`).run();
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason) VALUES ('ITC','BUY',10,500,'2026-11-26T04:00:00Z',495,510,40,5,'OPEN','AUTO_PILOT')`).run();
+  tiDb.prepare(`INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason) VALUES ('GOLDBEES','BUY',10,100,'2026-11-26T04:00:00Z',96,112,0,16,'OPEN','AUTO_PILOT_CNC_GOLD')`).run();
+
+  const ledger = tradeInt.computePortfolioCapitalLedger(tiDb, 15000);
+  assert.strictEqual(ledger.totalEquity, 15770, 'Total equity must equal base 15000 + realized 770');
+  assert.strictEqual(ledger.lockedCncCash, 5000, 'CNC Swing (4000) + GOLDBEES (1000) must lock ₹5,000 cash');
+  assert.strictEqual(ledger.lockedMisMargin, 1000, 'MIS ₹5,000 notional at 5x must lock ₹1,000 margin');
+  assert.strictEqual(ledger.freeCash, 9770, 'Free cash must equal 15770 - 5000 - 1000');
+  assert.strictEqual(ledger.hasGoldOpen, true, 'Gold exposure flag must detect open GOLDBEES');
+
+  const patMem = tradeInt.buildPatternMemory(tiDb);
+  const boostAdj = tradeInt.evaluatePatternAdjustment(patMem, { symbol: 'HDFCBANK', side: 'BUY' });
+  assert.strictEqual(boostAdj.tag, 'PROVEN_WINNER_BOOST');
+  assert.strictEqual(boostAdj.confDelta, 6);
+  assert.strictEqual(boostAdj.sizeMult, 1.15);
+
+  const enriched = tradeInt.getEnrichedPaperTrades(tiDb, { limit: 20 });
+  assert.strictEqual(enriched[0].gross_pnl !== undefined, true, 'Enriched trades must include gross_pnl');
+  const dna = tradeInt.analyzeTradeDNA(enriched, patMem);
+  assert.strictEqual(dna.winnersCount, 3);
+  assert.ok(dna.activeRules.some(r => r.includes('HDFCBANK_BUY')), 'Trade DNA must surface proven winner boost rule');
+  console.log('✓ Test 27 Passed: Unified Capital Ledger, CDSL DP Charges & Trade DNA Pattern Learning verified.\n🎉 ALL INSTITUTIONAL TESTS PASSED.');
 })();

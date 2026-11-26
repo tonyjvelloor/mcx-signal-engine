@@ -26,6 +26,7 @@ const signalEngine = require('./signal_engine');
 const debateEngine = require('./debate_engine');
 const nseHolidays = require('./nse_holidays');
 const nseMcpClient = require('./nse_mcp_client');
+const tradeIntelligence = require('./trade_intelligence');
 
 const AUTO_PILOT_STOCKS = [
   { id: 'reliance',   symbol: 'RELIANCE',   ticker: 'RELIANCE.NS',   name: 'Reliance Ind',   sector: 'Energy/Telecom', sl_atr: 1.8, t1_atr: 2.8, t2_atr: 4.5 },
@@ -340,6 +341,7 @@ function evaluateStockForAutoPilot({
   swingProfile = null,
   multiYearSwingEdge = null,
   brainState = null,
+  patternMemory = null,
   recentLessons = [],
   geoIntel = null,
   accountProfile = { capital: 15000, maxRiskPerTrade: 150, dailyLossLimit: 375 },
@@ -505,7 +507,7 @@ function evaluateStockForAutoPilot({
   });
 
   const action = gate.action;
-  const confidence = action === 'BUY'
+  let confidence = action === 'BUY'
     ? gate.combined
     : action === 'SELL'
       ? (100 - gate.combined)
@@ -542,7 +544,9 @@ function evaluateStockForAutoPilot({
     (action === 'BUY' && brainState?.regime?.regime === 'BULL_TREND') ||
     (action === 'SELL' && (brainState?.regime?.regime === 'BEAR_DRIFT' || brainState?.regime?.regime === 'HIGH_VOL_PANIC'));
   const convictionBoost = (confidence >= 76 && isRegimeAligned && multiYearSwingEdge?.provenEdge) ? 1.30 : 1.0;
-  const rawEffectiveBudget = Math.round(stance.effectiveRisk * compoundScale * (debate.sizeMultiplier || 1) * brainSizeMult * convictionBoost);
+  const patAdj = tradeIntelligence.evaluatePatternAdjustment(patternMemory, { symbol: stock.symbol, side: action });
+  confidence = clamp(Math.round(confidence + patAdj.confDelta), 0, 99);
+  const rawEffectiveBudget = Math.round(stance.effectiveRisk * compoundScale * (debate.sizeMultiplier || 1) * brainSizeMult * convictionBoost * patAdj.sizeMult);
   const effectiveBudget = Math.max(50, Math.min(Math.round(capital * 0.02), rawEffectiveBudget));
 
   const finalSide = action === 'SELL' ? 'SELL' : 'BUY';
@@ -1229,13 +1233,16 @@ function manageOpenPaperPositions({ db, latestPrices = {}, sessionInfo = null, b
       if (applySlippage && exitReason !== 'AUTO_TARGET') {
         fillPrice = applyPaperSlippage(fillPrice, t.side, false, 4);
       }
-      const actualFees = riskEngine.calculateZerodhaFees({
-        segment,
-        buyPrice: t.side === 'BUY' ? entry : fillPrice,
-        sellPrice: t.side === 'BUY' ? fillPrice : entry,
-        qty,
-        lotMultiplier: lotMult
-      });
+      const isCncSwingClose = curReason.includes('CNC_SWING');
+      const actualFees = isCncSwingClose
+        ? { brokerage: 0, totalFees: +((entry + fillPrice) * qty * 0.0011 + 15.34).toFixed(2) }
+        : riskEngine.calculateZerodhaFees({
+            segment,
+            buyPrice: t.side === 'BUY' ? entry : fillPrice,
+            sellPrice: t.side === 'BUY' ? fillPrice : entry,
+            qty,
+            lotMultiplier: lotMult
+          });
       const grossPnl = t.side === 'BUY'
         ? (fillPrice - entry) * qty * lotMult
         : (entry - fillPrice) * qty * lotMult;

@@ -255,7 +255,8 @@ function executeAllWeatherPaperCycle(db, {
       const qty = Number(t.qty || 1);
       const entry = Number(t.entry_price);
       const grossPnl = (livePx - entry) * qty;
-      const sttGst = +((entry + livePx) * qty * 0.00145).toFixed(2);
+      // Realistic Zerodha CNC delivery exit: 0.145% per-side statutory+slippage + ₹15.34 CDSL DP sell charge
+      const sttGst = +((entry + livePx) * qty * 0.00145 + 15.34).toFixed(2);
       const netPnl = +(grossPnl - sttGst).toFixed(2);
       const status = netPnl >= 0 ? 'WIN' : 'LOSS';
       db.prepare(`
@@ -267,47 +268,51 @@ function executeAllWeatherPaperCycle(db, {
     }
   }
 
-  // Re-fetch remaining open All-Weather CNC positions
-  const openAfter = db.prepare(`
-    SELECT * FROM paper_trades
-    WHERE status = 'OPEN' AND (exit_reason LIKE 'AUTO_PILOT_CNC_%')
-  `).all();
-  const openSyms = new Set(openAfter.map(t => String(t.symbol).toUpperCase()));
-  const openWashoutCount = openAfter.filter(t => String(t.exit_reason) === 'AUTO_PILOT_CNC_WASHOUT').length;
+  // Re-fetch ALL remaining OPEN positions across all engines (cross-engine exposure & gold overlap guard)
+  const allOpenRows = db.prepare(`SELECT * FROM paper_trades WHERE status = 'OPEN'`).all();
+  const openSyms = new Set(allOpenRows.map(t => String(t.symbol).toUpperCase()));
+  const hasGoldOpen = allOpenRows.some(t => String(t.symbol).toUpperCase().includes('GOLD'));
+  const openWashoutCount = allOpenRows.filter(t => String(t.exit_reason) === 'AUTO_PILOT_CNC_WASHOUT').length;
+  let remainingCash = Math.max(0, Number(capital || 0));
 
-  // 2. Open New Washout CNC Entries when RISK_ON
+  // 2. Open New Washout CNC Entries when RISK_ON (strictly within reconciled freeCash)
   let slotsLeft = Math.max(0, 3 - openWashoutCount);
-  if (state.breadthState === 'RISK_ON' && slotsLeft > 0) {
+  if (state.breadthState === 'RISK_ON' && slotsLeft > 0 && remainingCash >= 500) {
     for (const w of state.allocation.slots) {
       if (slotsLeft <= 0) break;
       if (openSyms.has(w.symbol)) continue;
-      const qty = w.estQtyPerSlot;
       const entry = w.price;
+      const maxAffordableQty = Math.floor(remainingCash / Math.max(1, entry));
+      const qty = Math.min(w.estQtyPerSlot, maxAffordableQty);
+      if (qty < 1) continue;
       const sl = +(entry * 0.94).toFixed(2);
       const tgt = w.sma5;
-      const sttEst = +(entry * qty * 0.0029).toFixed(2);
+      const sttEst = +(entry * qty * 0.0029 + 15.34).toFixed(2);
       const info = db.prepare(`
         INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
         VALUES (?, 'BUY', ?, ?, ?, ?, ?, 0, ?, 'OPEN', 'AUTO_PILOT_CNC_WASHOUT')
       `).run(w.symbol, qty, entry, new Date().toISOString(), sl, tgt, sttEst);
+      remainingCash = Math.max(0, remainingCash - entry * qty);
       opened.push({ tradeId: Number(info.lastInsertRowid), bucket: 'CNC_WASHOUT', symbol: w.symbol, qty, entry, target: tgt });
       openSyms.add(w.symbol);
       slotsLeft--;
     }
   }
 
-  // 3. Open GOLDBEES Safe-Haven CNC Holding if GOLDBEES > 35-DMA & not already held
-  if (state.goldSafeHaven.bullish && !openSyms.has('GOLDBEES') && state.allocation.goldBeesTargetQty >= 1) {
-    const qty = state.allocation.goldBeesTargetQty;
+  // 3. Open GOLDBEES Safe-Haven CNC Holding if GOLDBEES > 35-DMA & no gold exposure open & freeCash allows
+  if (state.goldSafeHaven.bullish && !openSyms.has('GOLDBEES') && !hasGoldOpen && remainingCash >= state.goldSafeHaven.price) {
     const entry = state.goldSafeHaven.price;
-    const sl = state.goldSafeHaven.sma35;
-    const tgt = +(entry * 1.12).toFixed(2);
-    const sttEst = +(entry * qty * 0.0029).toFixed(2);
-    const info = db.prepare(`
-      INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
-      VALUES ('GOLDBEES', 'BUY', ?, ?, ?, ?, ?, 0, ?, 'OPEN', 'AUTO_PILOT_CNC_GOLD')
-    `).run(qty, entry, new Date().toISOString(), sl, tgt, sttEst);
-    opened.push({ tradeId: Number(info.lastInsertRowid), bucket: 'CNC_GOLD_SAFE_HAVEN', symbol: 'GOLDBEES', qty, entry, stopLoss: sl });
+    const qty = Math.min(state.allocation.goldBeesTargetQty, Math.floor((remainingCash * 0.50) / Math.max(1, entry)));
+    if (qty >= 1) {
+      const sl = state.goldSafeHaven.sma35;
+      const tgt = +(entry * 1.12).toFixed(2);
+      const sttEst = +(entry * qty * 0.0029 + 15.34).toFixed(2);
+      const info = db.prepare(`
+        INSERT INTO paper_trades (symbol, side, qty, entry_price, entry_time, stop_loss, target, brokerage, stt_gst, status, exit_reason)
+        VALUES ('GOLDBEES', 'BUY', ?, ?, ?, ?, ?, 0, ?, 'OPEN', 'AUTO_PILOT_CNC_GOLD')
+      `).run(qty, entry, new Date().toISOString(), sl, tgt, sttEst);
+      opened.push({ tradeId: Number(info.lastInsertRowid), bucket: 'CNC_GOLD_SAFE_HAVEN', symbol: 'GOLDBEES', qty, entry, stopLoss: sl });
+    }
   }
 
   return { ok: true, opened, closed, state };
@@ -372,7 +377,7 @@ function runAllWeatherBacktest(db, { saveToFile = true } = {}) {
       const pos = openPos[p], si = dateIdx[pos.sym][d], siN = dateIdx[pos.sym][dNext];
       if (si == null || siN == null) continue;
       if (data[pos.sym].closes[si] >= sma(data[pos.sym].closes, si, 5) || (di - pos.entryDi) >= 12 || br < 45) {
-        const ex = data[pos.sym].rows[siN].open, proc = pos.shares * ex * (1 - FEE);
+        const ex = data[pos.sym].rows[siN].open, proc = Math.max(0, pos.shares * ex * (1 - FEE) - 15.34);
         cash += proc; closed.push({ pnl: proc - pos.cost }); openPos.splice(p, 1);
       }
     }

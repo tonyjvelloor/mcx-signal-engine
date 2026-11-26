@@ -33,6 +33,7 @@ const tradingBrain = require('./shared/trading_brain');
 const allWeatherEngine = require('./shared/all_weather_engine');
 const claudeDesk = require('./shared/claude_desk');
 const signalAuditor = require('./shared/signal_auditor');
+const tradeIntelligence = require('./shared/trade_intelligence');
 
 const PORT = process.env.PORT || 8000;
 const HOST = '127.0.0.1'; // Strict loopback binding
@@ -1256,12 +1257,14 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/all-weather/rebalance' && req.method === 'POST') {
       try {
         const acc = getAccountProfile();
+        const ledger = tradeIntelligence.computePortfolioCapitalLedger(db, acc.capital || 15000);
         const goldQ = await nseMcpClient.getLiveStockQuote('GOLDBEES').catch(() => null);
         const liveQuotes = goldQ ? { GOLDBEES: goldQ } : {};
         const result = allWeatherEngine.executeAllWeatherPaperCycle(db, {
-          capital: acc.capital || 15000,
+          capital: ledger.freeCash,
           liveQuotes
         });
+        result.capitalLedger = tradeIntelligence.computePortfolioCapitalLedger(db, acc.capital || 15000);
         for (const op of (result.opened || [])) {
           logAutoPilotEvent('ALL_WEATHER_OPEN', `[All-Weather ${op.bucket}] Bought ${op.symbol} ×${op.qty} @ ₹${op.entry} (₹0 Brok CNC)`, op);
         }
@@ -1344,6 +1347,22 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // 1d2k. Per-Trade PnL DNA, Capital Ledger & Pattern Memory Intelligence
+    if (pathname === '/api/trade-intelligence' && req.method === 'GET') {
+      try {
+        const acc = getAccountProfile();
+        const capitalLedger = tradeIntelligence.computePortfolioCapitalLedger(db, acc.capital || 15000);
+        const patternMemory = tradeIntelligence.buildPatternMemory(db);
+        const trades = tradeIntelligence.getEnrichedPaperTrades(db, { limit: 150 });
+        const dna = tradeIntelligence.analyzeTradeDNA(trades, patternMemory);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: true, capitalLedger, dna, patternMemory, trades }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    }
+
     // 1d3. Trigger Daily Historical Archiver On-Demand
     if (pathname === '/api/archive/run' && req.method === 'POST') {
       const { runArchiver } = require('./scripts/archive_candles');
@@ -1378,12 +1397,7 @@ const server = http.createServer(async (req, res) => {
     // 1e. Paper Trading Engine (Enforcing ₹50 max risk & realistic Zerodha charges)
     if (pathname === '/api/paper-trades') {
       if (req.method === 'GET') {
-        let trades = [];
-        if (db) {
-          try {
-            trades = db.prepare('SELECT * FROM paper_trades ORDER BY id DESC').all();
-          } catch (_) {}
-        }
+        const trades = db ? tradeIntelligence.getEnrichedPaperTrades(db, { limit: 200 }) : [];
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(trades));
       }
@@ -3094,9 +3108,10 @@ setInterval(() => {
         (async () => {
           try {
             const acc = getAccountProfile();
+            const awLedger = tradeIntelligence.computePortfolioCapitalLedger(db, acc.capital || 15000);
             const goldQ = await nseMcpClient.getLiveStockQuote('GOLDBEES').catch(() => null);
             const liveQuotes = goldQ ? { GOLDBEES: goldQ } : {};
-            const awRes = allWeatherEngine.executeAllWeatherPaperCycle(db, { capital: acc.capital || 15000, liveQuotes });
+            const awRes = allWeatherEngine.executeAllWeatherPaperCycle(db, { capital: awLedger.freeCash, liveQuotes });
             for (const op of (awRes.opened || [])) {
               logAutoPilotEvent('ALL_WEATHER_OPEN', `[All-Weather ${op.bucket}] Bought ${op.symbol} ×${op.qty} @ ₹${op.entry} (₹0 Brok CNC)`, op);
             }
@@ -3253,6 +3268,9 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
       : [];
     const cachedSwingBt = swingBacktest.loadCachedSwingBacktest();
     const activeStockUniverse = autoPilot.buildDynamicStockUniverse(cachedSwingBt?.provenChampions || []);
+    const patternMemory = tradeIntelligence.buildPatternMemory(db);
+    let capitalLedger = tradeIntelligence.computePortfolioCapitalLedger(db, accProfile.capital || 15000);
+    autoPilotState.capitalLedger = capitalLedger;
 
     const [geoIntel, nseMcpOverview, nseMcpQuotes] = await Promise.all([
       geopoliticalAnalogs.getLiveGeopoliticalIntelligence(false).catch(() => null),
@@ -3338,6 +3356,7 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
         swingProfile: swingProfiles[stock.symbol] || null,
         multiYearSwingEdge: cachedSwingBt?.bySymbol?.[stock.symbol] || null,
         brainState,
+        patternMemory,
         recentLessons: stockLessons,
         geoIntel,
         accountProfile: accProfile,
@@ -3606,6 +3625,35 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
             execQty = Math.min(execQty, maxBonusQty);
           }
 
+          // P0.1 Unified Capital Ledger Gate: Never double-allocate ₹15K across All-Weather, CNC Swing, NSE MIS & MCX
+          if (!allowForceEntry) {
+            const unitMargin = isCncSwing
+              ? p.entryPrice
+              : (p.exchange === 'MCX' ? (p.marginRequired || p.entryPrice) / Math.max(1, p.qty) : p.entryPrice / 5);
+            if (capitalLedger.freeCash < unitMargin) {
+              try {
+                signalAuditor.recordAuditedSignal(db, {
+                  evalObj: cand,
+                  decision: 'SKIPPED_CAPITAL_CAP',
+                  decisionReason: `Free cash ₹${Math.round(capitalLedger.freeCash)} below 1-unit margin ₹${Math.round(unitMargin)}`
+                });
+              } catch (_) {}
+              continue;
+            }
+            const maxAffordable = Math.max(1, Math.floor(capitalLedger.freeCash / Math.max(1, unitMargin)));
+            if (execQty > maxAffordable) execQty = maxAffordable;
+            if (p.tradingsymbol.includes('GOLD') && capitalLedger.hasGoldOpen) {
+              try {
+                signalAuditor.recordAuditedSignal(db, {
+                  evalObj: cand,
+                  decision: 'BLOCKED_SECTOR_GUARD',
+                  decisionReason: 'Cross-engine Gold exposure already open (GOLDBEES/GOLDM)'
+                });
+              } catch (_) {}
+              continue;
+            }
+          }
+
           // Final Pre-Trade Claude Haiku CRO Risk-Desk Gatekeeper (45m cached per symbol+side, fails open on timeout)
           let claudeVerdictNote = '';
           let claudeVerdictVal = null;
@@ -3708,6 +3756,8 @@ async function runAutoPaperPilotCycle({ forceScan = false, allowForceEntry = fal
           autoPilotState.symbolLastEntryMs[p.tradingsymbol] = Date.now();
           openSyms.add(p.tradingsymbol);
           openNow.push({ symbol: p.tradingsymbol, status: 'OPEN' });
+          capitalLedger = tradeIntelligence.computePortfolioCapitalLedger(db, accProfile.capital || 15000);
+          autoPilotState.capitalLedger = capitalLedger;
           slotsLeft--;
           if (isCncSwing) cncDailyLeft--;
           else dailyTradesLeft--;
